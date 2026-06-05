@@ -45,10 +45,12 @@ XMarkup/
 │   ├── src/
 │   │   ├── tokenizer.h               # 状态机词法分析器（内部头文件）
 │   │   ├── tokenizer.cpp
-│   │   ├── tree_builder.h            # 栈式 AST 构建器
+│   │   ├── tree_builder.h            # 栈式 AST 构建器（含 <pre> 追踪）
 │   │   ├── tree_builder.cpp
-│   │   ├── style_resolver.h          # CSS 行内样式解析 + 映射
+│   │   ├── style_resolver.h          # CSS 行内样式解析 + 映射（含父标签栈）
 │   │   ├── style_resolver.cpp
+│   │   ├── entity_decoder.h          # HTML 实体解码器
+│   │   ├── entity_decoder.cpp
 │   │   ├── utf16_indexer.h           # UTF-8 → UTF-16 索引映射器
 │   │   ├── utf16_indexer.cpp
 │   │   ├── parser.h                  # Parser 内部实现（C++ 类）
@@ -61,6 +63,7 @@ XMarkup/
 │   ├── test_tokenizer.cpp
 │   ├── test_tree_builder.cpp
 │   ├── test_style_resolver.cpp
+│   ├── test_entity_decoder.cpp
 │   ├── test_utf16_indexer.cpp
 │   ├── test_api.cpp
 │   └── test_data/                    # 测试用 HTML 文件
@@ -173,17 +176,28 @@ typedef struct XMSpan {
 
 /* 解析结果 */
 typedef struct XMResult {
-    const char*   text;
-    uint32_t      text_len;
-    const XMSpan* spans;
-    uint32_t      span_count;
+    XMError       error;       // 错误码，XM_OK 表示成功
+    const char*   text;        // 清洗后的纯文本（UTF-8，以 \0 结尾）
+    uint32_t      text_len;    // text 的字节长度
+    const XMSpan* spans;       // 样式区间数组
+    uint32_t      span_count;  // spans 数组长度
 } XMResult;
 
 /* 配置 */
 typedef struct XMConfig {
-    uint8_t enable_autocorrect;
-    uint8_t max_nesting_depth;
+    uint8_t  enable_autocorrect;   // 是否启用乱序嵌套自动纠错（默认 1）
+    uint16_t max_nesting_depth;    // 最大嵌套深度（默认 256，防 DoS）
+    uint16_t base_font_size;       // 基准字体大小，单位 px（默认 16，用于 em/rem/pt 换算）
 } XMConfig;
+
+/* 错误码 */
+typedef enum XMError {
+    XM_OK               = 0,    // 成功
+    XM_ERR_NULL_PARSER  = -1,   // parser 为 NULL
+    XM_ERR_NULL_INPUT   = -2,   // html 为 NULL（length > 0 时）
+    XM_ERR_NESTING_OVERFLOW = -3, // 嵌套深度超限，已截断
+    XM_ERR_ALLOC_FAILED = -4,   // 内存分配失败
+} XMError;
 
 /* 不透明解析器句柄 */
 typedef struct XMParser XMParser;
@@ -195,6 +209,10 @@ void      xmarkup_destroy(XMParser* parser);
 /* 核心解析 */
 XMResult* xmarkup_parse(XMParser* parser, const char* html, size_t length);
 void      xmarkup_result_free(XMResult* result);
+
+/* 错误查询（线程安全，返回最近一次 xmarkup_parse 的错误码） */
+XMError xmarkup_last_error(XMParser* parser);
+const char* xmarkup_error_string(XMError error);
 
 #ifdef __cplusplus
 }
@@ -208,7 +226,7 @@ void      xmarkup_result_free(XMResult* result);
 | 结构体 | 职责 | 内存归属 |
 |--------|------|---------|
 | `XMParser` | 解析器实例，持有配置和内部状态 | 由 `xmarkup_create` 分配，`xmarkup_destroy` 释放 |
-| `XMResult` | 解析结果，含纯文本 + 样式数组 | 由 `xmarkup_parse` 分配，`xmarkup_result_free` 释放 |
+| `XMResult` | 解析结果，含错误码 + 纯文本 + 样式数组 | 由 `xmarkup_parse` 分配，`xmarkup_result_free` 释放 |
 | `XMSpan` | 样式区间，扁平数组元素 | 隶属于 `XMResult`，随 `XMResult` 一起释放 |
 | `XMConfig` | 配置参数 | 调用者栈分配或堆分配，仅在使用时读取 |
 
@@ -308,9 +326,55 @@ br, hr, img, input, meta, link, col, area, base, embed, source, track, wbr
 3. 交给 UTF-16 索引器转换
 4. 组装 `XMResult`
 
+#### `<pre>` 空白保留
+
+TreeBuilder 在构建 AST 时追踪当前是否处于 `<pre>` 节点内部：
+
+```cpp
+// DFS 遍历时维护
+bool inside_pre_ = false;
+
+// 进入 <pre> 节点时
+if (tag_name == "pre") inside_pre_ = true;
+
+// 收集文本时
+if (inside_pre_) {
+    // 原样保留所有空白、换行、连续空格
+} else {
+    // 标准空白折叠：连续空白合并为单个空格
+}
+
+// 离开 <pre> 节点时
+if (tag_name == "pre") inside_pre_ = false;
+```
+
 ---
 
 ### 4.3 样式解析器（Style Resolver）
+
+#### 父标签栈与上下文感知
+
+StyleResolver 在 DFS 遍历 AST 时维护一个**父标签栈**，用于解决上下文依赖的标签映射：
+
+```cpp
+std::vector<std::string_view> parent_stack_;
+
+// 进入节点时压栈
+parent_stack_.push_back(node.tag_name);
+
+// 遇到 <source> 时查询栈顶父标签
+if (tag_name == "source") {
+    auto parent = parent_stack_.size() >= 2
+        ? parent_stack_[parent_stack_.size() - 2]  // source 自身已在栈顶，父标签是前一个
+        : "";
+    if (parent == "video")  → XM_TAG_VIDEO_SOURCE
+    if (parent == "audio")  → XM_TAG_AUDIO_SOURCE
+    else                    → XM_TAG_UNKNOWN  // 容错
+}
+
+// 离开节点时弹栈
+parent_stack_.pop_back();
+```
 
 #### 标签语义映射
 
@@ -323,9 +387,10 @@ br, hr, img, input, meta, link, col, area, base, embed, source, track, wbr
 | `<a href>` | `XM_TAG_LINK` | value = href 值 |
 | `<img src>` | `XM_TAG_IMAGE` | value = src 值 |
 | `<video>` | `XM_TAG_VIDEO` | value = poster（封面图），子 source 独立输出 |
-| `<source>` | `XM_TAG_VIDEO_SOURCE` | value = src（视频地址），见 10.3 节 |
-| `<audio>` | `XM_TAG_AUDIO` | 与 video 对称，见 10.3.6 节 |
-| `<source>` (audio 内) | `XM_TAG_AUDIO_SOURCE` | value = src（音频地址） |
+| `<audio>` | `XM_TAG_AUDIO` | 与 video 对称 |
+| `<source>` (在 video 内) | `XM_TAG_VIDEO_SOURCE` | 通过父标签栈判定上下文 |
+| `<source>` (在 audio 内) | `XM_TAG_AUDIO_SOURCE` | 通过父标签栈判定上下文 |
+| `<source>` (其他位置) | `XM_TAG_UNKNOWN` | 容错处理 |
 | `<h1>`~`<h6>` | `XM_TAG_HEADING_1`~`6` | |
 | `<p>` | `XM_TAG_PARAGRAPH` | |
 | `<ul>`, `<ol>`, `<li>` | `XM_TAG_LIST_*` | |
@@ -340,14 +405,108 @@ br, hr, img, input, meta, link, col, area, base, embed, source, track, wbr
 
 #### 值标准化规则
 
+**颜色值：**
+
 | 输入格式 | 标准化输出 | 示例 |
 |---------|-----------|------|
 | 颜色名 | `#RRGGBB` | `red` → `#FF0000` |
 | `rgb(r,g,b)` | `#RRGGBB` | `rgb(255,0,0)` → `#FF0000` |
 | `rgba(r,g,b,a)` | `#RRGGBBAA` | `rgba(255,0,0,0.5)` → `#FF000080` |
 | `#RGB` | `#RRGGBB` | `#F00` → `#FF0000` |
-| `16px` / `1em` | `16` | 去除 px/em/rem/pt 单位 |
+
+**font-size 值（统一换算为 px 数值）：**
+
+| 输入格式 | 换算规则 | 示例（base_font_size=16） |
+|---------|---------|--------------------------|
+| `16px` | 直接取数值 | `16px` → `16` |
+| `1.5em` | 数值 × base_font_size | `1.5em` → `24` |
+| `1.5rem` | 数值 × base_font_size | `1.5rem` → `24` |
+| `12pt` | 数值 × 1.333（pt→px） | `12pt` → `16` |
+| `100%` | 数值 / 100 × base_font_size | `150%` → `24` |
+| 无单位数字 | 原值透传（可能是行高倍数） | `1.5` → `1.5` |
+
+> `base_font_size` 默认值为 16（px），通过 `XMConfig.base_font_size` 可配置。
+> 桥接层拿到 px 数值后，根据本平台的屏幕密度和字体缩放因子做最终适配。
+
+**其他值：**
+
+| 输入格式 | 标准化输出 | 示例 |
+|---------|-----------|------|
 | `bold` / `700` | `bold` | font-weight 标准化 |
+| `italic` | `italic` | font-style 直接透传 |
+| `underline` / `line-through` | 原值 | text-decoration 直接透传 |
+| `left` / `center` / `right` / `justify` | 原值 | text-align 直接透传 |
+| `1.5` / `24px` | 数值部分 | line-height / letter-spacing |
+
+---
+
+### 4.4 HTML 实体解码器（Entity Decoder）
+
+#### 设计目标
+
+在 DFS 展平 AST 时，对文本节点中的 HTML 实体进行解码，确保输出的纯文本中不包含任何原始实体引用。
+
+#### 支持的实体类型
+
+| 类型 | 格式 | 示例 | 解码结果 |
+|------|------|------|---------|
+| 命名实体 | `&name;` | `&amp;` | `&` |
+| 十进制数字实体 | `&#NNN;` | `&#60;` | `<` |
+| 十六进制数字实体 | `&#xHHH;` | `&#x4e2d;` | `中` |
+
+#### 常用命名实体映射表
+
+```cpp
+// 内置约 120 个常用 HTML 命名实体，包括但不限于：
+{"amp",   '&'},
+{"lt",    '<'},
+{"gt",    '>'},
+{"quot",  '"'},
+{"apos",  '\''},
+{"nbsp",  '\xC2\xA0'},   // U+00A0 NO-BREAK SPACE
+{"copy",  '©'},
+{"reg",   '®'},
+{"trade", '™'},
+{"mdash", '—'},
+{"ndash", '–'},
+{"laquo", '«'},
+{"raquo", '»'},
+// ... 完整列表约 120 项
+```
+
+#### 解码策略
+
+```
+输入文本节点: "1 &lt; 2 &amp; 3 &gt; 0 &#x4e2d;&#25991;"
+                    │
+                    ↓ 单趟扫描，遇到 & 开始解码
+                    ↓ 查找 ; 结束
+                    ↓ 查表 / 解析数字
+                    ↓ 替换为对应 UTF-8 字符
+                    ↓
+输出纯文本: "1 < 2 & 3 > 0 中文"
+```
+
+**关键实现要点：**
+
+1. **在 DFS 展平时内联解码**：不需要单独的解码步骤，在遍历 AST 文本节点时同步解码
+2. **解码影响 byte offset**：实体引用（如 `&amp;` = 5 字节）解码为单字符 `&`（1 字节），Span 的 range 需要相应调整
+3. **容错处理**：
+   - 遇到 `&` 但后续不是合法实体 → 保留原始 `&` 字符，不丢弃
+   - 遇到 `&` 但没有找到 `;` → 保留原始 `&` 及后续字符
+   - 非法数字实体（如 `&#9999999;`）→ 替换为 Unicode 替换字符 U+FFFD
+
+#### 对 Span 区间的影响
+
+实体解码发生在 DFS 展平阶段，**在 UTF-16 索引映射之前**。因此 Span 的 byte offset 基于解码后的文本计算，UTF-16 索引器看到的是已经解码的纯文本。
+
+```
+HTML: "1 &lt; 2"       (原始 8 字节)
+       ↓ 实体解码
+Text: "1 < 2"          (解码后 5 字节)
+       ↓ UTF-16 索引映射
+Range: {0, 5}          (5 个 UTF-16 码元)
+```
 
 ---
 
@@ -401,12 +560,16 @@ HTML 字符串 (UTF-8)
        ↓
 ┌──────────────┐
 │ TreeBuilder  │ 栈式构建，自动纠错
+│              │ 追踪 <pre> 上下文
 │              │ 输出 AST（byte offset）
 └──────┬───────┘
        │ AST
        ↓
 ┌──────────────┐
 │StyleResolver │ DFS 遍历，标签映射 + CSS 解析
+│  + Entity    │ 维护父标签栈（source 上下文感知）
+│   Decoder    │ HTML 实体解码 → 纯文本
+│              │ <pre> 内跳过空白折叠
 │              │ 输出 text(UTF-8) + spans(byte offset)
 └──────┬───────┘
        │ text + spans (byte offset)
@@ -418,7 +581,7 @@ HTML 字符串 (UTF-8)
        │
        ↓
    XMResult
-   { text(UTF-8), spans[](UTF-16 ranges) }
+   { error, text(UTF-8), spans[](UTF-16 ranges) }
 ```
 
 ---
@@ -452,6 +615,7 @@ add_library(xmarkup_core STATIC
     src/tokenizer.cpp
     src/tree_builder.cpp
     src/style_resolver.cpp
+    src/entity_decoder.cpp
     src/utf16_indexer.cpp
     src/parser.cpp
     src/api.cpp
@@ -491,6 +655,7 @@ foreach(test_name
     test_tokenizer
     test_tree_builder
     test_style_resolver
+    test_entity_decoder
     test_utf16_indexer
     test_api
 )
@@ -519,10 +684,11 @@ cd build && ctest --output-on-failure
 | 模块 | 正常用例 | 边界防御 | 性能测试 | 线程安全 |
 |------|---------|---------|---------|---------|
 | Tokenizer | 基本分词、属性解析、零拷贝验证 | 空输入、未闭合标签、非法字符、注释 | 字符批量化验证 | — |
-| TreeBuilder | 正常嵌套、兄弟节点 | 乱序纠错、未闭合、多余闭合、深度限制 | 50KB 压力测试 < 15ms | — |
-| StyleResolver | 标签映射、CSS 解析、值提取 | 未知标签、非法 CSS、空属性 | — | — |
+| TreeBuilder | 正常嵌套、兄弟节点、`<pre>` 空白保留 | 乱序纠错、未闭合、多余闭合、深度限制 | 50KB 压力测试 < 15ms | — |
+| StyleResolver | 标签映射、CSS 解析、值提取、`<source>` 上下文 | 未知标签、非法 CSS、空属性 | — | — |
+| EntityDecoder | 命名实体、数字实体、十六进制实体 | 不完整实体、非法实体、未知命名实体 | — | — |
 | UTF16Indexer | ASCII、中文、Emoji、混合内容 | 空文本、非法 UTF-8 | — | — |
-| API 集成 | 完整管线 | 空输入、恶意输入、千万层嵌套 | 50KB 压力测试 | 多线程并发 |
+| API 集成 | 完整管线、错误码验证 | NULL 输入、恶意输入、千万层嵌套 | 50KB 压力测试 | 多线程并发 |
 
 ---
 
@@ -919,23 +1085,33 @@ spans:
 输入: <ul><li>苹果</li><li>香蕉</li></ul>
 text: "苹果香蕉"
 spans:
-  { range: {0, 2}, tag: XM_TAG_LIST_UNORDERED }
-  { range: {0, 2}, tag: XM_TAG_LIST_ITEM }
-  { range: {2, 4}, tag: XM_TAG_LIST_UNORDERED }
-  { range: {2, 4}, tag: XM_TAG_LIST_ITEM }
+  { range: {0, 4}, tag: XM_TAG_LIST_UNORDERED }  ← UL 包裹整个列表
+  { range: {0, 2}, tag: XM_TAG_LIST_ITEM }        ← 第一个 li
+  { range: {2, 4}, tag: XM_TAG_LIST_ITEM }        ← 第二个 li
 ```
 
 ```
 输入: <ol><li>第一</li><li>第二</li></ol>
 text: "第一第二"
 spans:
-  { range: {0, 2}, tag: XM_TAG_LIST_ORDERED }
-  { range: {0, 2}, tag: XM_TAG_LIST_ITEM }
-  { range: {2, 4}, tag: XM_TAG_LIST_ORDERED }
-  { range: {2, 4}, tag: XM_TAG_LIST_ITEM }
+  { range: {0, 4}, tag: XM_TAG_LIST_ORDERED }     ← OL 包裹整个列表
+  { range: {0, 2}, tag: XM_TAG_LIST_ITEM }         ← 第一个 li
+  { range: {2, 4}, tag: XM_TAG_LIST_ITEM }         ← 第二个 li
+```
+
+```
+输入: <ul><li>水果<ul><li>苹果</li><li>香蕉</li></ul></li></ul>
+text: "水果苹果香蕉"
+spans:
+  { range: {0, 6}, tag: XM_TAG_LIST_UNORDERED }   ← 外层 UL
+  { range: {0, 6}, tag: XM_TAG_LIST_ITEM }         ← 外层 li 包裹全部
+  { range: {2, 6}, tag: XM_TAG_LIST_UNORDERED }   ← 内层 UL
+  { range: {2, 4}, tag: XM_TAG_LIST_ITEM }         ← 内层 li: 苹果
+  { range: {4, 6}, tag: XM_TAG_LIST_ITEM }         ← 内层 li: 香蕉
 ```
 
 > 注意：列表项之间的分隔符（如"• "或"1. "）由桥接层根据 tag 类型决定，核心引擎不生成。
+> 列表容器（`<ul>`/`<ol>`）的 range **始终包裹其全部子项**，与 `<table>` 的语义一致。
 
 ---
 
@@ -1048,7 +1224,47 @@ spans: (空数组，span_count = 0)
 
 ---
 
-### 11.9 CSS 行内样式值标准化
+### 11.9 HTML 实体解码
+
+#### 命名实体
+
+```
+输入: <p>1 &lt; 2 &amp; 3 &gt; 0</p>
+text: "1 < 2 & 3 > 0"
+spans:
+  { range: {0, 13}, tag: XM_TAG_PARAGRAPH }    ← 解码后文本长度变化，range 基于解码后计算
+```
+
+#### 数字实体（十进制 / 十六进制）
+
+```
+输入: <p>&#20013;&#25991; = &#x4e2d;&#x6587;</p>
+text: "中文 = 中文"
+spans:
+  { range: {0, 7}, tag: XM_TAG_PARAGRAPH }
+```
+
+#### 不完整实体（容错）
+
+```
+输入: <p>&amp hello &unknown; end</p>
+text: "& hello &unknown; end"     ← & 无分号保留原文，&unknown; 未知实体保留原文
+spans:
+  { range: {0, 20}, tag: XM_TAG_PARAGRAPH }
+```
+
+#### nbsp（不换行空格）
+
+```
+输入: <p>Hello&nbsp;World</p>
+text: "Hello\xC2\xA0World"       ← U+00A0 NO-BREAK SPACE（非普通空格）
+spans:
+  { range: {0, 11}, tag: XM_TAG_PARAGRAPH }     ← UTF-16 中 nbsp 占 1 个码元
+```
+
+---
+
+### 11.10 CSS 行内样式值标准化
 
 | 输入 style 值 | 输出 value | XMStyleType |
 |--------------|-----------|-------------|
