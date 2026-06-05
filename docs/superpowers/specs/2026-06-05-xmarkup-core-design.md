@@ -121,6 +121,10 @@ typedef enum XMTagType {
     /* 链接与媒体 */
     XM_TAG_LINK          = 40,
     XM_TAG_IMAGE         = 41,
+    XM_TAG_VIDEO         = 42,
+    XM_TAG_VIDEO_SOURCE  = 43,
+    XM_TAG_AUDIO         = 44,
+    XM_TAG_AUDIO_SOURCE  = 45,
     /* 列表 */
     XM_TAG_LIST_ORDERED   = 50,
     XM_TAG_LIST_UNORDERED = 51,
@@ -148,6 +152,8 @@ typedef enum XMStyleType {
     XM_STYLE_LINE_HEIGHT      = 7,
     XM_STYLE_TEXT_ALIGN       = 8,
     XM_STYLE_LETTER_SPACING   = 9,
+    XM_STYLE_MEDIA_TYPE       = 10,  // 媒体 MIME 类型（video/audio source）
+    XM_STYLE_MEDIA_QUERY      = 11,  // 媒体查询条件（source 的 media 属性）
 } XMStyleType;
 
 /* 文本区间（UTF-16 索引） */
@@ -316,6 +322,10 @@ br, hr, img, input, meta, link, col, area, base, embed, source, track, wbr
 | `<s>`, `<strike>`, `<del>` | `XM_TAG_STRIKETHROUGH` | 多对一映射 |
 | `<a href>` | `XM_TAG_LINK` | value = href 值 |
 | `<img src>` | `XM_TAG_IMAGE` | value = src 值 |
+| `<video>` | `XM_TAG_VIDEO` | value = poster（封面图），子 source 独立输出 |
+| `<source>` | `XM_TAG_VIDEO_SOURCE` | value = src（视频地址），见 10.3 节 |
+| `<audio>` | `XM_TAG_AUDIO` | 与 video 对称，见 10.3.6 节 |
+| `<source>` (audio 内) | `XM_TAG_AUDIO_SOURCE` | value = src（音频地址） |
 | `<h1>`~`<h6>` | `XM_TAG_HEADING_1`~`6` | |
 | `<p>` | `XM_TAG_PARAGRAPH` | |
 | `<ul>`, `<ol>`, `<li>` | `XM_TAG_LIST_*` | |
@@ -560,3 +570,117 @@ cd build && ctest --output-on-failure
 ### 10.2 策略
 
 词法分析器在 `TAG_NAME` 状态识别到上述标签名后，进入专用的 `RAWTEXT` 状态，持续消费字符直到遇到对应的闭合标签，然后回到 `DATA` 状态。这避免了 `<script>` 内部的 `<` 被误解析为标签开始。
+
+### 10.3 `<video>` 视频标签解析
+
+#### 10.3.1 设计目标
+
+视频标签的解析目标是**结构化提取所有视频源信息**，供三端桥接层根据平台能力选择最佳播放源。核心引擎只负责解析，不负责选择和渲染。
+
+#### 10.3.2 支持的 HTML 写法
+
+```html
+<!-- 写法 1：直接 src -->
+<video src="movie.mp4" poster="cover.jpg" controls></video>
+
+<!-- 写法 2：多 source（不同格式/码率/分辨率） -->
+<video poster="cover.jpg" controls>
+  <source src="movie.mp4" type="video/mp4">
+  <source src="movie.webm" type="video/webm">
+  <source src="movie-hd.mp4" type="video/mp4" media="(min-width: 800px)">
+</video>
+
+<!-- 写法 3：直接 src + source 混合（罕见但需兼容） -->
+<video src="fallback.mp4">
+  <source src="movie.mp4" type="video/mp4">
+</video>
+
+<!-- 写法 4：无 src 也无 source（降级文本） -->
+<video controls>您的浏览器不支持视频</video>
+```
+
+#### 10.3.3 Span 生成规则
+
+`<video>` 标签在 AST 中作为容器节点，其子节点（`<source>` 和文本）在展平时按以下规则生成 Span：
+
+**`<video>` 容器本身：**
+
+| XMSpan 字段 | 值 | 说明 |
+|-------------|---|------|
+| `tag` | `XM_TAG_VIDEO` | 标识视频容器 |
+| `style` | 0 | 无样式 |
+| `value` | poster 属性值 | 封面图 URL，无 poster 时为 NULL |
+| `range` | 视频标签对应的文本区间 | 通常为空区间（视频本身不产生文本） |
+
+**`<source>` 每个子标签：**
+
+| XMSpan 字段 | 值 | 说明 |
+|-------------|---|------|
+| `tag` | `XM_TAG_VIDEO_SOURCE` | 标识视频源 |
+| `style` | 0 | 无样式 |
+| `value` | src 属性值 | 视频地址 |
+| `range` | 与父级 `<video>` 相同 | 关联到同一个位置 |
+
+**关键属性提取：** `<source>` 的 `type` 属性（如 `video/mp4`）通过新增的 `XM_STYLE_MEDIA_TYPE` 携带：
+
+```c
+/* 新增 CSS 样式枚举值 */
+typedef enum XMStyleType {
+    /* ... 原有值 ... */
+    XM_STYLE_MEDIA_TYPE     = 10,  // 媒体 MIME 类型，用于 <source> 标签
+    XM_STYLE_MEDIA_QUERY    = 11,  // 媒体查询条件，用于 <source> 的 media 属性
+} XMStyleType;
+```
+
+#### 10.3.4 完整示例
+
+**输入 HTML：**
+
+```html
+<p>文字<video src="main.mp4" poster="cover.jpg"><source src="hd.mp4" type="video/mp4"><source src="hd.webm" type="video/webm"></video>更多文字</p>
+```
+
+**生成的纯文本 + Spans：**
+
+```
+text: "文字更多文字"
+
+spans[0]: { range: {0, 6},  tag: XM_TAG_PARAGRAPH,      style: 0,                    value: NULL }
+spans[1]: { range: {2, 2},  tag: XM_TAG_VIDEO,           style: 0,                    value: "cover.jpg" }
+spans[2]: { range: {2, 2},  tag: XM_TAG_VIDEO,           style: XM_STYLE_MEDIA_TYPE,  value: "video/mp4" }
+spans[3]: { range: {2, 2},  tag: XM_TAG_VIDEO_SOURCE,    style: XM_STYLE_MEDIA_TYPE,  value: "hd.mp4" }
+spans[4]: { range: {2, 2},  tag: XM_TAG_VIDEO_SOURCE,    style: XM_STYLE_MEDIA_TYPE,  value: "hd.webm" }
+```
+
+**设计说明：**
+
+- `<video>` 自身如果带 `src` 属性，生成一个额外的 `XM_TAG_VIDEO` span，其 value 为 src 值，作为**主视频源**
+- 每个 `<source>` 生成独立的 `XM_TAG_VIDEO_SOURCE` span，value 为 src，`XM_STYLE_MEDIA_TYPE` 携带 MIME 类型
+- 视频标签不产生文本内容，因此 range 为空区间 `{2, 2}`，但**位置信息保留**，桥接层知道视频在文本中的插入点
+- `<video>` 内的降级文本（如"您的浏览器不支持视频"）**不进入纯文本流**——移动端不需要降级文本
+
+#### 10.3.5 桥接层消费指南
+
+核心引擎输出的 Span 结构已包含三端所需的全部信息，桥接层按以下策略消费：
+
+```
+1. 找到 XM_TAG_VIDEO span → 获取封面图 (value)
+2. 收集所有 XM_TAG_VIDEO_SOURCE span → 获取 {src, type} 列表
+3. 如果有 XM_TAG_VIDEO + src → 加入候选源列表作为兜底
+4. 根据平台能力从候选列表中选择最佳源：
+   - iOS: 优先 video/mp4 (AVPlayer 原生支持)
+   - Android: 优先 video/mp4 (ExoPlayer/MediaPlayer)
+   - 鸿蒙: 优先 video/mp4 (AVPlayer 原生支持)
+5. 在 range.start 位置插入原生视频播放组件
+```
+
+#### 10.3.6 `<audio>` 音频标签（同步支持）
+
+与 `<video>` 采用相同的解析策略：
+
+```c
+XM_TAG_AUDIO         = 44,
+XM_TAG_AUDIO_SOURCE  = 45,
+```
+
+`<audio>` 标签处理逻辑与 `<video>` 完全对称，区别仅在于 tag 类型。Span 生成规则、source 提取逻辑完全复用 video 的代码路径。
