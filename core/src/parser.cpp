@@ -52,12 +52,10 @@ XMResult* ParserInternal::parse(const char* html, size_t length) {
     result->text = nullptr;
     result->text_len = 0;
 
-    // 拷贝文本
-    if (!flat.text.empty()) {
-        owned_text_ = std::move(flat.text);
-        result->text = owned_text_.c_str();
-        result->text_len = static_cast<uint32_t>(owned_text_.size());
-    }
+    // 拷贝文本（即使是空字符串也要保证 text 指针非 NULL）
+    owned_text_ = std::move(flat.text);
+    result->text = owned_text_.c_str();
+    result->text_len = static_cast<uint32_t>(owned_text_.size());
 
     // 转换 InternalSpan → XMSpan（byte offset → UTF-16 index）
     if (!flat.spans.empty()) {
