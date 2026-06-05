@@ -1,6 +1,7 @@
 #pragma once
 
 #include "tree_builder.h"
+#include "xmarkup/xmarkup.h"
 #include <vector>
 #include <string>
 #include <string_view>
@@ -29,6 +30,7 @@ private:
     void dfs(const ASTNode& node, bool inside_pre);
     int  map_tag(std::string_view tag_name) const;
     void parse_inline_style(std::string_view style_str);
+    void add_style_spans(const std::string& style_str, uint32_t start, uint32_t end);
     void extract_attribute_value(std::string_view attrs, const char* attr_name,
                                  std::string& out_value) const;
     std::string normalize_color(std::string_view value) const;
