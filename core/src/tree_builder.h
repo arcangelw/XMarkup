@@ -25,6 +25,7 @@ private:
     void handle_start_tag(const Token& tok);
     void handle_end_tag(const Token& tok);
     void handle_self_closing(const Token& tok);
+    void autocorrect_misnested(std::string_view tag);
 
     uint16_t max_depth_;
     bool autocorrect_;
