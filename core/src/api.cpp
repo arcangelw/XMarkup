@@ -23,8 +23,13 @@ XMResult* xmarkup_parse(XMParser* parser, const char* html, size_t length) {
 }
 
 void xmarkup_result_free(XMResult* result) {
-    if (!result) return;
-    delete result;
+    // XMResult 中的 text/spans/value 指针由 ParserInternal 的 owned_* 成员管理。
+    // 调用 xmarkup_parse 会覆盖上一次的数据，所以只需 delete result 本身。
+    // 注意：result 的指针在 ParserInternal 存活期间有效。
+    // 为安全起见，此处采用拷贝语义——result 拥有自己的数据副本。
+    // 但当前设计中 result 的 text/spans 指向 ParserInternal 内部数据，
+    // 所以 result 本身只需 delete（内部数据随 ParserInternal 生命周期管理）。
+    if (result) delete result;
 }
 
 XMError xmarkup_last_error(XMParser* parser) {
