@@ -1,5 +1,10 @@
 #include <gtest/gtest.h>
 #include <cstring>
+#include <chrono>
+#include <thread>
+#include <atomic>
+#include <vector>
+#include <string>
 #include "xmarkup/xmarkup.h"
 
 class APITest : public ::testing::Test {
@@ -289,4 +294,83 @@ TEST_F(APITest, ErrorString) {
 
 TEST_F(APITest, GetLastError) {
     EXPECT_EQ(xmarkup_last_error(parser_), XM_OK);
+}
+
+// === 性能测试 ===
+
+TEST_F(APITest, Stress50KB) {
+    std::string html;
+    html.reserve(50000);
+    for (int i = 0; html.size() < 50000; i++) {
+        html += "<p><b style=\"color:#ff0000\">Bold";
+        html += std::to_string(i);
+        html += "</b><i>Italic</i></p>";
+    }
+
+    auto start = std::chrono::high_resolution_clock::now();
+    auto* result = xmarkup_parse(parser_, html.c_str(), html.size());
+    auto end = std::chrono::high_resolution_clock::now();
+
+    ASSERT_NE(result, nullptr);
+    EXPECT_EQ(result->error, XM_OK);
+    EXPECT_GT(result->span_count, 0u);
+
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    EXPECT_LT(ms, 50) << "50KB 解析耗时 " << ms << "ms，超出 50ms 宽松目标";
+
+    xmarkup_result_free(result);
+}
+
+// === 恶意输入测试 ===
+
+TEST_F(APITest, MaliciousDeepNesting) {
+    std::string html;
+    for (int i = 0; i < 10000; i++) html += "<div>";
+    html += "text";
+    EXPECT_NO_FATAL_FAILURE({
+        auto* result = xmarkup_parse(parser_, html.c_str(), html.size());
+        ASSERT_NE(result, nullptr);
+        EXPECT_NE(result->text, nullptr);
+        xmarkup_result_free(result);
+    });
+}
+
+TEST_F(APITest, MaliciousUnclosedTags) {
+    std::string html;
+    for (int i = 0; i < 1000; i++) html += "<p>";
+    html += "text";
+    EXPECT_NO_FATAL_FAILURE({
+        auto* result = xmarkup_parse(parser_, html.c_str(), html.size());
+        ASSERT_NE(result, nullptr);
+        EXPECT_NE(result->text, nullptr);
+        xmarkup_result_free(result);
+    });
+}
+
+// === 线程安全测试 ===
+
+TEST_F(APITest, ThreadSafety) {
+    const char* html = "<b><i style=\"color:red\">text</i></b>";
+    constexpr int num_threads = 8;
+    std::vector<std::thread> threads;
+    std::atomic<int> errors{0};
+
+    for (int t = 0; t < num_threads; t++) {
+        threads.emplace_back([&]() {
+            XMConfig cfg = {1, 256, 16};
+            XMParser* p = xmarkup_create(&cfg);
+            for (int i = 0; i < 100; i++) {
+                auto* result = xmarkup_parse(p, html, std::strlen(html));
+                if (!result || result->error != XM_OK) {
+                    errors++;
+                } else {
+                    xmarkup_result_free(result);
+                }
+            }
+            xmarkup_destroy(p);
+        });
+    }
+
+    for (auto& t : threads) t.join();
+    EXPECT_EQ(errors, 0);
 }
