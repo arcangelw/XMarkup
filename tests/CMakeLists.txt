@@ -21,6 +21,9 @@ foreach(test_name
     target_link_libraries(${test_name}
         PRIVATE xmarkup_core GTest::gtest_main
     )
+    target_include_directories(${test_name}
+        PRIVATE ${CMAKE_SOURCE_DIR}/core/src
+    )
     include(GoogleTest)
     gtest_discover_tests(${test_name})
 endforeach()

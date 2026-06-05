@@ -41,6 +41,7 @@ struct Token {
 class Tokenizer {
 public:
     explicit Tokenizer(std::string_view html);
+
     bool has_next() const;
     Token next();
 
@@ -51,13 +52,12 @@ private:
     bool is_alpha(char c) const;
     bool is_whitespace(char c) const;
     void skip_rawtext(const char* end_tag);
-    void emit_text();
-    void start_token();
 
     std::string_view html_;
     size_t pos_ = 0;
-    size_t token_start_ = 0;
     TokenizerState state_ = TokenizerState::DATA;
+    bool has_token_ = false;
+    Token pending_token_;
 };
 
 } // namespace xmarkup
