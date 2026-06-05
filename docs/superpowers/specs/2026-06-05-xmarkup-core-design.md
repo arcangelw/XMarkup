@@ -545,7 +545,7 @@ cd build && ctest --output-on-failure
 
 | 平台 | 接入方式 | 转化目标 |
 |------|---------|---------|
-| iOS | Swift 直接调用 C API（或 ObjC++ 薄封装） | `NSAttributedString` |
+| iOS | Swift 6+ 直接调用 C API | `NSAttributedString` |
 | Android | JNI 调用 C API | `SpannableStringBuilder` |
 | 鸿蒙 | N-API 调用 C API | ArkUI `StyledString` |
 
@@ -684,3 +684,464 @@ XM_TAG_AUDIO_SOURCE  = 45,
 ```
 
 `<audio>` 标签处理逻辑与 `<video>` 完全对称，区别仅在于 tag 类型。Span 生成规则、source 提取逻辑完全复用 video 的代码路径。
+
+---
+
+## 11. 标签解析规范（输入→输出契约）
+
+> 本章节为每个支持的 HTML 标签定义**明确的解析行为契约**。
+> 所有单元测试必须以本章节的输入→输出对作为测试用例的权威来源。
+> 如果代码行为与本章节不一致，以本章节为准。
+
+### 约定
+
+- `range` 中的数字均为 **UTF-16 码元索引**（`[start, end)`，左闭右开）
+- `text` 为清洗后的纯文本，所有 HTML 标签已被剥离
+- `value` 为 `NULL` 时表示该字段无值，省略不写
+- 同一区间可以有多个 Span（语义叠加）
+
+---
+
+### 11.1 文本样式标签
+
+#### `<b>` / `<strong>` → `XM_TAG_BOLD`
+
+```
+输入: <b>加粗</b>普通
+text: "加粗普通"
+spans:
+  { range: {0, 2}, tag: XM_TAG_BOLD }
+```
+
+```
+输入: <strong>加粗</strong>
+text: "加粗"
+spans:
+  { range: {0, 2}, tag: XM_TAG_BOLD }    ← <strong> 与 <b> 映射相同
+```
+
+#### `<i>` / `<em>` → `XM_TAG_ITALIC`
+
+```
+输入: <i>斜体</i>
+text: "斜体"
+spans:
+  { range: {0, 2}, tag: XM_TAG_ITALIC }
+```
+
+#### `<u>` / `<ins>` → `XM_TAG_UNDERLINE`
+
+```
+输入: <u>下划线</u>
+text: "下划线"
+spans:
+  { range: {0, 3}, tag: XM_TAG_UNDERLINE }
+```
+
+#### `<s>` / `<strike>` / `<del>` → `XM_TAG_STRIKETHROUGH`
+
+```
+输入: <s>删除</s>
+text: "删除"
+spans:
+  { range: {0, 2}, tag: XM_TAG_STRIKETHROUGH }
+```
+
+#### `<mark>` → `XM_TAG_MARK`
+
+```
+输入: <mark>高亮</mark>
+text: "高亮"
+spans:
+  { range: {0, 2}, tag: XM_TAG_MARK }
+```
+
+#### `<code>` → `XM_TAG_CODE`
+
+```
+输入: <code>let x = 1</code>
+text: "let x = 1"
+spans:
+  { range: {0, 9}, tag: XM_TAG_CODE }
+```
+
+#### `<sub>` → `XM_TAG_SUBSCRIPT`
+
+```
+输入: H<sub>2</sub>O
+text: "H2O"
+spans:
+  { range: {1, 2}, tag: XM_TAG_SUBSCRIPT }
+```
+
+#### `<sup>` → `XM_TAG_SUPERSCRIPT`
+
+```
+输入: E=mc<sup>2</sup>
+text: "E=mc2"
+spans:
+  { range: {4, 5}, tag: XM_TAG_SUPERSCRIPT }
+```
+
+#### 样式叠加（嵌套标签）
+
+```
+输入: <b><i>粗斜体</i></b>
+text: "粗斜体"
+spans:
+  { range: {0, 3}, tag: XM_TAG_BOLD }
+  { range: {0, 3}, tag: XM_TAG_ITALIC }   ← 同一区间多 Span 叠加
+```
+
+#### 行内样式叠加（标签 + CSS）
+
+```
+输入: <b style="color:#ff0000">红色粗体</b>
+text: "红色粗体"
+spans:
+  { range: {0, 4}, tag: XM_TAG_BOLD,                          value: NULL }
+  { range: {0, 4}, tag: 0,           style: XM_STYLE_FOREGROUND_COLOR, value: "#FF0000" }
+```
+
+---
+
+### 11.2 段落结构标签
+
+#### `<p>` → `XM_TAG_PARAGRAPH`
+
+```
+输入: <p>第一段</p><p>第二段</p>
+text: "第一段第二段"
+spans:
+  { range: {0, 3}, tag: XM_TAG_PARAGRAPH }
+  { range: {3, 6}, tag: XM_TAG_PARAGRAPH }
+```
+
+> 注意：段落之间是否插入换行由桥接层决定，核心引擎只输出区间。
+
+#### `<h1>` ~ `<h6>` → `XM_TAG_HEADING_1` ~ `XM_TAG_HEADING_6`
+
+```
+输入: <h1>标题一</h1><h3>标题三</h3>
+text: "标题一标题三"
+spans:
+  { range: {0, 3}, tag: XM_TAG_HEADING_1 }
+  { range: {3, 6}, tag: XM_TAG_HEADING_3 }
+```
+
+#### `<blockquote>` → `XM_TAG_BLOCKQUOTE`
+
+```
+输入: <blockquote>引用内容</blockquote>
+text: "引用内容"
+spans:
+  { range: {0, 4}, tag: XM_TAG_BLOCKQUOTE }
+```
+
+#### `<pre>` → `XM_TAG_PREFORMATTED`
+
+```
+输入: <pre>  保持  空格\n换行</pre>
+text: "  保持  空格\n换行"     ← 内部空白原样保留
+spans:
+  { range: {0, 11}, tag: XM_TAG_PREFORMATTED }
+```
+
+> 注意：`<pre>` 内的连续空格和换行**原样保留**，不做折叠。
+
+#### `<div>` → `XM_TAG_DIVISION`
+
+```
+输入: <div>内容A</div><div>内容B</div>
+text: "内容A内容B"
+spans:
+  { range: {0, 3}, tag: XM_TAG_DIVISION }
+  { range: {3, 6}, tag: XM_TAG_DIVISION }
+```
+
+#### `<span>` → `XM_TAG_SPAN`
+
+```
+输入: <span style="color:blue">蓝色文字</span>
+text: "蓝色文字"
+spans:
+  { range: {0, 4}, tag: XM_TAG_SPAN }
+  { range: {0, 4}, tag: 0,           style: XM_STYLE_FOREGROUND_COLOR, value: "#0000FF" }
+```
+
+---
+
+### 11.3 链接与媒体标签
+
+#### `<a href>` → `XM_TAG_LINK`
+
+```
+输入: <a href="https://example.com">链接文字</a>
+text: "链接文字"
+spans:
+  { range: {0, 4}, tag: XM_TAG_LINK, value: "https://example.com" }
+```
+
+```
+输入: <a href="https://example.com" style="color:#ff0000">红色链接</a>
+text: "红色链接"
+spans:
+  { range: {0, 4}, tag: XM_TAG_LINK, value: "https://example.com" }
+  { range: {0, 4}, tag: 0,           style: XM_STYLE_FOREGROUND_COLOR, value: "#FF0000" }
+```
+
+```
+输入: <a name="anchor">锚点</a>              ← 无 href，只有 name
+text: "锚点"
+spans:
+  { range: {0, 2}, tag: XM_TAG_LINK, value: NULL }     ← value 为空
+```
+
+#### `<img>` → `XM_TAG_IMAGE`
+
+```
+输入: 文字<img src="pic.jpg" alt="描述">更多文字
+text: "文字更多文字"
+spans:
+  { range: {2, 2}, tag: XM_TAG_IMAGE, value: "pic.jpg" }
+```
+
+> 注意：`<img>` 是 void 元素，不产生文本。range 为空区间 `{2, 2}` 标记插入位置。
+> `alt` 属性暂不输出到 span 中，桥接层可按需扩展。
+
+---
+
+### 11.4 列表标签
+
+#### `<ul>` / `<ol>` / `<li>`
+
+```
+输入: <ul><li>苹果</li><li>香蕉</li></ul>
+text: "苹果香蕉"
+spans:
+  { range: {0, 2}, tag: XM_TAG_LIST_UNORDERED }
+  { range: {0, 2}, tag: XM_TAG_LIST_ITEM }
+  { range: {2, 4}, tag: XM_TAG_LIST_UNORDERED }
+  { range: {2, 4}, tag: XM_TAG_LIST_ITEM }
+```
+
+```
+输入: <ol><li>第一</li><li>第二</li></ol>
+text: "第一第二"
+spans:
+  { range: {0, 2}, tag: XM_TAG_LIST_ORDERED }
+  { range: {0, 2}, tag: XM_TAG_LIST_ITEM }
+  { range: {2, 4}, tag: XM_TAG_LIST_ORDERED }
+  { range: {2, 4}, tag: XM_TAG_LIST_ITEM }
+```
+
+> 注意：列表项之间的分隔符（如"• "或"1. "）由桥接层根据 tag 类型决定，核心引擎不生成。
+
+---
+
+### 11.5 表格标签
+
+#### `<table>` / `<tr>` / `<td>` / `<th>`
+
+```
+输入: <table><tr><th>姓名</th><th>年龄</th></tr><tr><td>张三</td><td>25</td></tr></table>
+text: "姓名年龄张三25"
+spans:
+  { range: {0, 8}, tag: XM_TAG_TABLE }
+  { range: {0, 4}, tag: XM_TAG_TABLE_ROW }
+  { range: {0, 2}, tag: XM_TAG_TABLE_HEADER }
+  { range: {2, 4}, tag: XM_TAG_TABLE_HEADER }
+  { range: {4, 8}, tag: XM_TAG_TABLE_ROW }
+  { range: {4, 6}, tag: XM_TAG_TABLE_CELL }
+  { range: {6, 8}, tag: XM_TAG_TABLE_CELL }
+```
+
+> 注意：表格的布局渲染（行列对齐、边框）完全由桥接层负责。核心引擎只输出文本 + 语义区间。
+
+---
+
+### 11.6 其他标签
+
+#### `<br>` → `XM_TAG_LINE_BREAK`
+
+```
+输入: 第一行<br>第二行
+text: "第一行第二行"
+spans:
+  { range: {3, 3}, tag: XM_TAG_LINE_BREAK }
+```
+
+> 注意：核心引擎输出连续文本。`<br>` 输出空区间标记位置，桥接层在此处插入换行符。
+
+#### `<hr>` → `XM_TAG_HORIZONTAL_RULE`
+
+```
+输入: 上方内容<hr>下方内容
+text: "上方内容下方内容"
+spans:
+  { range: {4, 4}, tag: XM_TAG_HORIZONTAL_RULE }
+```
+
+> 与 `<br>` 类似，空区间标记位置，桥接层插入水平分隔线组件。
+
+---
+
+### 11.7 未知标签（透明透传）
+
+```
+输入: <custom>内部文字</custom>
+text: "内部文字"
+spans:
+  { range: {0, 4}, tag: XM_TAG_UNKNOWN }
+```
+
+```
+输入: <article>文章内容<span>高亮</span></article>
+text: "文章内容高亮"
+spans:
+  { range: {0, 6}, tag: XM_TAG_UNKNOWN }      ← <article> 映射为 UNKNOWN
+  { range: {4, 6}, tag: XM_TAG_SPAN }          ← <span> 正常映射
+```
+
+> 未知标签的**内部文本保留**，嵌套的已知标签**正常解析**。
+
+---
+
+### 11.8 自动纠错场景
+
+#### 乱序嵌套纠错
+
+```
+输入: <a>链接<b>粗体</a>文字</b>
+text: "链接粗体文字"
+spans:
+  { range: {0, 4}, tag: XM_TAG_LINK }
+  { range: {2, 4}, tag: XM_TAG_BOLD }
+  { range: {4, 6}, tag: XM_TAG_BOLD }          ← 纠错后重新打开的 <b>
+```
+
+#### 未闭合标签自动补齐
+
+```
+输入: <div><p>段落
+text: "段落"
+spans:
+  { range: {0, 2}, tag: XM_TAG_DIVISION }
+  { range: {0, 2}, tag: XM_TAG_PARAGRAPH }     ← 末尾自动补齐 </p></div>
+```
+
+#### 多余闭合标签忽略
+
+```
+输入: </b>正常文字
+text: "正常文字"
+spans: (空)                                      ← </b> 被忽略，文字保留
+```
+
+#### 空输入
+
+```
+输入: (空字符串)
+text: ""
+spans: (空数组，span_count = 0)
+```
+
+---
+
+### 11.9 CSS 行内样式值标准化
+
+| 输入 style 值 | 输出 value | XMStyleType |
+|--------------|-----------|-------------|
+| `color: red` | `#FF0000` | `XM_STYLE_FOREGROUND_COLOR` |
+| `color: #F00` | `#FF0000` | `XM_STYLE_FOREGROUND_COLOR` |
+| `color: rgb(255,0,0)` | `#FF0000` | `XM_STYLE_FOREGROUND_COLOR` |
+| `color: rgba(255,0,0,0.5)` | `#FF000080` | `XM_STYLE_FOREGROUND_COLOR` |
+| `background-color: yellow` | `#FFFF00` | `XM_STYLE_BACKGROUND_COLOR` |
+| `font-size: 16px` | `16` | `XM_STYLE_FONT_SIZE` |
+| `font-size: 1.5em` | `24` | `XM_STYLE_FONT_SIZE`（假设基准 16px） |
+| `font-size: 12pt` | `16` | `XM_STYLE_FONT_SIZE`（1pt ≈ 1.333px） |
+| `font-weight: bold` | `bold` | `XM_STYLE_FONT_WEIGHT` |
+| `font-weight: 700` | `bold` | `XM_STYLE_FONT_WEIGHT` |
+| `font-weight: 400` | `normal` | `XM_STYLE_FONT_WEIGHT` |
+| `font-style: italic` | `italic` | `XM_STYLE_FONT_STYLE` |
+| `text-decoration: underline` | `underline` | `XM_STYLE_TEXT_DECORATION` |
+| `text-decoration: line-through` | `line-through` | `XM_STYLE_TEXT_DECORATION` |
+| `text-align: center` | `center` | `XM_STYLE_TEXT_ALIGN` |
+| `line-height: 1.5` | `1.5` | `XM_STYLE_LINE_HEIGHT` |
+| `letter-spacing: 2px` | `2` | `XM_STYLE_LETTER_SPACING` |
+| `color: unknownvalue` | `unknownvalue` | `XM_STYLE_FOREGROUND_COLOR`（无法识别时原值透传） |
+
+---
+
+## 12. 子项目 B 路线图与依赖说明
+
+### 12.1 为什么当前只做子项目 A
+
+| 原因 | 说明 |
+|------|------|
+| **接口先行** | 核心 C API 是三端桥接的契约。API 不稳定时写桥接代码会反复返工 |
+| **质量基线** | 核心引擎的解析正确性、自动纠错、性能指标必须先通过验证，否则三端渲染结果必然不一致 |
+| **依赖关系** | 桥接层需要链接编译好的 `xmarkup_core` 静态库/动态库，构建配置依赖核心引擎的交付物 |
+| **测试数据复用** | 核心引擎的测试用例（含 HTML → ParsedResult 的输入输出对）将直接作为三端桥接层的集成测试基准 |
+
+### 12.2 子项目 B 启动条件
+
+子项目 A 必须达到以下状态后，子项目 B 才能启动：
+
+- [ ] C API (`xmarkup.h`) 冻结，不再有破坏性变更
+- [ ] 所有标签解析规范（第 11 章）的测试用例 100% 通过
+- [ ] 50KB HTML 解析性能测试 < 15ms 通过
+- [ ] 恶意 HTML 输入零崩溃测试通过
+- [ ] ASAN / Valgrind 内存检查无泄漏
+- [ ] 核心静态库/动态库可成功编译（Release 模式）
+
+### 12.3 三端桥接层规划概览
+
+以下为子项目 B 的初步规划，**细节将在子项目 A 完成后另行设计**。
+
+| 阶段 | 平台 | 技术方案 | 转化目标 | 预计工期 |
+|------|------|---------|---------|---------|
+| B-1 | iOS | Swift 6+ 直接调用 C API（Xcode 26+ C++ 互操作） | `NSAttributedString` | 1~2 周 |
+| B-2 | Android | JNI 胶水层 + Kotlin 封装 | `SpannableStringBuilder` | 1~2 周 |
+| B-3 | 鸿蒙 | N-API 胶水层 + ArkTS 封装 | ArkUI `StyledString` | 1~2 周 |
+| B-4 | 集成验证 | 三端共享同一组 HTML 测试用例 | 像素级一致性验证 | 1 周 |
+
+#### B-1: iOS 桥接层关键点
+
+- 使用 Swift 6+ / Xcode 26+ 的 C++ 互操作能力，直接调用核心引擎 C API，无需 ObjC++ 中间层
+- `NSAttributedString` 构建策略：遍历 `spans[]`，按 range 分段应用 `NSAttributedString.Key`
+- `<video>` / `<img>` 等非文本元素需要使用 `NSTextAttachment` 在文本流中嵌入原生视图
+- `<table>` 渲染可能需要自定义 `NSTextLayoutSection` 或回退到 `UICollectionView`
+
+#### B-2: Android 桥接层关键点
+
+- JNI 层只做数据搬运（`XMResult` → Java 对象），避免在 JNI 中做业务逻辑
+- Kotlin 封装层将 `XMSpan` 映射为 `CharacterStyle` 子类（`StyleSpan`、`ForegroundColorSpan` 等）
+- `<video>` / `<img>` 需要使用 `ImageSpan` 或自定义 `ReplacementSpan`
+- JNI 调用需注意：一次性拷贝全部 span 数据到 Java 侧，避免频繁跨语言调用
+
+#### B-3: 鸿蒙桥接层关键点
+
+- N-API 层将 `XMResult` 转为 ArkTS 的 `{ text: string, spans: Array<Span> }` 对象
+- `StyledString` 通过 `TextStyle` 对象逐段应用样式
+- 鸿蒙 N-API 与标准 Node-API **不完全兼容**，需按鸿蒙文档单独适配
+- `<video>` / `<img>` 在 ArkUI 中可能需要将 `Text` 组件拆分为 `Text` + 原生组件的组合布局
+
+#### B-4: 三端一致性验证
+
+- 共享测试数据集：一组包含所有支持标签 + CSS 样式 + 乱序嵌套的 HTML 文件
+- 对比三端渲染截图，验证字体、颜色、间距、列表符号等视觉元素一致
+- 性能对比：三端解析相同 HTML 的耗时应在同一数量级
+
+### 12.4 当前设计决策对桥接层的影响
+
+以下当前设计决策直接影响桥接层的实现方式，此处说明**为什么这样设计**：
+
+| 设计决策 | 对桥接层的影响 | 设计理由 |
+|---------|--------------|---------|
+| TextRange 使用 UTF-16 索引 | 三端可直接用原生字符串 API 切片，无需二次转换 | Swift `String.Index`、Java `String.charAt()`、ArkTS 字符串都是 UTF-16 |
+| XMSpan 是扁平数组（非嵌套树） | 桥接层只需一个 `for` 循环遍历，O(N) 复杂度 | 嵌套树需要递归遍历，增加桥接层复杂度和出错可能 |
+| 多对一标签映射（如 `<b>`/`<strong>` → `XM_TAG_BOLD`） | 桥接层只需处理一个 tag 类型，无需判断等价关系 | 减少桥接层的分支逻辑 |
+| value 使用 `const char*` + `value_len` | JNI/N-API/Swift 都能直接读取 C 字符串指针 | 避免 C++ `std::string` 的跨语言 ABI 问题 |
+| `<video>`/`<img>` 输出空区间 | 桥接层需特殊处理空区间，在该位置插入非文本组件 | 核心引擎不产生虚拟文本，避免影响纯文本的字符计数 |
+| CSS 值标准化（颜色名→hex） | 桥接层直接解析 `#RRGGBB`，无需维护颜色名映射表 | 颜色名映射逻辑只需在核心层实现一次，三端复用 |
