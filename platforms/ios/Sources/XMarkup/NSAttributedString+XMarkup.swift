@@ -1,48 +1,72 @@
 import Foundation
+
 #if canImport(UIKit)
-    import UIKit
+import UIKit
 #elseif canImport(AppKit)
-    import AppKit
+import AppKit
 #endif
 
-/// NSAttributedString 便利层：span→attribute 映射
+/// NSAttributedString 便利层：6 阶渲染流水线
 extension XMarkupResult {
+
     /// 将解析结果转换为 NSAttributedString
     ///
     /// 使用方式：
     /// ```swift
-    /// let result = try parser.parse("<b>Hello</b> <i style=\"color:#FF0000\">World</i>")
-    /// let attributed = result.makeAttributedString(baseFont: UIFont.systemFont(ofSize: 14))
-    /// // attributed 可直接用于 UILabel.attributedText / NSTextField.attributedStringValue
+    /// let result = try parser.parse("<b>Hello</b> <i>World</i>")
+    /// let attributed = result.makeAttributedString()
+    /// // 或使用预置主题
+    /// let article = result.makeAttributedString(config: .article)
     /// ```
     ///
-    /// - Parameter baseFont: 基础字体，nil 时使用 systemFont(ofSize: 16)
+    /// - Parameter config: 渲染配置，默认 `.default`
     /// - Returns: 带样式的 NSAttributedString
-    public func makeAttributedString(baseFont: XMFont? = nil) -> NSAttributedString {
-        let base = baseFont ?? XMFont.systemFont(ofSize: 16)
+    public func makeAttributedString(config: XMarkupStyleConfig = .default) -> NSAttributedString {
+        let base = config.baseFont ?? XMFont.systemFont(ofSize: 16)
 
         guard !text.isEmpty else {
             return NSAttributedString(string: "")
         }
 
-        let str = NSMutableAttributedString(string: text, attributes: [.font: base])
+        var str = NSMutableAttributedString(string: text, attributes: [.font: base])
 
-        // 第一趟：合并字体属性
+        // Pass 1: HTML 字体属性（bold/italic/heading/code/fontSize）
         for span in spans {
             applyFontAttributes(span, baseFontSize: base.pointSize, to: str)
         }
 
-        // 第二趟：非字体属性
+        // Pass 2: HTML 非字体属性（underline/strikethrough/link/mark/color）
         for span in spans {
             applyNonFontAttributes(span, to: str)
+        }
+
+        // Pass 3: StyleConfig 标签覆盖
+        applyConfigOverrides(config, to: str)
+
+        // Pass 4: 媒体附件替换（image/video/audio → NSTextAttachment）
+        applyMediaAttachments(config: config, to: str)
+
+        // Pass 5: spanTransformer（单次精细控制）
+        if let transformer = config.spanTransformer {
+            for span in spans {
+                var attrs: [NSAttributedString.Key: Any] = [:]
+                transformer(span, &attrs)
+                if !attrs.isEmpty {
+                    str.addAttributes(attrs, range: span.range)
+                }
+            }
+        }
+
+        // Pass 6: postProcessor（全局后处理）
+        if let processor = config.postProcessor {
+            processor(&str)
         }
 
         return NSAttributedString(attributedString: str)
     }
 
-    // MARK: - Private
+    // MARK: - Pass 1: HTML 字体属性
 
-    /// 第一趟：处理字体相关属性（合并 trait 而非覆盖）
     private func applyFontAttributes(
         _ span: XMarkupSpan,
         baseFontSize: CGFloat,
@@ -79,7 +103,8 @@ extension XMarkupResult {
         }
     }
 
-    /// 第二趟：处理非字体属性
+    // MARK: - Pass 2: HTML 非字体属性
+
     private func applyNonFontAttributes(_ span: XMarkupSpan, to string: NSMutableAttributedString) {
         let range = span.range
 
@@ -92,6 +117,12 @@ extension XMarkupResult {
             if let url = span.value {
                 string.addAttribute(.link, value: url, range: range)
             }
+        case .mark:
+            string.addAttribute(
+                .backgroundColor,
+                value: XMColor.systemYellow.withAlphaComponent(0.3),
+                range: range
+            )
         default:
             break
         }
@@ -110,10 +141,182 @@ extension XMarkupResult {
         }
     }
 
-    /// 向指定范围追加字体 trait（合并而非覆盖）
-    ///
-    /// 处理 <b><i>text</i></b> 场景：先应用 BOLD trait，
-    /// 再在同一范围应用 ITALIC trait，最终得到 Bold-Italic 字体。
+    // MARK: - Pass 3: StyleConfig 标签覆盖
+
+    private func applyConfigOverrides(
+        _ config: XMarkupStyleConfig,
+        to string: NSMutableAttributedString
+    ) {
+        for span in spans {
+            guard let style = config[span.tag] else { continue }
+            let range = span.range
+
+            if let font = style.font {
+                string.enumerateAttribute(.font, in: range) { _, attrRange, _ in
+                    #if canImport(UIKit)
+                    string.addAttribute(.font, value: font, range: attrRange)
+                    #elseif canImport(AppKit)
+                    string.addAttribute(.font, value: font, range: attrRange)
+                    #endif
+                }
+            }
+            if let fg = style.foregroundColor {
+                string.addAttribute(.foregroundColor, value: fg, range: range)
+            }
+            if let bg = style.backgroundColor {
+                string.addAttribute(.backgroundColor, value: bg, range: range)
+            }
+            if let underline = style.underlineStyle {
+                string.addAttribute(.underlineStyle, value: underline.rawValue, range: range)
+            }
+            if let strike = style.strikethroughStyle {
+                string.addAttribute(.strikethroughStyle, value: strike.rawValue, range: range)
+            }
+        }
+    }
+
+    // MARK: - Pass 4: 媒体附件
+
+    private func applyMediaAttachments(
+        config: XMarkupStyleConfig,
+        to string: NSMutableAttributedString
+    ) {
+        let mediaTags: Set<XMarkupTag> = [.image, .video, .audio]
+        let mediaSpans = spans.filter { mediaTags.contains($0.tag) }
+
+        // 从后向前遍历，避免 range 偏移
+        let sortedSpans = mediaSpans.sorted { $0.range.location > $1.range.location }
+
+        let nsString = string.string as NSString
+
+        for span in sortedSpans {
+            let spanRange = span.range
+
+            // 在 span 范围内搜索 U+FFFC
+            let searchResult = nsString.range(of: "\u{FFFC}", options: [], range: spanRange)
+            guard searchResult.location != NSNotFound else { continue }
+
+            // 确定媒体 src
+            let src = resolveMediaSrc(span, allSpans: spans)
+
+            // 创建附件
+            let attachment: NSTextAttachment
+            if let customProvider = config.mediaAttachmentProvider {
+                guard let custom = customProvider(span.tag, src) else { continue }
+                attachment = custom
+            } else {
+                attachment = createDefaultAttachment(
+                    tag: span.tag,
+                    src: src,
+                    config: config
+                )
+            }
+
+            let attrStr = NSAttributedString(attachment: attachment)
+            string.replaceCharacters(in: searchResult, with: attrStr)
+        }
+    }
+
+    /// 解析媒体 src：优先取自身 value，否则查找子 source span
+    private func resolveMediaSrc(_ span: XMarkupSpan, allSpans: [XMarkupSpan]) -> String? {
+        if let src = span.value, !src.isEmpty { return src }
+
+        // video/audio 无直接 src 时，查找嵌套的 source span
+        let childTag: XMarkupTag
+        switch span.tag {
+        case .video: childTag = .videoSource
+        case .audio: childTag = .audioSource
+        default: return nil
+        }
+
+        for child in allSpans {
+            if child.tag == childTag,
+               child.range.location >= span.range.location,
+               child.range.location + child.range.length <= span.range.location + span.range.length,
+               let src = child.value {
+                return src
+            }
+        }
+        return nil
+    }
+
+    /// 创建默认 SF Symbol 占位附件
+    private func createDefaultAttachment(
+        tag: XMarkupTag,
+        src: String?,
+        config: XMarkupStyleConfig
+    ) -> NSTextAttachment {
+        // 尝试自定义图片加载
+        if let src = src, let provider = config.imageProvider, let image = provider(src) {
+            let attachment = NSTextAttachment()
+            attachment.image = image
+            let aspectRatio = image.size.height / max(image.size.width, 1)
+            let displayWidth = config.mediaPlaceholderSize.width
+            let displaySize = CGSize(width: displayWidth, height: displayWidth * aspectRatio)
+            attachment.bounds = CGRect(origin: .zero, size: displaySize)
+            return attachment
+        }
+
+        // SF Symbol 占位图
+        let symbolName: String
+        switch tag {
+        case .image: symbolName = "photo"
+        case .video: symbolName = "play.rectangle"
+        case .audio: symbolName = "waveform"
+        default: symbolName = "square"
+        }
+
+        let size = config.mediaPlaceholderSize
+        let image = createPlaceholderImage(systemName: symbolName, size: size)
+
+        let attachment = NSTextAttachment()
+        attachment.image = image
+        attachment.bounds = CGRect(origin: .zero, size: size)
+        return attachment
+    }
+
+    #if canImport(UIKit)
+    private func createPlaceholderImage(systemName: String, size: CGSize) -> XMImage {
+        let symbolConfig = UIImage.SymbolConfiguration(
+            pointSize: min(size.width, size.height) * 0.3
+        )
+        let symbol = UIImage(systemSymbolName: systemName, withConfiguration: symbolConfig)
+            ?? UIImage()
+        let renderer = UIGraphicsImageRenderer(size: size)
+        return renderer.image { context in
+            UIColor.systemGray.withAlphaComponent(0.1).setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+            let symbolSize = symbol.size
+            symbol.draw(at: CGPoint(
+                x: (size.width - symbolSize.width) / 2,
+                y: (size.height - symbolSize.height) / 2
+            ))
+        }
+    }
+    #elseif canImport(AppKit)
+    private func createPlaceholderImage(systemName: String, size: CGSize) -> XMImage {
+        let symbol = NSImage(systemSymbolName: systemName, accessibilityDescription: nil)
+            ?? NSImage(size: size)
+        let image = NSImage(size: size)
+        image.lockFocus()
+        NSColor.systemGray.withAlphaComponent(0.1).setFill()
+        NSRect(origin: .zero, size: size).fill()
+        let symbolSize = symbol.size
+        let x = (size.width - symbolSize.width) / 2
+        let y = (size.height - symbolSize.height) / 2
+        symbol.draw(
+            at: NSPoint(x: x, y: y),
+            from: .zero,
+            operation: .sourceOver,
+            fraction: 1.0
+        )
+        image.unlockFocus()
+        return image
+    }
+    #endif
+
+    // MARK: - 字体辅助方法
+
     private func addFontTrait(
         _ trait: XMFontDescriptor.SymbolicTraits,
         to range: NSRange,
@@ -134,7 +337,6 @@ extension XMarkupResult {
         }
     }
 
-    /// 应用 heading 字体（放大 + 加粗）
     private func applyHeadingFont(
         scale: CGFloat,
         to range: NSRange,
@@ -154,7 +356,6 @@ extension XMarkupResult {
         }
     }
 
-    /// 应用等宽字体（用于 <code>）
     private func applyCodeFont(to range: NSRange, in string: NSMutableAttributedString) {
         string.enumerateAttribute(.font, in: range) { currentFont, attrRange, _ in
             guard let font = currentFont as? XMFont else { return }
@@ -169,7 +370,6 @@ extension XMarkupResult {
         }
     }
 
-    /// 应用 CSS 指定字号
     private func applyFontSize(
         _ size: CGFloat,
         to range: NSRange,

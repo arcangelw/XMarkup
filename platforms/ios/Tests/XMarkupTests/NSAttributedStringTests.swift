@@ -67,14 +67,16 @@ final class NSAttributedStringTests: XCTestCase {
         XCTAssertNotNil(color)
     }
 
-    func testCustomBaseFont() throws {
+    func testCustomBaseFontViaConfig() throws {
         let result = try parse("<b>text</b>")
         #if canImport(UIKit)
             let customFont = UIFont.systemFont(ofSize: 20)
         #elseif canImport(AppKit)
             let customFont = NSFont.systemFont(ofSize: 20)
         #endif
-        let attr = result.makeAttributedString(baseFont: customFont)
+        var config = XMarkupStyleConfig()
+        config.baseFont = customFont
+        let attr = result.makeAttributedString(config: config)
         let font = attr.attribute(.font, at: 0, effectiveRange: nil) as? XMFont
         XCTAssertEqual(font?.pointSize, 20)
     }
