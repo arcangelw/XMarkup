@@ -136,6 +136,7 @@ extension MarkupDocument {
     }
 
     /// 将内联 span 转换为 MarkupInline
+    /// 生成的 NSRange 是相对于 parentRange.location 的偏移（即相对于块文本起始位置）
     private static func convertToInlines(
         _ spans: [XMarkupSpan],
         in text: String,
@@ -163,11 +164,21 @@ extension MarkupDocument {
                 continue
             }
 
-            guard let stringRange = Range(span.range, in: text) else { continue }
+            // 计算相对于块起始位置的 NSRange
+            let relativeLocation = span.range.location - parentRange.location
+            // 如果尾部有换行被修剪，需要调整 length
+            let nsString = text as NSString
+            let textEnd = nsString.length
+            let trimmedEnd = (text as String).trimmingTrailingNewlines.utf16.count
+            let spanEnd = span.range.location + span.range.length
+            let adjustedEnd = spanEnd > trimmedEnd ? trimmedEnd : spanEnd
+            let adjustedLength = adjustedEnd - span.range.location
+            let relativeLength = max(adjustedLength, 0)
 
-            // 将 range 映射到修剪后的文本
-            let trimmedRange = stringRange.trimmedForTrailingNewline(in: text)
-            inlines.append(MarkupInline(range: trimmedRange, kind: kind))
+            guard relativeLength > 0 else { continue }
+
+            let relativeRange = NSRange(location: relativeLocation, length: relativeLength)
+            inlines.append(MarkupInline(range: relativeRange, kind: kind))
         }
 
         return inlines
@@ -290,17 +301,5 @@ extension String {
     /// 修剪尾部换行符
     var trimmingTrailingNewlines: String {
         trimmingCharacters(in: .newlines)
-    }
-}
-
-extension Range where Bound == String.Index {
-    /// 将 range 映射到修剪了尾部换行的文本
-    func trimmedForTrailingNewline(in text: String) -> Range<String.Index> {
-        let textEnd = text.endIndex
-        let trimmedEnd = text.trimmingTrailingNewlines.endIndex
-        if upperBound == textEnd && trimmedEnd < textEnd {
-            return lowerBound..<min(upperBound, trimmedEnd)
-        }
-        return self
     }
 }

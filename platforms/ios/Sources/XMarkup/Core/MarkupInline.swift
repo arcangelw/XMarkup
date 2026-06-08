@@ -2,12 +2,12 @@ import Foundation
 
 /// 内联样式（字符级）
 public struct MarkupInline: Sendable, Equatable {
-    /// 在所属 block.text 中的范围（String.Index）
-    public let range: Range<String.Index>
+    /// 在所属 block.text 中的范围（相对于块文本起始位置，UTF-16 码元偏移）
+    public let range: NSRange
     /// 内联类型
     public let kind: InlineKind
 
-    public init(range: Range<String.Index>, kind: InlineKind) {
+    public init(range: NSRange, kind: InlineKind) {
         self.range = range
         self.kind = kind
     }

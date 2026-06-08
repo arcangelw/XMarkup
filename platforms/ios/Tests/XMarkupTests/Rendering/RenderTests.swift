@@ -197,4 +197,113 @@ final class RenderTests: XCTestCase {
         let attr = try parseAndRender("")
         XCTAssertTrue(String(attr.characters).isEmpty)
     }
+
+    // MARK: - 端到端集成
+
+    func testEndToEndParseBuildRender() throws {
+        let html = "<h1>Title</h1><p>Hello <b>world</b> <a href=\"https://example.com\">link</a></p>"
+        let parser = try XMarkupParser()
+        let result = try parser.parse(html)
+        let doc = MarkupDocument.from(result)
+        let attr = doc.render(theme: .default)
+        let renderer = NSAttributedStringRenderer()
+        let nsAttr = renderer.render(attr)
+
+        // 验证包含所有文本
+        XCTAssertTrue(nsAttr.string.contains("Title"))
+        XCTAssertTrue(nsAttr.string.contains("Hello"))
+        XCTAssertTrue(nsAttr.string.contains("world"))
+        XCTAssertTrue(nsAttr.string.contains("link"))
+
+        // 验证自定义 key 通过渲染器传递到 NS 层
+        var foundHeadingLevel = false
+        nsAttr.enumerateAttribute(NSAttributedString.Key(XMarkupHeadingLevelKey.name), in: NSRange(location: 0, length: nsAttr.length)) { value, _, _ in
+            if let level = value as? Int, level == 1 {
+                foundHeadingLevel = true
+            }
+        }
+        XCTAssertTrue(foundHeadingLevel, "标题级别应通过渲染器传递到 NS 层")
+    }
+
+    func testEndToEndWithArticleTheme() throws {
+        let html = "<p>Content with <code>code</code> and <b>bold</b>.</p>"
+        let parser = try XMarkupParser()
+        let result = try parser.parse(html)
+        let doc = MarkupDocument.from(result)
+        let attr = doc.render(theme: .article)
+        let renderer = NSAttributedStringRenderer()
+        let nsAttr = renderer.render(attr)
+
+        // 验证文章主题的 base font（段落区域，非标题）
+        let font = nsAttr.attribute(.font, at: 0, effectiveRange: nil) as? XMFont
+        XCTAssertNotNil(font)
+        XCTAssertEqual(font?.pointSize, 17)
+    }
+
+    func testEndToEndWithNSRenderer() throws {
+        let html = "<p>Hello <b>bold</b></p>"
+        let parser = try XMarkupParser()
+        let result = try parser.parse(html)
+        let doc = MarkupDocument.from(result)
+        let attr = doc.render()
+
+        let renderer = NSAttributedStringRenderer()
+        let nsAttr = renderer.render(attr)
+        let size = renderer.measure(attr, constrainedTo: 300)
+
+        XCTAssertEqual(nsAttr.string, "Hello bold")
+        XCTAssertGreaterThan(size.height, 0)
+    }
+
+    func testEndToEndDSLTheme() throws {
+        let html = "<p>Text with <a href=\"https://example.com\">link</a></p>"
+        let parser = try XMarkupParser()
+        let result = try parser.parse(html)
+        let doc = MarkupDocument.from(result)
+
+        let customTheme = MarkupTheme {
+            BaseFont(XMFont.systemFont(ofSize: 18))
+            Tag(.link) { container in
+                #if canImport(UIKit)
+                container.uiKit.foregroundColor = .systemPurple
+                #elseif canImport(AppKit)
+                container.appKit.foregroundColor = .systemPurple
+                #endif
+            }
+        }
+        let attr = doc.render(theme: customTheme)
+        let renderer = NSAttributedStringRenderer()
+        let nsAttr = renderer.render(attr)
+
+        // 基础字体应为 18pt（纯段落，无标题缩放）
+        let font = nsAttr.attribute(.font, at: 0, effectiveRange: nil) as? XMFont
+        XCTAssertEqual(font?.pointSize, 18)
+
+        // 验证 link 颜色被主题覆盖为紫色
+        let fullRange = NSRange(location: 0, length: nsAttr.length)
+        var foundPurpleLink = false
+        nsAttr.enumerateAttribute(.foregroundColor, in: fullRange) { value, _, stop in
+            if let color = value as? XMColor {
+                #if canImport(UIKit)
+                var r: CGFloat = 0; var g: CGFloat = 0; var b: CGFloat = 0; var a: CGFloat = 0
+                color.getRed(&r, green: &g, blue: &b, alpha: &a)
+                // systemPurple: r≈0.67, g≈0.13, b≈0.70
+                if r > 0.4 && b > 0.4 && g < 0.3 {
+                    foundPurpleLink = true
+                    stop.pointee = true
+                }
+                #elseif canImport(AppKit)
+                if let rgbColor = color.usingColorSpace(.sRGB) {
+                    var r: CGFloat = 0; var g: CGFloat = 0; var b: CGFloat = 0; var a: CGFloat = 0
+                    rgbColor.getRed(&r, green: &g, blue: &b, alpha: &a)
+                    if r > 0.4 && b > 0.4 && g < 0.3 {
+                        foundPurpleLink = true
+                        stop.pointee = true
+                    }
+                }
+                #endif
+            }
+        }
+        XCTAssertTrue(foundPurpleLink, "链接颜色应被 DSL 主题覆盖为紫色")
+    }
 }

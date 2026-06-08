@@ -130,8 +130,10 @@ private func applyInlineAttributes(
     to attr: inout AttributedString,
     blockText: String
 ) {
-    let nsRange = NSRange(inline.range, in: blockText)
-    guard let attrRange = Range(nsRange, in: attr) else { return }
+    // inline.range 已经是相对于块文本的 NSRange
+    let nsRange = inline.range
+    guard nsRange.length > 0,
+          let attrRange = Range(nsRange, in: attr) else { return }
 
     switch inline.kind {
     case .bold:
@@ -300,8 +302,9 @@ private func applyThemeOverrides(
     for inline in block.inlines {
         if let inlineKey = inlineStyleKey(for: inline.kind),
            let container = theme.tagStyles[inlineKey] {
-            let nsRange = NSRange(inline.range, in: block.text)
-            if let attrRange = Range(nsRange, in: attr) {
+            // inline.range 已经是相对于块文本的 NSRange
+            let nsRange = inline.range
+            if nsRange.length > 0, let attrRange = Range(nsRange, in: attr) {
                 mergeAttributeContainer(container, into: &attr, range: attrRange)
             }
         }
