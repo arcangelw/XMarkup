@@ -7,6 +7,14 @@ import AppKit
 #endif
 
 /// NSAttributedString 便利层：6 阶渲染流水线
+///
+/// 渲染阶段顺序：
+/// 1. HTML 字体属性（bold/italic/heading/code/fontSize）
+/// 2. HTML 非字体属性（underline/strikethrough/link/mark/color）
+/// 3. StyleConfig 标签覆盖
+/// 4. 媒体附件替换（image/video/audio → NSTextAttachment）
+/// 5. spanTransformer（单次精细控制）
+/// 6. postProcessor（全局后处理）
 extension XMarkupResult {
 
     /// 将解析结果转换为 NSAttributedString
@@ -67,6 +75,12 @@ extension XMarkupResult {
 
     // MARK: - Pass 1: HTML 字体属性
 
+    /// 第一趟：处理字体相关属性（合并 trait 而非覆盖）
+    ///
+    /// - Parameters:
+    ///   - span: 样式区间
+    ///   - baseFontSize: 基础字号，用于 heading 缩放计算
+    ///   - string: 目标可变富文本
     private func applyFontAttributes(
         _ span: XMarkupSpan,
         baseFontSize: CGFloat,
@@ -105,6 +119,11 @@ extension XMarkupResult {
 
     // MARK: - Pass 2: HTML 非字体属性
 
+    /// 第二趟：处理非字体属性（下划线、删除线、链接、高亮、颜色）
+    ///
+    /// - Parameters:
+    ///   - span: 样式区间
+    ///   - string: 目标可变富文本
     private func applyNonFontAttributes(_ span: XMarkupSpan, to string: NSMutableAttributedString) {
         let range = span.range
 
@@ -143,6 +162,14 @@ extension XMarkupResult {
 
     // MARK: - Pass 3: StyleConfig 标签覆盖
 
+    /// 第三趟：将 StyleConfig 中配置的标签样式覆盖到富文本
+    ///
+    /// 对每个 span，检查 config 中是否有对应标签的样式配置，
+    /// 有则覆盖对应的 attribute（font/foregroundColor/backgroundColor 等）。
+    ///
+    /// - Parameters:
+    ///   - config: 样式配置
+    ///   - string: 目标可变富文本
     private func applyConfigOverrides(
         _ config: XMarkupStyleConfig,
         to string: NSMutableAttributedString
@@ -177,6 +204,15 @@ extension XMarkupResult {
 
     // MARK: - Pass 4: 媒体附件
 
+    /// 第四趟：扫描媒体 span，用 NSTextAttachment 替换 U+FFFC 占位符
+    ///
+    /// 从后向前遍历，避免替换导致的 range 偏移问题。
+    /// 对于 `<video><source>` 结构，优先取 video/audio 自身 src，
+    /// 无则查找嵌套的 source 子 span 的 value 作为 src。
+    ///
+    /// - Parameters:
+    ///   - config: 样式配置（含 imageProvider、mediaPlaceholderSize 等）
+    ///   - string: 目标可变富文本
     private func applyMediaAttachments(
         config: XMarkupStyleConfig,
         to string: NSMutableAttributedString
@@ -217,7 +253,16 @@ extension XMarkupResult {
         }
     }
 
-    /// 解析媒体 src：优先取自身 value，否则查找子 source span
+    /// 解析媒体 src：优先取 span 自身 value，否则查找嵌套的 source 子 span
+    ///
+    /// 处理两种场景：
+    /// - `<video src="movie.mp4">` → 直接从 video span 取 value
+    /// - `<video><source src="movie.mp4">` → 从 videoSource 子 span 取 value
+    ///
+    /// - Parameters:
+    ///   - span: 媒体 span（image/video/audio）
+    ///   - allSpans: 全部 span 数组，用于查找子 span
+    /// - Returns: src URL 字符串，未找到则返回 nil
     private func resolveMediaSrc(_ span: XMarkupSpan, allSpans: [XMarkupSpan]) -> String? {
         if let src = span.value, !src.isEmpty { return src }
 
@@ -240,7 +285,19 @@ extension XMarkupResult {
         return nil
     }
 
-    /// 创建默认 SF Symbol 占位附件
+    /// 创建默认媒体附件（SF Symbol 占位图）
+    ///
+    /// 优先尝试通过 imageProvider 加载自定义图片（保持宽高比），
+    /// 失败则生成对应标签的 SF Symbol 占位图：
+    /// - image → `photo`
+    /// - video → `play.rectangle`
+    /// - audio → `waveform`
+    ///
+    /// - Parameters:
+    ///   - tag: 媒体标签类型
+    ///   - src: 媒体 src URL，可能为 nil
+    ///   - config: 样式配置（含 imageProvider、mediaPlaceholderSize）
+    /// - Returns: 配置好 bounds 的 NSTextAttachment
     private func createDefaultAttachment(
         tag: XMarkupTag,
         src: String?,
@@ -275,6 +332,12 @@ extension XMarkupResult {
         return attachment
     }
 
+    /// 生成 SF Symbol 占位图（浅灰背景 + 居中图标）
+    ///
+    /// - Parameters:
+    ///   - systemName: SF Symbol 名称
+    ///   - size: 图片尺寸
+    /// - Returns: 渲染后的图片
     #if canImport(UIKit)
     private func createPlaceholderImage(systemName: String, size: CGSize) -> XMImage {
         let symbolConfig = UIImage.SymbolConfiguration(
@@ -317,6 +380,15 @@ extension XMarkupResult {
 
     // MARK: - 字体辅助方法
 
+    /// 向指定范围追加字体 trait（合并而非覆盖）
+    ///
+    /// 处理 `<b><i>text</i></b>` 场景：先应用 BOLD trait，
+    /// 再在同一范围应用 ITALIC trait，最终得到 Bold-Italic 字体。
+    ///
+    /// - Parameters:
+    ///   - trait: 要追加的字体特征（bold/italic）
+    ///   - range: 目标文本范围
+    ///   - string: 目标可变富文本
     private func addFontTrait(
         _ trait: XMFontDescriptor.SymbolicTraits,
         to range: NSRange,
@@ -337,6 +409,12 @@ extension XMarkupResult {
         }
     }
 
+    /// 应用 heading 字体（放大 + 加粗）
+    ///
+    /// - Parameters:
+    ///   - scale: 字号缩放倍数（H1=2.0, H2=1.5, H3=1.17, ...）
+    ///   - range: 目标文本范围
+    ///   - string: 目标可变富文本
     private func applyHeadingFont(
         scale: CGFloat,
         to range: NSRange,
@@ -356,6 +434,11 @@ extension XMarkupResult {
         }
     }
 
+    /// 应用等宽字体（用于 `<code>`）
+    ///
+    /// - Parameters:
+    ///   - range: 目标文本范围
+    ///   - string: 目标可变富文本
     private func applyCodeFont(to range: NSRange, in string: NSMutableAttributedString) {
         string.enumerateAttribute(.font, in: range) { currentFont, attrRange, _ in
             guard let font = currentFont as? XMFont else { return }
@@ -370,6 +453,12 @@ extension XMarkupResult {
         }
     }
 
+    /// 应用 CSS 指定字号
+    ///
+    /// - Parameters:
+    ///   - size: 目标字号（px）
+    ///   - range: 目标文本范围
+    ///   - string: 目标可变富文本
     private func applyFontSize(
         _ size: CGFloat,
         to range: NSRange,
