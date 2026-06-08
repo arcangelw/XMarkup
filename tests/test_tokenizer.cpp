@@ -150,3 +150,20 @@ TEST(Tokenizer, MixedContent) {
     EXPECT_EQ(tokens[6].type, TokenType::END_TAG);
     EXPECT_EQ(tokens[6].tag_name, "i");
 }
+
+TEST(Tokenizer, AttributeWithAngleBracket) {
+    Tokenizer tok(R"(<span title="a<b">text</span>)");
+    std::vector<Token> tokens;
+    while (tok.has_next()) tokens.push_back(tok.next());
+    // 属性值中的 < 不应开始新标签
+    ASSERT_GE(tokens.size(), 2u);
+    EXPECT_EQ(tokens[0].type, TokenType::START_TAG);
+}
+
+TEST(Tokenizer, AttributeWithAmpersand) {
+    Tokenizer tok(R"(<a href="page?a=1&b=2">link</a>)");
+    std::vector<Token> tokens;
+    while (tok.has_next()) tokens.push_back(tok.next());
+    ASSERT_GE(tokens.size(), 2u);
+    EXPECT_EQ(tokens[0].type, TokenType::START_TAG);
+}

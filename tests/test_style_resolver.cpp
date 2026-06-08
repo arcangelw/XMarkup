@@ -276,3 +276,27 @@ TEST_F(StyleResolverTest, ParagraphSeparation) {
     EXPECT_NE(r.text.find("Second"), std::string::npos);
     EXPECT_NE(r.text.find('\n'), std::string::npos);
 }
+
+TEST_F(StyleResolverTest, CSSNegativeFontSize) {
+    auto r = resolve(R"(<span style="font-size:-10px">text</span>)");
+    EXPECT_NE(r.text, "");
+}
+
+TEST_F(StyleResolverTest, CSSZeroFontSize) {
+    auto r = resolve(R"(<span style="font-size:0px">text</span>)");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_FONT_SIZE && s.value == "0") found = true;
+    }
+    EXPECT_TRUE(found);
+}
+
+TEST_F(StyleResolverTest, EmptyStyleAttribute) {
+    auto r = resolve(R"(<span style="">text</span>)");
+    EXPECT_EQ(r.text, "text");
+}
+
+TEST_F(StyleResolverTest, CSSInvalidColorValue) {
+    auto r = resolve(R"(<span style="color:notacolor">text</span>)");
+    EXPECT_EQ(r.text, "text");
+}
