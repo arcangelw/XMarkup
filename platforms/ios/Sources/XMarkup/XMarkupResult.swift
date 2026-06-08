@@ -1,5 +1,5 @@
-import Foundation
 import CXMarkup
+import Foundation
 
 /// XMarkup 解析结果
 ///
@@ -21,11 +21,10 @@ public struct XMarkupResult: Sendable {
 
     /// 从 C API XMResult 指针转换
     static func fromC(_ cResult: UnsafeMutablePointer<XMResult>) -> XMarkupResult {
-        let text: String
-        if let t = cResult.pointee.text {
-            text = String(cString: t)
+        let text = if let t = cResult.pointee.text {
+            String(cString: t)
         } else {
-            text = ""
+            ""
         }
 
         let count = Int(cResult.pointee.span_count)
@@ -33,7 +32,7 @@ public struct XMarkupResult: Sendable {
         spans.reserveCapacity(count)
 
         if let cSpans = cResult.pointee.spans {
-            for i in 0..<count {
+            for i in 0 ..< count {
                 let s = cSpans[i]
                 let value: String? = s.value != nil ? String(cString: s.value!) : nil
                 spans.append(XMarkupSpan(

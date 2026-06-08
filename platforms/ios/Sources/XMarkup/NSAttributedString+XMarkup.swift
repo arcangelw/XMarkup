@@ -1,13 +1,12 @@
 import Foundation
 #if canImport(UIKit)
-import UIKit
+    import UIKit
 #elseif canImport(AppKit)
-import AppKit
+    import AppKit
 #endif
 
 /// NSAttributedString 便利层：span→attribute 映射
 extension XMarkupResult {
-
     /// 将解析结果转换为 NSAttributedString
     ///
     /// 使用方式：
@@ -44,8 +43,11 @@ extension XMarkupResult {
     // MARK: - Private
 
     /// 第一趟：处理字体相关属性（合并 trait 而非覆盖）
-    private func applyFontAttributes(_ span: XMarkupSpan, baseFontSize: CGFloat,
-                                     to string: NSMutableAttributedString) {
+    private func applyFontAttributes(
+        _ span: XMarkupSpan,
+        baseFontSize: CGFloat,
+        to string: NSMutableAttributedString
+    ) {
         let range = span.range
 
         switch span.tag {
@@ -112,36 +114,41 @@ extension XMarkupResult {
     ///
     /// 处理 <b><i>text</i></b> 场景：先应用 BOLD trait，
     /// 再在同一范围应用 ITALIC trait，最终得到 Bold-Italic 字体。
-    private func addFontTrait(_ trait: XMFontDescriptor.SymbolicTraits,
-                              to range: NSRange,
-                              in string: NSMutableAttributedString) {
+    private func addFontTrait(
+        _ trait: XMFontDescriptor.SymbolicTraits,
+        to range: NSRange,
+        in string: NSMutableAttributedString
+    ) {
         string.enumerateAttribute(.font, in: range) { currentFont, attrRange, _ in
             guard let font = currentFont as? XMFont else { return }
             var traits = font.fontDescriptor.symbolicTraits
             traits.insert(trait)
             #if canImport(UIKit)
-            guard let descriptor = font.fontDescriptor.withSymbolicTraits(traits),
-                  let newFont = XMFont(descriptor: descriptor, size: font.pointSize) else { return }
+                guard let descriptor = font.fontDescriptor.withSymbolicTraits(traits),
+                      let newFont = XMFont(descriptor: descriptor, size: font.pointSize) else { return }
             #elseif canImport(AppKit)
-            let descriptor = font.fontDescriptor.withSymbolicTraits(traits)
-            guard let newFont = XMFont(descriptor: descriptor, size: font.pointSize) else { return }
+                let descriptor = font.fontDescriptor.withSymbolicTraits(traits)
+                guard let newFont = XMFont(descriptor: descriptor, size: font.pointSize) else { return }
             #endif
             string.addAttribute(.font, value: newFont, range: attrRange)
         }
     }
 
     /// 应用 heading 字体（放大 + 加粗）
-    private func applyHeadingFont(scale: CGFloat, to range: NSRange,
-                                  in string: NSMutableAttributedString) {
+    private func applyHeadingFont(
+        scale: CGFloat,
+        to range: NSRange,
+        in string: NSMutableAttributedString
+    ) {
         string.enumerateAttribute(.font, in: range) { currentFont, attrRange, _ in
             guard let font = currentFont as? XMFont else { return }
             let newSize = font.pointSize * scale
             #if canImport(UIKit)
-            guard let desc = font.fontDescriptor.withSymbolicTraits(boldTrait),
-                  let newFont = XMFont(descriptor: desc, size: newSize) else { return }
+                guard let desc = font.fontDescriptor.withSymbolicTraits(boldTrait),
+                      let newFont = XMFont(descriptor: desc, size: newSize) else { return }
             #elseif canImport(AppKit)
-            let desc = font.fontDescriptor.withSymbolicTraits(boldTrait)
-            guard let newFont = XMFont(descriptor: desc, size: newSize) else { return }
+                let desc = font.fontDescriptor.withSymbolicTraits(boldTrait)
+                guard let newFont = XMFont(descriptor: desc, size: newSize) else { return }
             #endif
             string.addAttribute(.font, value: newFont, range: attrRange)
         }
@@ -152,19 +159,22 @@ extension XMarkupResult {
         string.enumerateAttribute(.font, in: range) { currentFont, attrRange, _ in
             guard let font = currentFont as? XMFont else { return }
             #if canImport(UIKit)
-            let monoFont = UIFont(name: "Menlo", size: font.pointSize)
-                ?? UIFont.monospacedSystemFont(ofSize: font.pointSize, weight: .regular)
+                let monoFont = UIFont(name: "Menlo", size: font.pointSize)
+                    ?? UIFont.monospacedSystemFont(ofSize: font.pointSize, weight: .regular)
             #elseif canImport(AppKit)
-            let monoFont = NSFont(name: "Menlo", size: font.pointSize)
-                ?? NSFont.monospacedSystemFont(ofSize: font.pointSize, weight: .regular)
+                let monoFont = NSFont(name: "Menlo", size: font.pointSize)
+                    ?? NSFont.monospacedSystemFont(ofSize: font.pointSize, weight: .regular)
             #endif
             string.addAttribute(.font, value: monoFont, range: attrRange)
         }
     }
 
     /// 应用 CSS 指定字号
-    private func applyFontSize(_ size: CGFloat, to range: NSRange,
-                               in string: NSMutableAttributedString) {
+    private func applyFontSize(
+        _ size: CGFloat,
+        to range: NSRange,
+        in string: NSMutableAttributedString
+    ) {
         string.enumerateAttribute(.font, in: range) { currentFont, attrRange, _ in
             guard let font = currentFont as? XMFont else { return }
             let descriptor = font.fontDescriptor
@@ -178,9 +188,9 @@ extension XMarkupResult {
 // MARK: - 跨平台字体 Trait 常量
 
 #if canImport(UIKit)
-private let boldTrait: UIFontDescriptor.SymbolicTraits = .traitBold
-private let italicTrait: UIFontDescriptor.SymbolicTraits = .traitItalic
+    private let boldTrait: UIFontDescriptor.SymbolicTraits = .traitBold
+    private let italicTrait: UIFontDescriptor.SymbolicTraits = .traitItalic
 #elseif canImport(AppKit)
-private let boldTrait: NSFontDescriptor.SymbolicTraits = .bold
-private let italicTrait: NSFontDescriptor.SymbolicTraits = .italic
+    private let boldTrait: NSFontDescriptor.SymbolicTraits = .bold
+    private let italicTrait: NSFontDescriptor.SymbolicTraits = .italic
 #endif

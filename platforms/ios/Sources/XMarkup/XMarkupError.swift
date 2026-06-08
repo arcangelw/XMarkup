@@ -16,11 +16,11 @@ public enum XMarkupError: Error, Sendable, Equatable {
     /// 从 C API 错误码初始化
     init(cError: XMError) {
         switch cError {
-        case XM_ERR_NULL_PARSER:      self = .nullParser
-        case XM_ERR_NULL_INPUT:       self = .nullInput
+        case XM_ERR_NULL_PARSER: self = .nullParser
+        case XM_ERR_NULL_INPUT: self = .nullInput
         case XM_ERR_NESTING_OVERFLOW: self = .nestingOverflow
-        case XM_ERR_ALLOC_FAILED:     self = .allocationFailed
-        default:                      self = .unknown(code: Int32(truncatingIfNeeded: cError.rawValue))
+        case XM_ERR_ALLOC_FAILED: self = .allocationFailed
+        default: self = .unknown(code: Int32(truncatingIfNeeded: cError.rawValue))
         }
     }
 }

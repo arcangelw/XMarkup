@@ -2,7 +2,6 @@ import XCTest
 @testable import XMarkup
 
 final class ColorParserTests: XCTestCase {
-
     func testRed() {
         let color = ColorParser.parse("#FF0000")
         XCTAssertNotNil(color)

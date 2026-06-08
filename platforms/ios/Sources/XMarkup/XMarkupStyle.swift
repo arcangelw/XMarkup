@@ -19,14 +19,14 @@ public enum XMarkupStyle: Sendable, Equatable {
         switch cValue {
         case XM_STYLE_FOREGROUND_COLOR: self = .foregroundColor
         case XM_STYLE_BACKGROUND_COLOR: self = .backgroundColor
-        case XM_STYLE_FONT_SIZE:        self = .fontSize
-        case XM_STYLE_FONT_WEIGHT:      self = .fontWeight
-        case XM_STYLE_FONT_STYLE:       self = .fontStyle
-        case XM_STYLE_TEXT_DECORATION:  self = .textDecoration
-        case XM_STYLE_LINE_HEIGHT:      self = .lineHeight
-        case XM_STYLE_TEXT_ALIGN:       self = .textAlign
-        case XM_STYLE_LETTER_SPACING:   self = .letterSpacing
-        default:                        self = .unknown(styleValue: cValue.rawValue)
+        case XM_STYLE_FONT_SIZE: self = .fontSize
+        case XM_STYLE_FONT_WEIGHT: self = .fontWeight
+        case XM_STYLE_FONT_STYLE: self = .fontStyle
+        case XM_STYLE_TEXT_DECORATION: self = .textDecoration
+        case XM_STYLE_LINE_HEIGHT: self = .lineHeight
+        case XM_STYLE_TEXT_ALIGN: self = .textAlign
+        case XM_STYLE_LETTER_SPACING: self = .letterSpacing
+        default: self = .unknown(styleValue: cValue.rawValue)
         }
     }
 }

@@ -2,7 +2,6 @@ import XCTest
 @testable import XMarkup
 
 final class XMarkupParserTests: XCTestCase {
-
     func testCreateWithDefaultConfig() throws {
         let parser = try XMarkupParser()
         XCTAssertEqual(parser.baseFontSize, 16.0)

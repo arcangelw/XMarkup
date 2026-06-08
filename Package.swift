@@ -24,12 +24,12 @@ let package = Package(
         .target(
             name: "XMarkup",
             dependencies: ["CXMarkup"],
-            path: "bridges/ios/Sources/XMarkup"
+            path: "platforms/ios/Sources/XMarkup"
         ),
         .testTarget(
             name: "XMarkupTests",
             dependencies: ["XMarkup"],
-            path: "Tests/XMarkupTests"
+            path: "platforms/ios/Tests/XMarkupTests"
         ),
     ]
 )

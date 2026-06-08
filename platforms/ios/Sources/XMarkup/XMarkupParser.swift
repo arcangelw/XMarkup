@@ -1,5 +1,5 @@
-import Foundation
 import CXMarkup
+import Foundation
 
 /// XMarkup HTML 解析器
 ///
@@ -15,7 +15,6 @@ import CXMarkup
 /// - Note: 线程安全保证与 C 核心引擎一致：不同实例可跨线程并发使用，
 ///         同一实例不可并发调用。
 public final class XMarkupParser: @unchecked Sendable {
-
     // MARK: - Public Properties
 
     /// 当前配置的基准字号（保留 CGFloat 精度，用于 UIFont 渲染）

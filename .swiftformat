@@ -1,21 +1,31 @@
 # SwiftFormat 配置
 --swiftversion 6.0
+
+# 缩进
 --indent 4
 --tabwidth 4
 --smarttabs enabled
---self remove
+--indentcase false
+
+# 空白
 --trimwhitespace always
+--ranges spaced
+
+# 风格
+--self remove
 --voidtype void
 --commas always
---decimalgrouping 3,6
+--semicolons never
 --exponentcase lowercase
+--decimalgrouping 3,6
+
+# 组织
 --header ignore
 --ifdef indent
 --importgrouping alpha
---indentcase false
---ranges spaced
---semicolons never
 --stripunusedargs closure-only
---trimwhitespace always
 --wraparguments before-first
 --wrapcollections before-first
+
+# 排除规则（Swift 6 兼容）
+--disable redundantSelf
