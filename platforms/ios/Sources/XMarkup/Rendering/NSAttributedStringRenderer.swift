@@ -29,14 +29,20 @@ public struct NSAttributedStringRenderer: MarkupRenderer, Sendable {
     }
 
     /// 将自定义 XMarkupScope key 手动转移到 NSAttributedString
+    ///
+    /// - Note: 必须使用 `runText.utf16.count` 而非 `characters.count`，
+    ///         因为 `NSRange` 的单位是 UTF-16 码元，而 `characters.count`
+    ///         返回的是 Extended Grapheme Cluster 数量，两者在多字节 emoji
+    ///         场景下不一致（例如 🔄 = 2 UTF-16 码元但 1 个 grapheme）。
     private func transferCustomKeys(from attr: AttributedString, to nsAttr: NSMutableAttributedString) {
         var offset = 0
         for run in attr.runs {
-            let runLength = attr[run.range].characters.count
-            let nsRange = NSRange(location: offset, length: runLength)
-            offset += runLength
+            let runText = String(attr[run.range].characters)
+            let utf16Len = runText.utf16.count
+            let nsRange = NSRange(location: offset, length: utf16Len)
+            offset += utf16Len
 
-            guard runLength > 0 else { continue }
+            guard utf16Len > 0 else { continue }
 
             // 逐个检查自定义 key
             if let value = run[XMarkupTagKey.self] {

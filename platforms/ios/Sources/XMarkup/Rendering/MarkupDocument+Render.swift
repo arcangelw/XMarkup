@@ -130,10 +130,19 @@ private func applyInlineAttributes(
     to attr: inout AttributedString,
     blockText: String
 ) {
-    // inline.range 已经是相对于块文本的 NSRange
-    let nsRange = inline.range
-    guard nsRange.length > 0,
-          let attrRange = Range(nsRange, in: attr) else { return }
+    // inline.range 是 UTF-16 NSRange（相对于块文本起始位置）
+    // 通过 String.Index 中转后使用 character offset 定位 AttributedString，
+    // 避免 Range(NSRange, in: AttributedString) 在 emoji 场景下可能出现的边界错位。
+    let attrRange: Range<AttributedString.Index>
+    do {
+        guard let stringRange = Range(inline.range, in: blockText) else { return }
+        let charOffset = blockText.distance(from: blockText.startIndex, to: stringRange.lowerBound)
+        let charLength = blockText.distance(from: stringRange.lowerBound, to: stringRange.upperBound)
+        guard charLength > 0 else { return }
+        let start = attr.index(attr.startIndex, offsetByCharacters: charOffset)
+        let end = attr.index(start, offsetByCharacters: charLength)
+        attrRange = start..<end
+    }
 
     switch inline.kind {
     case .bold:
@@ -302,11 +311,15 @@ private func applyThemeOverrides(
     for inline in block.inlines {
         if let inlineKey = inlineStyleKey(for: inline.kind),
            let container = theme.tagStyles[inlineKey] {
-            // inline.range 已经是相对于块文本的 NSRange
-            let nsRange = inline.range
-            if nsRange.length > 0, let attrRange = Range(nsRange, in: attr) {
-                mergeAttributeContainer(container, into: &attr, range: attrRange)
-            }
+            // inline.range 是 UTF-16 NSRange（相对于块文本起始位置）
+            // 通过 String.Index 中转，确保 emoji 场景不出现边界错位
+            guard let stringRange = Range(inline.range, in: block.text) else { continue }
+            let charOffset = block.text.distance(from: block.text.startIndex, to: stringRange.lowerBound)
+            let charLength = block.text.distance(from: stringRange.lowerBound, to: stringRange.upperBound)
+            guard charLength > 0 else { continue }
+            let start = attr.index(attr.startIndex, offsetByCharacters: charOffset)
+            let end = attr.index(start, offsetByCharacters: charLength)
+            mergeAttributeContainer(container, into: &attr, range: start..<end)
         }
     }
 }
