@@ -34,7 +34,9 @@ struct RenderedTextView: View {
         do {
             let parser = try XMarkupParser()
             let result = try parser.parse(example.html)
-            attributedString = result.makeAttributedString()
+            let document = MarkupDocument.from(result)
+            let renderer = NSAttributedStringRenderer()
+            attributedString = renderer.render(document.render())
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription

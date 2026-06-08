@@ -708,16 +708,13 @@ platforms/ios/Sources/XMarkup/           ← SPM 递归扫描子目录，无需�
 │   └── MarkupDocument+Render.swift     # [新建] render(theme:) 实现
 ├── Bridge/
 │   ├── PlatformTypes.swift             # [迁移] ← 原 PlatformTypes.swift（不变）
-│   ├── XMarkupParser.swift             # [迁移] ← 原 XMarkupParser.swift（不变）
-│   ├── XMarkupResult.swift             # [迁移] ← 原 XMarkupResult.swift（不变）
+│   ├── XMarkupParser.swift             # [迁移] ← 原 XMarkupParser.swift（更新文档注释）
+│   ├── XMarkupResult.swift             # [迁移] ← 原 XMarkupResult.swift（更新文档注释）
 │   ├── XMarkupSpan.swift               # [迁移] ← 原 XMarkupSpan.swift，改标记 internal
 │   ├── XMarkupTag.swift                # [迁移] ← 原 XMarkupTag.swift（保留 public）
 │   ├── XMarkupStyle.swift              # [迁移] ← 原 XMarkupStyle.swift，改标记 internal
 │   ├── XMarkupError.swift              # [迁移] ← 原 XMarkupError.swift（不变）
 │   └── ColorParser.swift               # [迁移] ← 原 ColorParser.swift（不变）
-├── Deprecated/
-│   ├── XMarkupStyleConfig.swift        # [迁移] ← 原 XMarkupStyleConfig.swift，标记 @available(*, deprecated)
-│   └── NSAttributedString+XMarkup.swift # [迁移] ← 原 NSAttributedString+XMarkup.swift，标记废弃
 └── XMarkup.swift                        # [新建] 公共导出（re-export 所有 public 类型）
 ```
 
@@ -741,9 +738,6 @@ platforms/ios/Tests/XMarkupTests/
 │   ├── XMarkupResultTests.swift        # [迁移] ← 原文件（不变）
 │   ├── ColorParserTests.swift          # [迁移] ← 原文件（不变）
 │   └── CrossPlatformTests.swift        # [迁移] ← 原文件（不变）
-├── Deprecated/
-│   ├── NSAttributedStringTests.swift   # [迁移] ← 原文件（不变，确保废弃 API 仍可通过测试）
-│   └── StyleConfigTests.swift          # [迁移] ← 原文件（不变，确保废弃 API 仍可通过测试）
 ```
 
 ### 9.4 文件变更汇总
@@ -751,8 +745,8 @@ platforms/ios/Tests/XMarkupTests/
 | 操作 | 文件数 | 说明 |
 |------|--------|------|
 | 新建 | 14 | Core/4 + Theme/6 + Attributes/2 + Rendering/2 |
-| 迁移（移动到子目录） | 10 | Bridge/8 + Deprecated/2 |
-| 删除（合并到新文件） | 0 | 无直接删除，旧文件迁移到 Deprecated/ 并标记废弃 |
+| 迁移（移动到子目录） | 8 | Bridge/8 |
+| 删除 | 4 | XMarkupStyleConfig + NSAttributedString+XMarkup + 对应测试 |
 | P2 后期新建 | 2 | SwiftUITextRenderer + TextKit2Renderer |
 
 ### 9.5 SPM 兼容性
@@ -766,14 +760,18 @@ SPM 默认递归扫描 `path` 下所有 `.swift` 文件，**子目录自动包�
 
 ---
 
-## 10. 废弃计划
+## 10. 旧 API 清理
 
-| 当前 API | 新 API | 过渡策略 |
-|---------|--------|---------|
-| `XMarkupResult.makeAttributedString(config:)` | `MarkupDocument.from(result).render(theme:)` | 标记 `@available(*, deprecated)` 保留 1 个版本 |
-| `XMarkupStyleConfig` | `MarkupTheme` | 标记废弃 |
-| `XMarkupTagStyle` | `AttributeContainer`（通过 Tag DSL） | 标记废弃 |
-| `XMarkup+TextView.swift`（已删除） | Renderer 层处理 | 已完成 |
+由于组件尚未正式发布，直接删除旧 API 而非标记废弃：
+
+| 已删除 API | 替代方案 |
+|---------|--------|
+| `XMarkupResult.makeAttributedString(config:)` | `MarkupDocument.from(result).render(theme:)` |
+| `XMarkupStyleConfig` | `MarkupTheme` |
+| `XMarkupTagStyle` | `AttributeContainer`（通过 Tag DSL） |
+| `NSAttributedString+XMarkup.swift` | `MarkupDocument+Render.swift` |
+| `NSAttributedStringTests.swift` | `RenderTests.swift` |
+| `StyleConfigTests.swift` | `MarkupThemeTests.swift` |
 
 ---
 

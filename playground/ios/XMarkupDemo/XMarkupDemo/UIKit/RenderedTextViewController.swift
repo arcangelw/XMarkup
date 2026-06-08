@@ -48,7 +48,9 @@ final class RenderedTextViewController: UIViewController {
         do {
             let parser = try XMarkupParser()
             let result = try parser.parse(example.html)
-            textView.attributedText = result.makeAttributedString()
+            let document = MarkupDocument.from(result)
+            let renderer = NSAttributedStringRenderer()
+            textView.attributedText = renderer.render(document.render())
         } catch {
             textView.text = "解析错误：\(error.localizedDescription)"
             textView.textColor = .systemRed
