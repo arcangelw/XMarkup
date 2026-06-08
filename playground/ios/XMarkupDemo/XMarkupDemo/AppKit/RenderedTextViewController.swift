@@ -76,7 +76,9 @@ final class RenderedTextViewController: NSViewController {
         do {
             let parser = try XMarkupParser()
             let result = try parser.parse(example.html)
-            let attributed = result.makeAttributedString()
+            let document = MarkupDocument.from(result)
+            let renderer = NSAttributedStringRenderer()
+            let attributed = renderer.render(document.render())
             textView.textStorage?.setAttributedString(attributed)
         } catch {
             textView.string = "解析错误：\(error.localizedDescription)"

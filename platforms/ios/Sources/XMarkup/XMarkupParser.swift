@@ -9,7 +9,8 @@ import Foundation
 /// ```swift
 /// let parser = try XMarkupParser(baseFontSize: 14.5)
 /// let result = try parser.parse("<b>Hello</b> <i>World</i>")
-/// let attributed = result.makeAttributedString()
+/// let document = MarkupDocument.from(result)
+/// let attributed = document.render()
 /// ```
 ///
 /// - Note: 线程安全保证与 C 核心引擎一致：不同实例可跨线程并发使用，
