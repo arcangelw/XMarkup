@@ -124,8 +124,8 @@ extension XMarkupResult {
             var traits = font.fontDescriptor.symbolicTraits
             traits.insert(trait)
             #if canImport(UIKit)
-                guard let descriptor = font.fontDescriptor.withSymbolicTraits(traits),
-                      let newFont = XMFont(descriptor: descriptor, size: font.pointSize) else { return }
+                guard let descriptor = font.fontDescriptor.withSymbolicTraits(traits) else { return }
+                let newFont = XMFont(descriptor: descriptor, size: font.pointSize)
             #elseif canImport(AppKit)
                 let descriptor = font.fontDescriptor.withSymbolicTraits(traits)
                 guard let newFont = XMFont(descriptor: descriptor, size: font.pointSize) else { return }
@@ -144,8 +144,8 @@ extension XMarkupResult {
             guard let font = currentFont as? XMFont else { return }
             let newSize = font.pointSize * scale
             #if canImport(UIKit)
-                guard let desc = font.fontDescriptor.withSymbolicTraits(boldTrait),
-                      let newFont = XMFont(descriptor: desc, size: newSize) else { return }
+                guard let desc = font.fontDescriptor.withSymbolicTraits(boldTrait) else { return }
+                let newFont = XMFont(descriptor: desc, size: newSize)
             #elseif canImport(AppKit)
                 let desc = font.fontDescriptor.withSymbolicTraits(boldTrait)
                 guard let newFont = XMFont(descriptor: desc, size: newSize) else { return }
@@ -178,9 +178,14 @@ extension XMarkupResult {
         string.enumerateAttribute(.font, in: range) { currentFont, attrRange, _ in
             guard let font = currentFont as? XMFont else { return }
             let descriptor = font.fontDescriptor
-            if let newFont = XMFont(descriptor: descriptor, size: size) {
+            #if canImport(UIKit)
+                let newFont = XMFont(descriptor: descriptor, size: size)
                 string.addAttribute(.font, value: newFont, range: attrRange)
-            }
+            #elseif canImport(AppKit)
+                if let newFont = XMFont(descriptor: descriptor, size: size) {
+                    string.addAttribute(.font, value: newFont, range: attrRange)
+                }
+            #endif
         }
     }
 }
