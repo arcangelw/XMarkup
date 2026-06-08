@@ -74,7 +74,8 @@ struct ScrollingTextView: UIViewRepresentable {
         textView.alwaysBounceVertical = true
         textView.backgroundColor = .clear
         textView.textContainerInset = UIEdgeInsets(top: 8, left: 16, bottom: 8, right: 16)
-        textView.configureForXMarkup()
+        // 清空 linkTextAttributes 让 NSAttributedString 自身的 .foregroundColor 生效
+        textView.linkTextAttributes = [:]
         return textView
     }
 

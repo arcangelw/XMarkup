@@ -29,7 +29,8 @@ final class RenderedTextViewController: UIViewController {
         textView.isScrollEnabled = true
         textView.alwaysBounceVertical = true
         textView.backgroundColor = .clear
-        textView.configureForXMarkup()
+        // 清空 linkTextAttributes 让 NSAttributedString 自身的 .foregroundColor 生效
+        textView.linkTextAttributes = [:]
         textView.translatesAutoresizingMaskIntoConstraints = false
 
         view.addSubview(textView)

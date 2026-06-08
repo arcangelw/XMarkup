@@ -52,7 +52,8 @@ final class RenderedTextViewController: NSViewController {
         textView.isAutomaticQuoteSubstitutionEnabled = false
         textView.isAutomaticDashSubstitutionEnabled = false
         textView.isAutomaticTextReplacementEnabled = false
-        textView.configureForXMarkup()
+        // 清空 linkTextAttributes 让 NSAttributedString 自身的 .foregroundColor 生效
+        textView.linkTextAttributes = [:]
 
         // scrollView 填满 view（Auto Layout）
         scrollView.translatesAutoresizingMaskIntoConstraints = false
