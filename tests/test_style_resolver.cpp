@@ -300,3 +300,48 @@ TEST_F(StyleResolverTest, CSSInvalidColorValue) {
     auto r = resolve(R"(<span style="color:notacolor">text</span>)");
     EXPECT_EQ(r.text, "text");
 }
+
+TEST_F(StyleResolverTest, VideoTagWithDirectSrc) {
+    auto r = resolve("<video src=\"movie.mp4\"></video>");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.tag == XM_TAG_VIDEO) {
+            found = true;
+            EXPECT_EQ(s.value, "movie.mp4");
+            EXPECT_GT(s.byte_end, s.byte_start);
+        }
+    }
+    EXPECT_TRUE(found);
+    EXPECT_NE(r.text.find("\xEF\xBF\xBC"), std::string::npos);
+}
+
+TEST_F(StyleResolverTest, AudioTagWithDirectSrc) {
+    auto r = resolve("<audio src=\"song.mp3\"></audio>");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.tag == XM_TAG_AUDIO) {
+            found = true;
+            EXPECT_EQ(s.value, "song.mp3");
+            EXPECT_GT(s.byte_end, s.byte_start);
+        }
+    }
+    EXPECT_TRUE(found);
+    EXPECT_NE(r.text.find("\xEF\xBF\xBC"), std::string::npos);
+}
+
+TEST_F(StyleResolverTest, VideoTagWithSourceChildSrcFallback) {
+    auto r = resolve("<video><source src=\"a.mp4\" type=\"video/mp4\"></video>");
+    bool found_video = false, found_source = false;
+    for (auto& s : r.spans) {
+        if (s.tag == XM_TAG_VIDEO) {
+            found_video = true;
+            EXPECT_TRUE(s.value.empty());
+        }
+        if (s.tag == XM_TAG_VIDEO_SOURCE) {
+            found_source = true;
+            EXPECT_EQ(s.value, "a.mp4");
+        }
+    }
+    EXPECT_TRUE(found_video);
+    EXPECT_TRUE(found_source);
+}

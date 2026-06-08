@@ -128,6 +128,8 @@ void StyleResolver::dfs(const ASTNode& node, bool inside_pre) {
                 extract_attribute_value(node.attributes, "href", span.value);
             } else if (tag_type == XM_TAG_IMAGE) {
                 extract_attribute_value(node.attributes, "src", span.value);
+            } else if (tag_type == XM_TAG_VIDEO || tag_type == XM_TAG_AUDIO) {
+                extract_attribute_value(node.attributes, "src", span.value);
             } else if (tag_type == XM_TAG_VIDEO_SOURCE || tag_type == XM_TAG_AUDIO_SOURCE) {
                 extract_attribute_value(node.attributes, "src", span.value);
             }
