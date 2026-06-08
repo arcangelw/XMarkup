@@ -92,6 +92,33 @@ final class NSAttributedStringTests: XCTestCase {
         let attr = result.makeAttributedString()
         XCTAssertEqual(attr.string, "")
     }
+
+    // MARK: - Mark 标签测试
+
+    func testMarkBackgroundColor() throws {
+        let result = try parse("<mark>highlighted</mark>")
+        let attr = result.makeAttributedString()
+        let bg = attr.attribute(.backgroundColor, at: 0, effectiveRange: nil) as? XMColor
+        XCTAssertNotNil(bg)
+    }
+
+    func testMarkWithConfigOverride() throws {
+        let result = try parse("<mark>highlighted</mark>")
+        var config = XMarkupStyleConfig.default
+        config[.mark] = XMarkupTagStyle(backgroundColor: XMColor.systemRed.withAlphaComponent(0.5))
+        let attr = result.makeAttributedString(config: config)
+        let bg = attr.attribute(.backgroundColor, at: 0, effectiveRange: nil) as? XMColor
+        XCTAssertNotNil(bg)
+    }
+
+    // MARK: - 默认 config 行为
+
+    func testDefaultConfigMatchesNoArg() throws {
+        let result = try parse("<b>bold</b> normal <i>italic</i>")
+        let attr = result.makeAttributedString()
+        let attrDefault = result.makeAttributedString(config: .default)
+        XCTAssertEqual(attr.string, attrDefault.string)
+    }
 }
 
 // MARK: - 跨平台字体 Trait 常量（测试用）
