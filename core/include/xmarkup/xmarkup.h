@@ -105,7 +105,7 @@ typedef struct XMResult {
 typedef struct XMConfig {
     uint8_t  enable_autocorrect;
     uint16_t max_nesting_depth;
-    uint16_t base_font_size;
+    float    base_font_size;       /* 基准字号（px），支持浮点精度 */
 } XMConfig;
 
 /* 不透明解析器句柄 */

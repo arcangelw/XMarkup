@@ -44,7 +44,7 @@ static const std::unordered_map<std::string_view, int>& tag_map() {
     return map;
 }
 
-StyleResolver::StyleResolver(uint16_t base_font_size)
+StyleResolver::StyleResolver(float base_font_size)
     : base_font_size_(base_font_size) {}
 
 FlattenResult StyleResolver::resolve(const ASTNode& root) {
@@ -375,7 +375,7 @@ std::string StyleResolver::normalize_font_size(std::string_view value) const {
         i++;
     }
 
-    // 换算为 px
+    // 换算为 px（保留浮点精度）
     double px = num;
     if (unit == "em") {
         px = num * base_font_size_;
@@ -388,9 +388,15 @@ std::string StyleResolver::normalize_font_size(std::string_view value) const {
     }
     // px 或无单位 → 直接用数值
 
-    // 四舍五入为整数
-    int result = static_cast<int>(px + 0.5);
-    return std::to_string(result);
+    // 格式化：最多 2 位小数，去除尾部零
+    char buf[32];
+    std::snprintf(buf, sizeof(buf), "%.2f", px);
+    std::string result(buf);
+    // 去除尾部 '0'
+    while (result.size() > 1 && result.back() == '0') result.pop_back();
+    // 去除尾部 '.'
+    if (result.size() > 1 && result.back() == '.') result.pop_back();
+    return result;
 }
 
 std::string StyleResolver::normalize_font_weight(std::string_view value) const {

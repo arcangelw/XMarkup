@@ -3,7 +3,7 @@
 extern "C" {
 
 XMParser* xmarkup_create(const XMConfig* config) {
-    XMConfig cfg = {1, 256, 16};
+    XMConfig cfg = {1, 256, 16.0f};
     if (config) cfg = *config;
     auto* p = new (std::nothrow) xmarkup::ParserInternal();
     if (!p) return nullptr;

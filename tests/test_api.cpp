@@ -10,7 +10,7 @@
 class APITest : public ::testing::Test {
 protected:
     void SetUp() override {
-        XMConfig cfg = {1, 256, 16};
+        XMConfig cfg = {1, 256, 16.0f};
         parser_ = xmarkup_create(&cfg);
         ASSERT_NE(parser_, nullptr);
     }
@@ -357,7 +357,7 @@ TEST_F(APITest, ThreadSafety) {
 
     for (int t = 0; t < num_threads; t++) {
         threads.emplace_back([&]() {
-            XMConfig cfg = {1, 256, 16};
+            XMConfig cfg = {1, 256, 16.0f};
             XMParser* p = xmarkup_create(&cfg);
             for (int i = 0; i < 100; i++) {
                 auto* result = xmarkup_parse(p, html, std::strlen(html));

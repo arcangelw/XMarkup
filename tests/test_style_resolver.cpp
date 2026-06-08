@@ -7,7 +7,7 @@ using namespace xmarkup;
 
 class StyleResolverTest : public ::testing::Test {
 protected:
-    FlattenResult resolve(const char* html, uint16_t base_font_size = 16) {
+    FlattenResult resolve(const char* html, float base_font_size = 16.0f) {
         Tokenizer tok(html);
         std::vector<Token> tokens;
         while (tok.has_next()) tokens.push_back(tok.next());
@@ -180,4 +180,27 @@ TEST_F(StyleResolverTest, TableTags) {
     EXPECT_TRUE(found_table);
     EXPECT_TRUE(found_tr);
     EXPECT_TRUE(found_td);
+}
+
+TEST_F(StyleResolverTest, CSSFontSizeFloatBase) {
+    // 验证浮点 base_font_size 精度：1.5em × 14.5 = 21.75
+    auto r = resolve(R"(<span style="font-size:1.5em">text</span>)", 14.5f);
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_FONT_SIZE && s.value == "21.75") found = true;
+    }
+    EXPECT_TRUE(found);
+}
+
+TEST_F(StyleResolverTest, CSSFontSizeFloatPt) {
+    // 验证 pt→px 浮点换算：12pt × 1.333 ≈ 15.996 → "16"（保留有效小数）
+    auto r = resolve(R"(<span style="font-size:12pt">text</span>)");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_FONT_SIZE) {
+            // 接受合理的浮点输出
+            found = (s.value == "16" || s.value == "15.996" || s.value == "16.00");
+        }
+    }
+    EXPECT_TRUE(found);
 }

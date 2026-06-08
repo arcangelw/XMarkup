@@ -23,7 +23,7 @@ struct FlattenResult {
 
 class StyleResolver {
 public:
-    explicit StyleResolver(uint16_t base_font_size = 16);
+    explicit StyleResolver(float base_font_size = 16.0f);
     FlattenResult resolve(const ASTNode& root);
 
 private:
@@ -37,7 +37,7 @@ private:
     std::string normalize_font_size(std::string_view value) const;
     std::string normalize_font_weight(std::string_view value) const;
 
-    uint16_t base_font_size_;
+    float base_font_size_;
     FlattenResult result_;
     std::vector<std::string_view> parent_stack_;
     uint32_t byte_offset_ = 0;
