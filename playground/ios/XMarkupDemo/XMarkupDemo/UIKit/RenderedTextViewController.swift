@@ -28,7 +28,7 @@ final class RenderedTextViewController: UIViewController {
         textView.isEditable = false
         textView.isScrollEnabled = true
         textView.backgroundColor = .clear
-        textView.font = .systemFont(ofSize: 16)
+        textView.configureForXMarkup()
         textView.translatesAutoresizingMaskIntoConstraints = false
 
         view.addSubview(textView)
