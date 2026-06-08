@@ -145,6 +145,24 @@ void StyleResolver::dfs(const ASTNode& node, bool inside_pre) {
         // 弹出父标签栈
         parent_stack_.pop_back();
 
+        // 为 void/empty 元素插入占位字符，使 span range 非零长度
+        // U+FFFC = 对象替换字符 (UTF-8: EF BF BC, 3 字节)
+        // \n = 换行符 (1 字节)
+        if (tag_type == XM_TAG_IMAGE || tag_type == XM_TAG_VIDEO ||
+            tag_type == XM_TAG_AUDIO || tag_type == XM_TAG_HORIZONTAL_RULE) {
+            result_.text += "\xEF\xBF\xBC"; // U+FFFC
+            byte_offset_ += 3;
+        } else if (tag_type == XM_TAG_LINE_BREAK) {
+            result_.text += "\n";
+            byte_offset_ += 1;
+        }
+
+        // 段落级标签在子节点后追加换行分隔
+        if (tag_type == XM_TAG_PARAGRAPH && byte_offset_ > span_start) {
+            result_.text += "\n";
+            byte_offset_ += 1;
+        }
+
         // 更新 byte_end 和添加 style spans
         if (tag_type != 0) {
             result_.spans[span_idx].byte_end = byte_offset_;

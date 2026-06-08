@@ -64,10 +64,11 @@ TEST_F(StyleResolverTest, LinkTagWithHref) {
 
 TEST_F(StyleResolverTest, ImageTagWithSrc) {
     auto r = resolve("<img src=\"photo.jpg\">");
-    EXPECT_EQ(r.text, ""); // 图片不产生文本
+    EXPECT_NE(r.text.find("\xEF\xBF\xBC"), std::string::npos); // 包含 U+FFFC 占位字符
     ASSERT_EQ(r.spans.size(), 1u);
     EXPECT_EQ(r.spans[0].tag, XM_TAG_IMAGE);
     EXPECT_EQ(r.spans[0].value, "photo.jpg");
+    EXPECT_GT(r.spans[0].byte_end, r.spans[0].byte_start); // range 非零
 }
 
 TEST_F(StyleResolverTest, HeadingTags) {
@@ -203,4 +204,75 @@ TEST_F(StyleResolverTest, CSSFontSizeFloatPt) {
         }
     }
     EXPECT_TRUE(found);
+}
+
+TEST_F(StyleResolverTest, ImageInsertsPlaceholder) {
+    auto r = resolve("Hello <img src=\"photo.jpg\"> World");
+    // image 应插入 U+FFFC 占位字符，span range 非零
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.tag == XM_TAG_IMAGE) {
+            found = true;
+            EXPECT_GT(s.byte_end, s.byte_start); // range 非零长度
+        }
+    }
+    EXPECT_TRUE(found);
+    // text 中应包含 U+FFFC (UTF-8: EF BF BC)
+    EXPECT_NE(r.text.find("\xEF\xBF\xBC"), std::string::npos);
+}
+
+TEST_F(StyleResolverTest, LineBreakInsertsNewline) {
+    auto r = resolve("before<br>after");
+    bool found_br = false;
+    for (auto& s : r.spans) {
+        if (s.tag == XM_TAG_LINE_BREAK) {
+            found_br = true;
+            EXPECT_GT(s.byte_end, s.byte_start); // range 非零
+        }
+    }
+    EXPECT_TRUE(found_br);
+    EXPECT_NE(r.text.find('\n'), std::string::npos);
+}
+
+TEST_F(StyleResolverTest, HorizontalRuleInsertsPlaceholder) {
+    auto r = resolve("before<hr>after");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.tag == XM_TAG_HORIZONTAL_RULE) {
+            found = true;
+            EXPECT_GT(s.byte_end, s.byte_start);
+        }
+    }
+    EXPECT_TRUE(found);
+}
+
+TEST_F(StyleResolverTest, VideoInsertsPlaceholder) {
+    auto r = resolve("<video><source src=\"a.mp4\"></video>");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.tag == XM_TAG_VIDEO) {
+            found = true;
+            EXPECT_GT(s.byte_end, s.byte_start);
+        }
+    }
+    EXPECT_TRUE(found);
+}
+
+TEST_F(StyleResolverTest, AudioInsertsPlaceholder) {
+    auto r = resolve("<audio><source src=\"a.mp3\"></audio>");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.tag == XM_TAG_AUDIO) {
+            found = true;
+            EXPECT_GT(s.byte_end, s.byte_start);
+        }
+    }
+    EXPECT_TRUE(found);
+}
+
+TEST_F(StyleResolverTest, ParagraphSeparation) {
+    auto r = resolve("<p>First</p><p>Second</p>");
+    EXPECT_NE(r.text.find("First"), std::string::npos);
+    EXPECT_NE(r.text.find("Second"), std::string::npos);
+    EXPECT_NE(r.text.find('\n'), std::string::npos);
 }
