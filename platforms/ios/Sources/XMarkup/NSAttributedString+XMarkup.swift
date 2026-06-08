@@ -135,6 +135,12 @@ extension XMarkupResult {
         case .link:
             if let url = span.value {
                 string.addAttribute(.link, value: url, range: range)
+                // 设置默认链接颜色，带自定义颜色的链接会在后续 CSS 颜色 span 中被覆盖
+                #if canImport(UIKit)
+                string.addAttribute(.foregroundColor, value: XMColor.link, range: range)
+                #elseif canImport(AppKit)
+                string.addAttribute(.foregroundColor, value: XMColor.linkColor, range: range)
+                #endif
             }
         case .mark:
             string.addAttribute(
