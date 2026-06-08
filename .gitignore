@@ -44,3 +44,6 @@ Makefile
 
 # 测试产物
 Testing/
+
+# Git worktrees
+.worktrees/
