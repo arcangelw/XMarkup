@@ -48,4 +48,8 @@ const char* xmarkup_error_string(XMError error) {
     }
 }
 
+const char* xmarkup_version(void) {
+    return "0.1.0";
+}
+
 } // extern "C"

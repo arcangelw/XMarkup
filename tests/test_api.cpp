@@ -374,3 +374,9 @@ TEST_F(APITest, ThreadSafety) {
     for (auto& t : threads) t.join();
     EXPECT_EQ(errors, 0);
 }
+
+TEST_F(APITest, VersionString) {
+    const char* ver = xmarkup_version();
+    ASSERT_NE(ver, nullptr);
+    EXPECT_STREQ(ver, "0.1.0");
+}

@@ -123,6 +123,9 @@ void      xmarkup_result_free(XMResult* result);
 XMError     xmarkup_last_error(XMParser* parser);
 const char* xmarkup_error_string(XMError error);
 
+/* 版本查询 */
+const char* xmarkup_version(void);
+
 #ifdef __cplusplus
 }
 #endif
