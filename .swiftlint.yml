@@ -1,6 +1,6 @@
 included:
-  - bridges/ios/Sources/XMarkup
-  - Tests/XMarkupTests
+  - platforms/ios/Sources/XMarkup
+  - platforms/ios/Tests/XMarkupTests
 
 opt_in_rules:
   - empty_count

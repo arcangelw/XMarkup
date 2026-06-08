@@ -4,7 +4,6 @@ import Foundation
 ///
 /// 将 C 引擎输出的 `#RRGGBB` 格式字符串解析为 `XMColor`。
 enum ColorParser {
-
     /// 解析 #RRGGBB 格式的颜色字符串
     ///
     /// - Parameter hex: 颜色字符串，格式 "#RRGGBB"
@@ -22,9 +21,9 @@ enum ColorParser {
         let b = CGFloat(rgb & 0xFF) / 255.0
 
         #if canImport(UIKit)
-        return XMColor(red: r, green: g, blue: b, alpha: 1.0)
+            return XMColor(red: r, green: g, blue: b, alpha: 1.0)
         #elseif canImport(AppKit)
-        return XMColor(red: r, green: g, blue: b, alpha: 1.0)
+            return XMColor(red: r, green: g, blue: b, alpha: 1.0)
         #endif
     }
 }

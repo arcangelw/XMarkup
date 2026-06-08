@@ -41,20 +41,20 @@
 | 文件 | 职责 |
 |------|------|
 | `Package.swift` | SPM 清单（CXMarkup + XMarkup 两个 target） |
-| `bridges/ios/Sources/XMarkup/XMarkupError.swift` | 错误枚举 + `init(cError:)` |
-| `bridges/ios/Sources/XMarkup/XMarkupTag.swift` | 标签枚举 + `init(cValue:)` |
-| `bridges/ios/Sources/XMarkup/XMarkupStyle.swift` | CSS 样式枚举 + `init(cValue:)` |
-| `bridges/ios/Sources/XMarkup/XMarkupSpan.swift` | 样式区间结构体 + C 结构转换 |
-| `bridges/ios/Sources/XMarkup/XMarkupResult.swift` | 结果结构体 + `fromC()` 转换 |
-| `bridges/ios/Sources/XMarkup/XMarkupParser.swift` | 解析器封装，生命周期管理 |
-| `bridges/ios/Sources/XMarkup/PlatformTypes.swift` | 跨平台 XMFont/XMColor 公开 typealias |
-| `bridges/ios/Sources/XMarkup/ColorParser.swift` | `#RRGGBB` → XMColor 解析工具 |
-| `bridges/ios/Sources/XMarkup/NSAttributedString+XMarkup.swift` | 便利层：span→attribute 映射 |
-| `Tests/XMarkupTests/XMarkupParserTests.swift` | 解析器生命周期 + parse 正确性测试 |
-| `Tests/XMarkupTests/XMarkupResultTests.swift` | 结果转换测试 |
-| `Tests/XMarkupTests/NSAttributedStringTests.swift` | 便利层测试 |
-| `Tests/XMarkupTests/ColorParserTests.swift` | 颜色解析测试 |
-| `Tests/XMarkupTests/CrossPlatformTests.swift` | 跨平台编译验证 |
+| `platforms/ios/Sources/XMarkup/XMarkupError.swift` | 错误枚举 + `init(cError:)` |
+| `platforms/ios/Sources/XMarkup/XMarkupTag.swift` | 标签枚举 + `init(cValue:)` |
+| `platforms/ios/Sources/XMarkup/XMarkupStyle.swift` | CSS 样式枚举 + `init(cValue:)` |
+| `platforms/ios/Sources/XMarkup/XMarkupSpan.swift` | 样式区间结构体 + C 结构转换 |
+| `platforms/ios/Sources/XMarkup/XMarkupResult.swift` | 结果结构体 + `fromC()` 转换 |
+| `platforms/ios/Sources/XMarkup/XMarkupParser.swift` | 解析器封装，生命周期管理 |
+| `platforms/ios/Sources/XMarkup/PlatformTypes.swift` | 跨平台 XMFont/XMColor 公开 typealias |
+| `platforms/ios/Sources/XMarkup/ColorParser.swift` | `#RRGGBB` → XMColor 解析工具 |
+| `platforms/ios/Sources/XMarkup/NSAttributedString+XMarkup.swift` | 便利层：span→attribute 映射 |
+| `platforms/ios/Tests/XMarkupTests/XMarkupParserTests.swift` | 解析器生命周期 + parse 正确性测试 |
+| `platforms/ios/Tests/XMarkupTests/XMarkupResultTests.swift` | 结果转换测试 |
+| `platforms/ios/Tests/XMarkupTests/NSAttributedStringTests.swift` | 便利层测试 |
+| `platforms/ios/Tests/XMarkupTests/ColorParserTests.swift` | 颜色解析测试 |
+| `platforms/ios/Tests/XMarkupTests/CrossPlatformTests.swift` | 跨平台编译验证 |
 | `.swiftlint.yml` | SwiftLint 规则配置 |
 | `.swiftformat` | SwiftFormat 规则配置 |
 
@@ -777,12 +777,12 @@ let package = Package(
         .target(
             name: "XMarkup",
             dependencies: ["CXMarkup"],
-            path: "bridges/ios/Sources/XMarkup"
+            path: "platforms/ios/Sources/XMarkup"
         ),
         .testTarget(
             name: "XMarkupTests",
             dependencies: ["XMarkup"],
-            path: "Tests/XMarkupTests"
+            path: "platforms/ios/Tests/XMarkupTests"
         ),
     ]
 )
@@ -791,13 +791,13 @@ let package = Package(
 - [ ] **步骤 2：创建目录结构**
 
 ```bash
-mkdir -p bridges/ios/Sources/XMarkup
-mkdir -p Tests/XMarkupTests
+mkdir -p platforms/ios/Sources/XMarkup
+mkdir -p platforms/ios/Tests/XMarkupTests
 ```
 
 - [ ] **步骤 3：创建占位文件验证 SPM 编译**
 
-创建 `bridges/ios/Sources/XMarkup/Placeholder.swift`：
+创建 `platforms/ios/Sources/XMarkup/Placeholder.swift`：
 
 ```swift
 // 占位文件，验证 SPM target 结构
@@ -810,7 +810,7 @@ mkdir -p Tests/XMarkupTests
 - [ ] **步骤 4：删除占位文件，Commit**
 
 ```bash
-rm bridges/ios/Sources/XMarkup/Placeholder.swift
+rm platforms/ios/Sources/XMarkup/Placeholder.swift
 git add Package.swift
 git commit -m "build: 添加 SPM Package.swift（CXMarkup + XMarkup 双 target）"
 ```
@@ -820,13 +820,13 @@ git commit -m "build: 添加 SPM Package.swift（CXMarkup + XMarkup 双 target�
 ### 任务 8：Swift 类型体系
 
 **文件：**
-- 创建：`bridges/ios/Sources/XMarkup/XMarkupError.swift`
-- 创建：`bridges/ios/Sources/XMarkup/XMarkupTag.swift`
-- 创建：`bridges/ios/Sources/XMarkup/XMarkupStyle.swift`
-- 创建：`bridges/ios/Sources/XMarkup/XMarkupSpan.swift`
-- 创建：`bridges/ios/Sources/XMarkup/XMarkupResult.swift`
-- 创建：`bridges/ios/Sources/XMarkup/PlatformTypes.swift`
-- 测试：`Tests/XMarkupTests/XMarkupResultTests.swift`
+- 创建：`platforms/ios/Sources/XMarkup/XMarkupError.swift`
+- 创建：`platforms/ios/Sources/XMarkup/XMarkupTag.swift`
+- 创建：`platforms/ios/Sources/XMarkup/XMarkupStyle.swift`
+- 创建：`platforms/ios/Sources/XMarkup/XMarkupSpan.swift`
+- 创建：`platforms/ios/Sources/XMarkup/XMarkupResult.swift`
+- 创建：`platforms/ios/Sources/XMarkup/PlatformTypes.swift`
+- 测试：`platforms/ios/Tests/XMarkupTests/XMarkupResultTests.swift`
 
 - [ ] **步骤 1：创建 PlatformTypes.swift**
 
@@ -1083,7 +1083,7 @@ public struct XMarkupResult: Sendable {
 
 - [ ] **步骤 7：编写类型转换测试**
 
-创建 `Tests/XMarkupTests/XMarkupResultTests.swift`：
+创建 `platforms/ios/Tests/XMarkupTests/XMarkupResultTests.swift`：
 
 ```swift
 import XCTest
@@ -1146,12 +1146,12 @@ git commit -m "feat(ios): 添加 Swift 类型体系
 ### 任务 9：XMarkupParser 封装
 
 **文件：**
-- 创建：`bridges/ios/Sources/XMarkup/XMarkupParser.swift`
-- 测试：`Tests/XMarkupTests/XMarkupParserTests.swift`
+- 创建：`platforms/ios/Sources/XMarkup/XMarkupParser.swift`
+- 测试：`platforms/ios/Tests/XMarkupTests/XMarkupParserTests.swift`
 
 - [ ] **步骤 1：编写失败的测试**
 
-创建 `Tests/XMarkupTests/XMarkupParserTests.swift`：
+创建 `platforms/ios/Tests/XMarkupTests/XMarkupParserTests.swift`：
 
 ```swift
 import XCTest
@@ -1346,12 +1346,12 @@ git commit -m "feat(ios): 添加 XMarkupParser 封装
 ### 任务 10：ColorParser
 
 **文件：**
-- 创建：`bridges/ios/Sources/XMarkup/ColorParser.swift`
-- 测试：`Tests/XMarkupTests/ColorParserTests.swift`
+- 创建：`platforms/ios/Sources/XMarkup/ColorParser.swift`
+- 测试：`platforms/ios/Tests/XMarkupTests/ColorParserTests.swift`
 
 - [ ] **步骤 1：编写失败的测试**
 
-创建 `Tests/XMarkupTests/ColorParserTests.swift`：
+创建 `platforms/ios/Tests/XMarkupTests/ColorParserTests.swift`：
 
 ```swift
 import XCTest
@@ -1468,13 +1468,13 @@ git commit -m "feat(ios): 添加 ColorParser #RRGGBB 颜色解析
 ### 任务 11：NSAttributedString 便利层
 
 **文件：**
-- 创建：`bridges/ios/Sources/XMarkup/NSAttributedString+XMarkup.swift`
-- 修改：`bridges/ios/Sources/XMarkup/XMarkupResult.swift`（更新 `makeAttributedString`）
-- 测试：`Tests/XMarkupTests/NSAttributedStringTests.swift`
+- 创建：`platforms/ios/Sources/XMarkup/NSAttributedString+XMarkup.swift`
+- 修改：`platforms/ios/Sources/XMarkup/XMarkupResult.swift`（更新 `makeAttributedString`）
+- 测试：`platforms/ios/Tests/XMarkupTests/NSAttributedStringTests.swift`
 
 - [ ] **步骤 1：编写失败的测试**
 
-创建 `Tests/XMarkupTests/NSAttributedStringTests.swift`：
+创建 `platforms/ios/Tests/XMarkupTests/NSAttributedStringTests.swift`：
 
 ```swift
 import XCTest
@@ -1783,14 +1783,14 @@ git commit -m "feat(ios): 添加 NSAttributedString 便利层
 **文件：**
 - 创建：`.swiftlint.yml`
 - 创建：`.swiftformat`
-- 创建：`Tests/XMarkupTests/CrossPlatformTests.swift`
+- 创建：`platforms/ios/Tests/XMarkupTests/CrossPlatformTests.swift`
 
 - [ ] **步骤 1：创建 .swiftlint.yml**
 
 ```yaml
 included:
-  - bridges/ios/Sources/XMarkup
-  - Tests/XMarkupTests
+  - platforms/ios/Sources/XMarkup
+  - platforms/ios/Tests/XMarkupTests
 
 opt_in_rules:
   - empty_count
@@ -1853,7 +1853,7 @@ file_length:
 
 - [ ] **步骤 3：创建跨平台验证测试**
 
-创建 `Tests/XMarkupTests/CrossPlatformTests.swift`：
+创建 `platforms/ios/Tests/XMarkupTests/CrossPlatformTests.swift`：
 
 ```swift
 import XCTest

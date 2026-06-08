@@ -129,7 +129,7 @@ XMarkup/                           ← 仓库根目录
 ├── core/                          ← 已有，C++ 核心引擎
 │   ├── include/xmarkup/xmarkup.h
 │   └── src/*.cpp, *.h
-├── bridges/
+├── platforms/
 │   └── ios/
 │       └── Sources/
 │           └── XMarkup/           ← Swift 桥接层源码
@@ -167,7 +167,7 @@ XMarkup/                           ← 仓库根目录
 
 **Target 2：`XMarkup`（Swift target）**
 
-- `path: "bridges/ios/Sources/XMarkup"`
+- `path: "platforms/ios/Sources/XMarkup"`
 - `dependencies: ["CXMarkup"]`
 
 **测试 Target：`XMarkupTests`**
@@ -681,20 +681,20 @@ swift build && swift test
 | 文件 | 职责 | 行数预估 |
 |------|------|----------|
 | `Package.swift` | SPM 清单 | ~40 |
-| `bridges/ios/Sources/XMarkup/XMarkupError.swift` | 错误枚举 + `init(cError:)` | ~25 |
-| `bridges/ios/Sources/XMarkup/XMarkupTag.swift` | 标签枚举 + `init(cValue:)` | ~60 |
-| `bridges/ios/Sources/XMarkup/XMarkupStyle.swift` | CSS 样式枚举 + `init(cValue:)` | ~25 |
-| `bridges/ios/Sources/XMarkup/XMarkupSpan.swift` | 样式区间结构体 + C 结构转换 | ~30 |
-| `bridges/ios/Sources/XMarkup/XMarkupResult.swift` | 结果结构体 + `fromC()` 转换 | ~40 |
-| `bridges/ios/Sources/XMarkup/XMarkupParser.swift` | 解析器封装，生命周期管理 | ~50 |
-| `bridges/ios/Sources/XMarkup/PlatformTypes.swift` | 跨平台 XMFont/XMColor 公开 typealias | ~15 |
-| `bridges/ios/Sources/XMarkup/ColorParser.swift` | `#RRGGBB` → XMColor 解析工具 | ~20 |
-| `bridges/ios/Sources/XMarkup/NSAttributedString+XMarkup.swift` | 便利层：span→attribute 映射 | ~150 |
-| `Tests/XMarkupTests/XMarkupParserTests.swift` | 解析器生命周期 + parse 正确性 | ~80 |
-| `Tests/XMarkupTests/XMarkupResultTests.swift` | 结果转换：span 解析、range 精度 | ~60 |
-| `Tests/XMarkupTests/NSAttributedStringTests.swift` | 便利层：字体合并、颜色映射、嵌套叠加 | ~100 |
-| `Tests/XMarkupTests/ColorParserTests.swift` | 十六进制颜色解析边界 | ~30 |
-| `Tests/XMarkupTests/CrossPlatformTests.swift` | 跨平台编译验证 | ~20 |
+| `platforms/ios/Sources/XMarkup/XMarkupError.swift` | 错误枚举 + `init(cError:)` | ~25 |
+| `platforms/ios/Sources/XMarkup/XMarkupTag.swift` | 标签枚举 + `init(cValue:)` | ~60 |
+| `platforms/ios/Sources/XMarkup/XMarkupStyle.swift` | CSS 样式枚举 + `init(cValue:)` | ~25 |
+| `platforms/ios/Sources/XMarkup/XMarkupSpan.swift` | 样式区间结构体 + C 结构转换 | ~30 |
+| `platforms/ios/Sources/XMarkup/XMarkupResult.swift` | 结果结构体 + `fromC()` 转换 | ~40 |
+| `platforms/ios/Sources/XMarkup/XMarkupParser.swift` | 解析器封装，生命周期管理 | ~50 |
+| `platforms/ios/Sources/XMarkup/PlatformTypes.swift` | 跨平台 XMFont/XMColor 公开 typealias | ~15 |
+| `platforms/ios/Sources/XMarkup/ColorParser.swift` | `#RRGGBB` → XMColor 解析工具 | ~20 |
+| `platforms/ios/Sources/XMarkup/NSAttributedString+XMarkup.swift` | 便利层：span→attribute 映射 | ~150 |
+| `platforms/ios/Tests/XMarkupTests/XMarkupParserTests.swift` | 解析器生命周期 + parse 正确性 | ~80 |
+| `platforms/ios/Tests/XMarkupTests/XMarkupResultTests.swift` | 结果转换：span 解析、range 精度 | ~60 |
+| `platforms/ios/Tests/XMarkupTests/NSAttributedStringTests.swift` | 便利层：字体合并、颜色映射、嵌套叠加 | ~100 |
+| `platforms/ios/Tests/XMarkupTests/ColorParserTests.swift` | 十六进制颜色解析边界 | ~30 |
+| `platforms/ios/Tests/XMarkupTests/CrossPlatformTests.swift` | 跨平台编译验证 | ~20 |
 | `.swiftlint.yml` | SwiftLint 规则 | ~30 |
 | `.swiftformat` | SwiftFormat 规则 | ~10 |
 

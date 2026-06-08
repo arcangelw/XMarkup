@@ -111,7 +111,7 @@ XMarkup/
 │   ├── include/xmarkup/xmarkup.h  # 唯一公共头文件
 │   └── src/                       # 内部实现（7 个模块）
 ├── tests/                         # GoogleTest 测试（85 个测试用例）
-├── bridges/                       # 三端桥接层（子项目 B，待启动）
+├── platforms/                       # 三端桥接层（子项目 B，待启动）
 └── docs/                          # 文档
 ```
 

@@ -72,7 +72,7 @@ XMarkup/
 │       ├── stress_50kb.html
 │       └── malicious.html
 │
-├── bridges/                          # 三端桥接层（子项目 B 预留）
+├── platforms/                          # 三端桥接层（子项目 B 预留）
 │   ├── ios/
 │   ├── android/
 │   └── harmony/

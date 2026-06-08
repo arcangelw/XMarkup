@@ -2,7 +2,6 @@ import XCTest
 @testable import XMarkup
 
 final class NSAttributedStringTests: XCTestCase {
-
     private func parse(_ html: String) throws -> XMarkupResult {
         let parser = try XMarkupParser()
         return try parser.parse(html)
@@ -13,7 +12,7 @@ final class NSAttributedStringTests: XCTestCase {
         let attr = result.makeAttributedString()
         let font = attr.attribute(.font, at: 0, effectiveRange: nil) as? XMFont
         XCTAssertNotNil(font)
-        XCTAssertTrue(font!.fontDescriptor.symbolicTraits.contains(boldTrait))
+        XCTAssertTrue(try XCTUnwrap(font?.fontDescriptor.symbolicTraits.contains(boldTrait)))
     }
 
     func testItalicFontTrait() throws {
@@ -21,7 +20,7 @@ final class NSAttributedStringTests: XCTestCase {
         let attr = result.makeAttributedString()
         let font = attr.attribute(.font, at: 0, effectiveRange: nil) as? XMFont
         XCTAssertNotNil(font)
-        XCTAssertTrue(font!.fontDescriptor.symbolicTraits.contains(italicTrait))
+        XCTAssertTrue(try XCTUnwrap(font?.fontDescriptor.symbolicTraits.contains(italicTrait)))
     }
 
     func testBoldItalicMerged() throws {
@@ -29,8 +28,8 @@ final class NSAttributedStringTests: XCTestCase {
         let attr = result.makeAttributedString()
         let font = attr.attribute(.font, at: 0, effectiveRange: nil) as? XMFont
         XCTAssertNotNil(font)
-        XCTAssertTrue(font!.fontDescriptor.symbolicTraits.contains(boldTrait))
-        XCTAssertTrue(font!.fontDescriptor.symbolicTraits.contains(italicTrait))
+        XCTAssertTrue(try XCTUnwrap(font?.fontDescriptor.symbolicTraits.contains(boldTrait)))
+        XCTAssertTrue(try XCTUnwrap(font?.fontDescriptor.symbolicTraits.contains(italicTrait)))
     }
 
     func testUnderlineStyle() throws {
@@ -71,9 +70,9 @@ final class NSAttributedStringTests: XCTestCase {
     func testCustomBaseFont() throws {
         let result = try parse("<b>text</b>")
         #if canImport(UIKit)
-        let customFont = UIFont.systemFont(ofSize: 20)
+            let customFont = UIFont.systemFont(ofSize: 20)
         #elseif canImport(AppKit)
-        let customFont = NSFont.systemFont(ofSize: 20)
+            let customFont = NSFont.systemFont(ofSize: 20)
         #endif
         let attr = result.makeAttributedString(baseFont: customFont)
         let font = attr.attribute(.font, at: 0, effectiveRange: nil) as? XMFont
@@ -96,9 +95,9 @@ final class NSAttributedStringTests: XCTestCase {
 // MARK: - 跨平台字体 Trait 常量（测试用）
 
 #if canImport(UIKit)
-private let boldTrait: UIFontDescriptor.SymbolicTraits = .traitBold
-private let italicTrait: UIFontDescriptor.SymbolicTraits = .traitItalic
+    private let boldTrait: UIFontDescriptor.SymbolicTraits = .traitBold
+    private let italicTrait: UIFontDescriptor.SymbolicTraits = .traitItalic
 #elseif canImport(AppKit)
-private let boldTrait: NSFontDescriptor.SymbolicTraits = .bold
-private let italicTrait: NSFontDescriptor.SymbolicTraits = .italic
+    private let boldTrait: NSFontDescriptor.SymbolicTraits = .bold
+    private let italicTrait: NSFontDescriptor.SymbolicTraits = .italic
 #endif

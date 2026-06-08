@@ -1,9 +1,8 @@
+import CXMarkup
 import XCTest
 @testable import XMarkup
-import CXMarkup
 
 final class XMarkupResultTests: XCTestCase {
-
     func testTagMapping() {
         XCTAssertEqual(XMarkupTag(cValue: XM_TAG_BOLD), .bold)
         XCTAssertEqual(XMarkupTag(cValue: XM_TAG_ITALIC), .italic)
@@ -13,7 +12,7 @@ final class XMarkupResultTests: XCTestCase {
     }
 
     func testUnknownTag() {
-        if case .unknown(let val) = XMarkupTag(cValue: XMTagType(rawValue: 999)) {
+        if case let .unknown(val) = XMarkupTag(cValue: XMTagType(rawValue: 999)) {
             XCTAssertEqual(val, 999)
         } else {
             XCTFail("Expected unknown tag")
