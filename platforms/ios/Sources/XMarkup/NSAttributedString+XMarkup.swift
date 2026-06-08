@@ -343,7 +343,7 @@ extension XMarkupResult {
         let symbolConfig = UIImage.SymbolConfiguration(
             pointSize: min(size.width, size.height) * 0.3
         )
-        let symbol = UIImage(systemSymbolName: systemName, withConfiguration: symbolConfig)
+        let symbol = UIImage(systemName: systemName, withConfiguration: symbolConfig)
             ?? UIImage()
         let renderer = UIGraphicsImageRenderer(size: size)
         return renderer.image { context in
