@@ -50,6 +50,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         listVC.onSelect = { [weak detailVC] example in
             detailVC?.update(example: example)
         }
+
+        // 手动触发首次选中（selectRowIndexes 在 onSelect 设置前已执行）
+        if !DemoExample.allExamples.isEmpty {
+            detailVC.update(example: DemoExample.allExamples[0])
+        }
     }
 }
 

@@ -1,16 +1,16 @@
 import AppKit
 
-/// 详情页：HTML 源码 + 分段切换（渲染效果 / Span 数据）
+/// 详情页：三段 Tab 切换（HTML 源码 / 渲染效果 / Span 数据）
 final class ExampleDetailViewController: NSViewController {
     private let containerView = NSView()
-    private let htmlTextView = NSTextView()
     private let segmentedControl = NSSegmentedControl(
-        labels: ["渲染效果", "Span 数据"],
+        labels: ["HTML 源码", "渲染效果", "Span 数据"],
         trackingMode: .selectOne,
         target: nil,
         action: nil
     )
 
+    private var htmlVC: HTMLSourceViewController?
     private var renderedVC: RenderedTextViewController?
     private var spanVC: SpanDataViewController?
 
@@ -24,23 +24,6 @@ final class ExampleDetailViewController: NSViewController {
     }
 
     private func setupLayout() {
-        // HTML 源码区域
-        htmlTextView.isEditable = false
-        htmlTextView.isRichText = false
-        htmlTextView.isHorizontallyResizable = false
-        htmlTextView.isVerticallyResizable = true
-        htmlTextView.textContainer?.widthTracksTextView = true
-        htmlTextView.backgroundColor = .textBackgroundColor
-        htmlTextView.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
-        htmlTextView.textColor = .secondaryLabelColor
-
-        let htmlScrollView = NSScrollView()
-        htmlScrollView.translatesAutoresizingMaskIntoConstraints = false
-        htmlScrollView.hasVerticalScroller = true
-        htmlScrollView.hasHorizontalScroller = false
-        htmlScrollView.heightAnchor.constraint(equalToConstant: 80).isActive = true
-        htmlScrollView.documentView = htmlTextView
-
         // 分段控制
         segmentedControl.selectedSegment = 0
         segmentedControl.target = self
@@ -58,7 +41,6 @@ final class ExampleDetailViewController: NSViewController {
         stackView.spacing = 8
         stackView.translatesAutoresizingMaskIntoConstraints = false
         stackView.edgeInsets = NSEdgeInsets(top: 12, left: 16, bottom: 12, right: 16)
-        stackView.addArrangedSubview(htmlScrollView)
         stackView.addArrangedSubview(segmentedControl)
         stackView.addArrangedSubview(containerView)
 
@@ -71,22 +53,6 @@ final class ExampleDetailViewController: NSViewController {
         ])
 
         showPlaceholder()
-    }
-
-    override func viewDidLayout() {
-        super.viewDidLayout()
-        // 更新 htmlTextView 的 frame 以填满 htmlScrollView 的可见区域
-        if let htmlScrollView = htmlTextView.enclosingScrollView {
-            let visibleRect = htmlScrollView.documentVisibleRect
-            if visibleRect.width > 0 {
-                let contentHeight = htmlTextView.layoutManager?.usedRect(for: htmlTextView.textContainer!).height ?? 0
-                htmlTextView.frame = NSRect(
-                    x: 0, y: 0,
-                    width: visibleRect.width,
-                    height: max(visibleRect.height, contentHeight + 10)
-                )
-            }
-        }
     }
 
     private func showPlaceholder() {
@@ -105,34 +71,23 @@ final class ExampleDetailViewController: NSViewController {
     // MARK: - Public
 
     func update(example: DemoExample) {
-        htmlTextView.string = example.html
-
+        // 清理旧的子控制器
+        htmlVC?.view.removeFromSuperview()
+        htmlVC?.removeFromParent()
         renderedVC?.view.removeFromSuperview()
         renderedVC?.removeFromParent()
         spanVC?.view.removeFromSuperview()
         spanVC?.removeFromParent()
         containerView.subviews.forEach { $0.removeFromSuperview() }
 
+        // 创建新的子控制器
+        htmlVC = HTMLSourceViewController(html: example.html)
         renderedVC = RenderedTextViewController(example: example)
         spanVC = SpanDataViewController(example: example)
 
-        showChild(renderedVC)
-        segmentedControl.selectedSegment = 0
-    }
-
-    // MARK: - Actions
-
-    @objc private func switchTab() {
-        showChild(segmentedControl.selectedSegment == 0 ? renderedVC : spanVC)
-    }
-
-    private func showChild(_ child: NSViewController?) {
-        guard let child else { return }
-
-        renderedVC?.view.isHidden = (child !== renderedVC)
-        spanVC?.view.isHidden = (child !== spanVC)
-
-        if child.parent == nil {
+        // 一次性添加所有子控制器
+        let children: [NSViewController] = [htmlVC!, renderedVC!, spanVC!]
+        for child in children {
             addChild(child)
             child.view.translatesAutoresizingMaskIntoConstraints = false
             containerView.addSubview(child.view)
@@ -142,8 +97,21 @@ final class ExampleDetailViewController: NSViewController {
                 child.view.topAnchor.constraint(equalTo: containerView.topAnchor),
                 child.view.bottomAnchor.constraint(equalTo: containerView.bottomAnchor),
             ])
+            child.view.isHidden = true
         }
 
-        child.view.isHidden = false
+        // 默认显示 HTML 源码
+        htmlVC?.view.isHidden = false
+        segmentedControl.selectedSegment = 0
+    }
+
+    // MARK: - Actions
+
+    @objc private func switchTab() {
+        htmlVC?.view.isHidden = segmentedControl.selectedSegment != 0
+        renderedVC?.view.isHidden = segmentedControl.selectedSegment != 1
+        spanVC?.view.isHidden = segmentedControl.selectedSegment != 2
+        // 强制刷新可见子视图的布局（hidden 时 documentVisibleRect 可能为零）
+        containerView.layoutSubtreeIfNeeded()
     }
 }

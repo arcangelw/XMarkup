@@ -27,6 +27,7 @@ final class RenderedTextViewController: UIViewController {
     private func setupTextView() {
         textView.isEditable = false
         textView.isScrollEnabled = true
+        textView.alwaysBounceVertical = true
         textView.backgroundColor = .clear
         textView.configureForXMarkup()
         textView.translatesAutoresizingMaskIntoConstraints = false

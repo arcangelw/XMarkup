@@ -111,6 +111,39 @@ final class NSAttributedStringTests: XCTestCase {
         XCTAssertNotNil(bg)
     }
 
+    // MARK: - Code 标签测试
+
+    func testCodeHasMonospaceFont() throws {
+        let result = try parse("<code>print()</code>")
+        let attr = result.makeAttributedString()
+        let font = attr.attribute(.font, at: 0, effectiveRange: nil) as? XMFont
+        XCTAssertNotNil(font)
+        // 确认使用了等宽字体
+        #if canImport(UIKit)
+        let traits = font?.fontDescriptor.symbolicTraits ?? []
+        XCTAssertTrue(traits.contains(.traitMonoSpace))
+        #elseif canImport(AppKit)
+        let traits = font?.fontDescriptor.symbolicTraits ?? []
+        XCTAssertTrue(traits.contains(.monoSpace))
+        #endif
+    }
+
+    func testCodeHasBackgroundColor() throws {
+        let result = try parse("<code>code</code>")
+        let attr = result.makeAttributedString()
+        let bg = attr.attribute(.backgroundColor, at: 0, effectiveRange: nil) as? XMColor
+        XCTAssertNotNil(bg, "<code> 标签应有默认背景色")
+    }
+
+    func testCodeWithConfigOverride() throws {
+        let result = try parse("<code>code</code>")
+        var config = XMarkupStyleConfig.default
+        config[.code] = XMarkupTagStyle(backgroundColor: XMColor.systemRed)
+        let attr = result.makeAttributedString(config: config)
+        let bg = attr.attribute(.backgroundColor, at: 0, effectiveRange: nil) as? XMColor
+        XCTAssertNotNil(bg)
+    }
+
     // MARK: - 默认 config 行为
 
     func testDefaultConfigMatchesNoArg() throws {

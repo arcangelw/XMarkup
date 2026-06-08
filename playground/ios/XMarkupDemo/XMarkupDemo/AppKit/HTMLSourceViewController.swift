@@ -1,14 +1,15 @@
 import AppKit
-import XMarkup
 
-/// NSAttributedString 渲染视图（AppKit）
-final class RenderedTextViewController: NSViewController {
-    private let example: DemoExample
+/// HTML 源码展示视图（AppKit）
+///
+/// 以等宽字体展示原始 HTML，支持滚动浏览。
+final class HTMLSourceViewController: NSViewController {
+    private let html: String
     private let scrollView = NSScrollView()
     private let textView = NSTextView()
 
-    init(example: DemoExample) {
-        self.example = example
+    init(html: String) {
+        self.html = html
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -24,12 +25,10 @@ final class RenderedTextViewController: NSViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         setupTextView()
-        parseAndRender()
     }
 
     override func viewDidLayout() {
         super.viewDidLayout()
-        // 每次布局都更新 textView 的 frame 以填满可见区域
         let visibleRect = scrollView.documentVisibleRect
         if visibleRect.width > 0 {
             let contentHeight = textView.layoutManager?.usedRect(for: textView.textContainer!).height ?? 0
@@ -41,20 +40,19 @@ final class RenderedTextViewController: NSViewController {
         }
     }
 
+    // MARK: - Setup
+
     private func setupTextView() {
         textView.isEditable = false
-        textView.isRichText = true
-        textView.backgroundColor = .clear
-        textView.typingAttributes = [.font: NSFont.systemFont(ofSize: 16)]
+        textView.isRichText = false
         textView.isHorizontallyResizable = false
         textView.isVerticallyResizable = true
         textView.textContainer?.widthTracksTextView = true
-        textView.isAutomaticQuoteSubstitutionEnabled = false
-        textView.isAutomaticDashSubstitutionEnabled = false
-        textView.isAutomaticTextReplacementEnabled = false
-        textView.configureForXMarkup()
+        textView.backgroundColor = .textBackgroundColor
+        textView.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
+        textView.textColor = .secondaryLabelColor
+        textView.string = html
 
-        // scrollView 填满 view（Auto Layout）
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
@@ -67,19 +65,6 @@ final class RenderedTextViewController: NSViewController {
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
 
-        // 不设 textView.frame，在 viewDidLayout 中动态设置
         scrollView.documentView = textView
-    }
-
-    private func parseAndRender() {
-        do {
-            let parser = try XMarkupParser()
-            let result = try parser.parse(example.html)
-            let attributed = result.makeAttributedString()
-            textView.textStorage?.setAttributedString(attributed)
-        } catch {
-            textView.string = "解析错误：\(error.localizedDescription)"
-            textView.textColor = .systemRed
-        }
     }
 }

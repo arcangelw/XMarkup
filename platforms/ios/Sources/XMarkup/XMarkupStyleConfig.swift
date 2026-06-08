@@ -116,6 +116,13 @@ public struct XMarkupStyleConfig: @unchecked Sendable {
         config[.mark] = XMarkupTagStyle(
             backgroundColor: XMColor.systemYellow.withAlphaComponent(0.3)
         )
+        #if canImport(UIKit)
+        config[.code] = XMarkupTagStyle(backgroundColor: .systemGray6)
+        #elseif canImport(AppKit)
+        config[.code] = XMarkupTagStyle(
+            backgroundColor: .systemGray.withAlphaComponent(0.15)
+        )
+        #endif
         return config
     }()
 
@@ -125,6 +132,13 @@ public struct XMarkupStyleConfig: @unchecked Sendable {
         config[.mark] = XMarkupTagStyle(
             backgroundColor: XMColor.systemOrange.withAlphaComponent(0.3)
         )
+        #if canImport(UIKit)
+        config[.code] = XMarkupTagStyle(backgroundColor: .systemGray)
+        #elseif canImport(AppKit)
+        config[.code] = XMarkupTagStyle(
+            backgroundColor: .systemGray.withAlphaComponent(0.3)
+        )
+        #endif
         return config
     }()
 

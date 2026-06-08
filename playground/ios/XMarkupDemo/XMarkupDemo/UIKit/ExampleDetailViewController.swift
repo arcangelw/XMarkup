@@ -1,12 +1,12 @@
 import UIKit
 
-/// 示例详情：顶部 HTML 源码 + 分段切换（渲染效果 / Span 数据）
+/// 示例详情：三段 Tab 切换（HTML 源码 / 渲染效果 / Span 数据）
 final class ExampleDetailViewController: UIViewController {
     private let example: DemoExample
-    private let segmentedControl = UISegmentedControl(items: ["渲染效果", "Span 数据"])
-    private let htmlLabel = UILabel()
+    private let segmentedControl = UISegmentedControl(items: ["HTML 源码", "渲染效果", "Span 数据"])
     private let containerView = UIView()
 
+    private var htmlVC: HTMLSourceViewController?
     private var renderedVC: RenderedTextViewController?
     private var spanVC: SpanDataViewController?
 
@@ -25,44 +25,12 @@ final class ExampleDetailViewController: UIViewController {
         title = example.title
         view.backgroundColor = .systemBackground
 
-        setupHTMLLabel()
         setupSegmentedControl()
         setupContainer()
-
-        // 创建子控制器
-        renderedVC = RenderedTextViewController(example: example)
-        spanVC = SpanDataViewController(example: example)
-
-        if let rendered = renderedVC {
-            addChild(rendered)
-            containerView.addSubview(rendered.view)
-            rendered.view.translatesAutoresizingMaskIntoConstraints = false
-            NSLayoutConstraint.activate([
-                rendered.view.topAnchor.constraint(equalTo: containerView.topAnchor),
-                rendered.view.bottomAnchor.constraint(equalTo: containerView.bottomAnchor),
-                rendered.view.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
-                rendered.view.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
-            ])
-            rendered.didMove(toParent: self)
-        }
+        setupChildViewControllers()
     }
 
     // MARK: - Setup
-
-    private func setupHTMLLabel() {
-        htmlLabel.text = example.html
-        htmlLabel.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
-        htmlLabel.textColor = .secondaryLabel
-        htmlLabel.numberOfLines = 0
-        htmlLabel.translatesAutoresizingMaskIntoConstraints = false
-
-        view.addSubview(htmlLabel)
-        NSLayoutConstraint.activate([
-            htmlLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
-            htmlLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-            htmlLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-        ])
-    }
 
     private func setupSegmentedControl() {
         segmentedControl.selectedSegmentIndex = 0
@@ -73,7 +41,7 @@ final class ExampleDetailViewController: UIViewController {
 
         view.addSubview(segmentedControl)
         NSLayoutConstraint.activate([
-            segmentedControl.topAnchor.constraint(equalTo: htmlLabel.bottomAnchor, constant: 8),
+            segmentedControl.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
             segmentedControl.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             segmentedControl.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
         ])
@@ -90,24 +58,14 @@ final class ExampleDetailViewController: UIViewController {
         ])
     }
 
-    // MARK: - Tab Switching
+    /// 一次性创建并添加所有子控制器，通过 isHidden 切换显示
+    private func setupChildViewControllers() {
+        htmlVC = HTMLSourceViewController(html: example.html)
+        renderedVC = RenderedTextViewController(example: example)
+        spanVC = SpanDataViewController(example: example)
 
-    private func switchTab() {
-        guard segmentedControl.selectedSegmentIndex == 1 else {
-            showChild(renderedVC)
-            return
-        }
-        showChild(spanVC)
-    }
-
-    private func showChild(_ child: UIViewController?) {
-        guard let child else { return }
-
-        // 隐藏当前显示的
-        renderedVC?.view.isHidden = (child !== renderedVC)
-        spanVC?.view.isHidden = (child !== spanVC)
-
-        if child.parent == nil {
+        let children: [UIViewController] = [htmlVC!, renderedVC!, spanVC!]
+        for child in children {
             addChild(child)
             containerView.addSubview(child.view)
             child.view.translatesAutoresizingMaskIntoConstraints = false
@@ -118,8 +76,18 @@ final class ExampleDetailViewController: UIViewController {
                 child.view.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
             ])
             child.didMove(toParent: self)
+            child.view.isHidden = true
         }
 
-        child.view.isHidden = false
+        // 默认显示第一个 Tab
+        htmlVC?.view.isHidden = false
+    }
+
+    // MARK: - Tab Switching
+
+    private func switchTab() {
+        htmlVC?.view.isHidden = segmentedControl.selectedSegmentIndex != 0
+        renderedVC?.view.isHidden = segmentedControl.selectedSegmentIndex != 1
+        spanVC?.view.isHidden = segmentedControl.selectedSegmentIndex != 2
     }
 }

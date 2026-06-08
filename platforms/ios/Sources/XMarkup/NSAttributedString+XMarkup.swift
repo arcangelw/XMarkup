@@ -142,6 +142,17 @@ extension XMarkupResult {
                 string.addAttribute(.foregroundColor, value: XMColor.linkColor, range: range)
                 #endif
             }
+        case .code:
+            // HTML <code> 默认应有背景色以区分普通文本
+            #if canImport(UIKit)
+            string.addAttribute(.backgroundColor, value: XMColor.systemGray6, range: range)
+            #elseif canImport(AppKit)
+            string.addAttribute(
+                .backgroundColor,
+                value: XMColor.systemGray.withAlphaComponent(0.15),
+                range: range
+            )
+            #endif
         case .mark:
             string.addAttribute(
                 .backgroundColor,
