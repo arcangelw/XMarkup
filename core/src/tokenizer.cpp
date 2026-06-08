@@ -11,7 +11,7 @@ bool Tokenizer::has_next() const {
 }
 
 Token Tokenizer::next() {
-    // 如果有缓存的 token，直接返回
+    // 返回缓存的 token（由状态机提前产出但未返回的情况）
     if (has_token_) {
         has_token_ = false;
         return pending_token_;
@@ -23,21 +23,19 @@ Token Tokenizer::next() {
     while (pos_ < html_.size() || state_ != TokenizerState::DATA) {
         switch (state_) {
 
+        // === DATA 状态：收集纯文本直到遇到 '<' ===
         case TokenizerState::DATA: {
-            // 在 DATA 状态下收集文本直到遇到 '<'
             size_t text_start = pos_;
             while (pos_ < html_.size() && html_[pos_] != '<') {
                 pos_++;
             }
             if (pos_ > text_start) {
-                // 有累积的文本，先返回 TEXT token
+                // 累积了文本内容，产出 TEXT token
                 Token tok;
                 tok.type = TokenType::TEXT;
                 tok.raw = html_.substr(text_start, pos_ - text_start);
-                // 不改变 state_，下次进来还是 DATA（或 pos_ 到达 '<'）
                 if (pos_ < html_.size() && html_[pos_] == '<') {
-                    // 下次要从 '<' 开始处理标签
-                    // 用 state_ 标记：下次先处理 TAG_OPEN
+                    // 标记下次从 TAG_OPEN 开始处理标签
                     state_ = TokenizerState::TAG_OPEN;
                 }
                 return tok;
@@ -47,17 +45,16 @@ Token Tokenizer::next() {
             break;
         }
 
+        // === TAG_OPEN 状态：消费 '<'，判断标签方向 ===
         case TokenizerState::TAG_OPEN: {
-            // pos_ 指向 '<'
             if (pos_ >= html_.size() || html_[pos_] != '<') {
-                // 不应该到这里，重置
                 state_ = TokenizerState::DATA;
                 break;
             }
             pos_++; // 消费 '<'
 
             if (pos_ >= html_.size()) {
-                // '<' 在末尾，当作文本
+                // '<' 在末尾，当作普通文本
                 Token tok;
                 tok.type = TokenType::TEXT;
                 tok.raw = "<";
@@ -68,14 +65,14 @@ Token Tokenizer::next() {
             char next = html_[pos_];
             if (next == '/') {
                 pos_++;
-                state_ = TokenizerState::END_TAG_OPEN;
+                state_ = TokenizerState::END_TAG_OPEN;   // 结束标签
             } else if (next == '!') {
                 pos_++;
-                state_ = TokenizerState::COMMENT;
+                state_ = TokenizerState::COMMENT;         // 注释或声明
             } else if (is_alpha(next)) {
-                state_ = TokenizerState::TAG_NAME;
+                state_ = TokenizerState::TAG_NAME;        // 开始标签
             } else {
-                // '<' 后不是合法标签名字符，当作文本
+                // '<' 后不是合法标签名字符，当作普通文本 '<'
                 Token tok;
                 tok.type = TokenType::TEXT;
                 tok.raw = "<";
@@ -85,10 +82,10 @@ Token Tokenizer::next() {
             break;
         }
 
+        // === END_TAG_OPEN 状态：已消费 '</'，验证标签名合法性 ===
         case TokenizerState::END_TAG_OPEN: {
-            // 消费了 '</'，期望标签名
             if (pos_ >= html_.size() || !is_alpha(html_[pos_])) {
-                // '</' 后没有合法标签名，当作文本
+                // '</' 后不是字母，当作文本 "</"
                 Token tok;
                 tok.type = TokenType::TEXT;
                 tok.raw = "</";
@@ -99,8 +96,10 @@ Token Tokenizer::next() {
             break;
         }
 
+        // === TAG_NAME 状态：读取标签名 + 属性，直到 '>' 或 '/>' ===
+        // 这是最大的状态，内含属性解析子状态机
         case TokenizerState::TAG_NAME: {
-            // 读取标签名
+            // 读取标签名（到空白、'>' 或 '/' 为止）
             size_t name_start = pos_;
             while (pos_ < html_.size() && !is_whitespace(html_[pos_]) &&
                    html_[pos_] != '>' && html_[pos_] != '/') {
@@ -112,40 +111,46 @@ Token Tokenizer::next() {
                 break;
             }
 
-            // 记录属性区域的起始（紧跟标签名之后）
+            // 属性区域起始位置（紧跟标签名之后）
             size_t attr_start = pos_;
             state_ = TokenizerState::BEFORE_ATTR_NAME;
 
-            // 继续处理属性，直到遇到 '>' 或 '/>'
+            // 属性解析子状态机：循环直到遇到 '>' 或 '/>'
             while (pos_ < html_.size()) {
                 char c = html_[pos_];
 
                 switch (state_) {
+
+                // BEFORE_ATTR_NAME：等待属性名或标签结束符
                 case TokenizerState::BEFORE_ATTR_NAME:
                     if (is_whitespace(c)) {
                         pos_++;
                     } else if (c == '>') {
-                        goto emit_tag_token;
+                        goto emit_tag_token;     // 标签结束
                     } else if (c == '/') {
                         pos_++;
-                        state_ = TokenizerState::SELF_CLOSING;
+                        state_ = TokenizerState::SELF_CLOSING;  // 可能是自闭合
                     } else {
-                        state_ = TokenizerState::ATTR_NAME;
+                        state_ = TokenizerState::ATTR_NAME;     // 开始属性名
                         pos_++;
                     }
                     break;
 
+                // SELF_CLOSING：已读 '/'，期望 '>' 确认自闭合
                 case TokenizerState::SELF_CLOSING:
                     if (c == '>') {
-                        goto emit_tag_token;
+                        goto emit_tag_token;     // 确认自闭合
                     } else {
+                        // '/' 后不是 '>'，回退（HTML 容错）
                         state_ = TokenizerState::BEFORE_ATTR_NAME;
                     }
                     break;
 
+                // ATTR_NAME：读取属性名，等待 '=' 或空白
                 case TokenizerState::ATTR_NAME:
                     if (c == '=') {
                         pos_++;
+                        // '=' 后根据引号类型选择属性值状态
                         if (pos_ < html_.size()) {
                             char qc = html_[pos_];
                             if (qc == '"') {
@@ -168,6 +173,7 @@ Token Tokenizer::next() {
                     }
                     break;
 
+                // AFTER_ATTR_NAME：属性名后等待 '=' 或下一个属性
                 case TokenizerState::AFTER_ATTR_NAME:
                     if (is_whitespace(c)) {
                         pos_++;
@@ -188,20 +194,23 @@ Token Tokenizer::next() {
                     } else if (c == '>' || c == '/') {
                         state_ = TokenizerState::BEFORE_ATTR_NAME;
                     } else {
+                        // 不是 '='，当作新属性名开始（HTML 容错：布尔属性后跟新属性）
                         state_ = TokenizerState::ATTR_NAME;
                         pos_++;
                     }
                     break;
 
+                // ATTR_VALUE_DOUBLE_Q：读取双引号属性值，直到遇到结束双引号
                 case TokenizerState::ATTR_VALUE_DOUBLE_Q:
                     if (c == '"') {
                         pos_++;
-                        state_ = TokenizerState::BEFORE_ATTR_NAME;
+                        state_ = TokenizerState::BEFORE_ATTR_NAME;  // 属性值结束
                     } else {
-                        pos_++;
+                        pos_++;  // 属性值内的内容（包括 '<'、'&' 等原样保留）
                     }
                     break;
 
+                // ATTR_VALUE_SINGLE_Q：读取单引号属性值，直到遇到结束单引号
                 case TokenizerState::ATTR_VALUE_SINGLE_Q:
                     if (c == '\'') {
                         pos_++;
@@ -211,6 +220,7 @@ Token Tokenizer::next() {
                     }
                     break;
 
+                // ATTR_VALUE_UNQUOTED：读取无引号属性值，到空白或 '>' 结束
                 case TokenizerState::ATTR_VALUE_UNQUOTED:
                     if (is_whitespace(c) || c == '>') {
                         state_ = TokenizerState::BEFORE_ATTR_NAME;
@@ -224,7 +234,8 @@ Token Tokenizer::next() {
                     break;
                 }
             }
-            // 到达 EOF 但标签未闭合
+
+            // 到达 EOF 但标签未闭合——回退将未闭合标签当作 token 产出
             {
                 // 回溯找到 '<' 的位置
                 size_t lt_pos = name_start;
@@ -239,7 +250,7 @@ Token Tokenizer::next() {
                 tok.type = is_end_tag ? TokenType::END_TAG : TokenType::START_TAG;
                 tok.raw = raw;
                 tok.tag_name = tag_name;
-                // 清理前导空白
+                // 清理属性字符串前导空白
                 while (!attrs.empty() && is_whitespace(attrs.front())) attrs.remove_prefix(1);
                 tok.attributes = attrs.empty() ? std::string_view{} : attrs;
                 state_ = TokenizerState::DATA;
@@ -248,7 +259,7 @@ Token Tokenizer::next() {
             }
 
         emit_tag_token:
-            // pos_ 指向 '>'
+            // pos_ 指向 '>'，组装完整的标签 token
             {
                 size_t lt_pos = name_start;
                 while (lt_pos > 0 && html_[lt_pos - 1] != '<') lt_pos--;
@@ -259,7 +270,7 @@ Token Tokenizer::next() {
 
                 std::string_view raw = html_.substr(lt_pos, pos_ - lt_pos + 1);
 
-                // 属性区域：从 attr_start 到 pos_（或 pos_-1 如果 self_closing）
+                // 属性区域：从 attr_start 到 '>' 之前（自闭合时到 '/' 之前）
                 size_t attr_end = is_self_closing ? pos_ - 1 : pos_;
                 std::string_view attrs;
                 if (attr_end > attr_start) {
@@ -269,14 +280,15 @@ Token Tokenizer::next() {
 
                 pos_++; // 消费 '>'
 
-                // 处理 RAWTEXT 标签（script/style/noscript）——完全吞掉，不产出 token
+                // 处理 RAWTEXT 标签（script/style/noscript）——整体跳过内容，不产出 token
+                // 这是 HTML5 规范要求的特殊行为：这些标签的内容不是 HTML
                 if (!is_end_tag && !is_self_closing &&
                     (tag_name == "script" || tag_name == "style" || tag_name == "noscript")) {
                     if (tag_name == "script") skip_rawtext("script");
                     else if (tag_name == "style") skip_rawtext("style");
                     else skip_rawtext("noscript");
                     state_ = TokenizerState::DATA;
-                    break; // 跳出 TAG_NAME switch，继续外层 while 循环
+                    break; // 跳出 TAG_NAME，继续外层 while 寻找下一个 token
                 }
 
                 Token tok;
@@ -295,9 +307,8 @@ Token Tokenizer::next() {
             }
         }
 
+        // === COMMENT 状态：处理 HTML 注释（<!-- -->）和声明（<!DOCTYPE>） ===
         case TokenizerState::COMMENT: {
-            // 消费了 '<!'，期望注释或声明
-            // 检查是否是 <!-- 注释
             if (pos_ < html_.size() && html_[pos_] == '-') {
                 pos_++;
                 if (pos_ < html_.size() && html_[pos_] == '-') {
@@ -310,16 +321,16 @@ Token Tokenizer::next() {
                         }
                         pos_++;
                     }
-                    // 如果没找到 -->，跳到末尾
+                    // 未找到 --> 则跳到末尾（容错）
                     if (pos_ + 2 >= html_.size() && !(pos_ + 2 < html_.size())) {
                         pos_ = html_.size();
                     }
                     state_ = TokenizerState::DATA;
                     break;
                 }
-                // <!- 不是注释开始，当作声明处理，跳过到 >
+                // <!- 不是注释开始，当作声明处理
             }
-            // 其他声明（如 <!DOCTYPE>），跳过到 >
+            // 其他声明（如 <!DOCTYPE>），跳过到 '>'
             while (pos_ < html_.size() && html_[pos_] != '>') {
                 pos_++;
             }
@@ -328,14 +339,13 @@ Token Tokenizer::next() {
             break;
         }
 
+        // 以下两个状态在重构后不再使用，保留作为安全回退
         case TokenizerState::COMMENT_DASH1:
         case TokenizerState::COMMENT_DASH2:
-            // 这两个状态在重构后不再需要，注释处理在 COMMENT 中完成
             state_ = TokenizerState::DATA;
             break;
 
         case TokenizerState::RAWTEXT:
-            // RAWTEXT 状态在重构后由 skip_rawtext 直接处理
             state_ = TokenizerState::DATA;
             break;
 
@@ -345,7 +355,6 @@ Token Tokenizer::next() {
         }
     }
 
-    // 不应到达此处
     return {TokenType::TEXT, {}, {}, {}};
 }
 
@@ -371,6 +380,14 @@ bool Tokenizer::is_whitespace(char c) const {
     return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f';
 }
 
+/**
+ * @brief 跳过 RAWTEXT 内容（script/style/noscript 标签体）
+ *
+ * 这些标签的内容不是 HTML，需要整体跳过直到对应的闭合标签。
+ * 匹配时不区分大小写。
+ *
+ * @param end_tag 闭合标签名（如 "script"）
+ */
 void Tokenizer::skip_rawtext(const char* end_tag) {
     std::string close_tag = "</";
     close_tag += end_tag;
@@ -384,9 +401,8 @@ void Tokenizer::skip_rawtext(const char* end_tag) {
             if (a != b) match = false;
         }
         if (match) {
-            // 跳过闭合标签名
             pos_ += close_len;
-            // 跳过空白和 '>'
+            // 跳过闭合标签名后的空白和 '>'
             while (pos_ < html_.size() && html_[pos_] != '>') pos_++;
             if (pos_ < html_.size()) pos_++;
             return;

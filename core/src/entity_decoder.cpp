@@ -4,24 +4,36 @@
 
 namespace xmarkup {
 
-// 命名实体映射表（常用 ~120 个）
+// HTML5 命名实体映射表
+// 来源：https://html.spec.whatwg.org/multipage/named-characters.html
+// 包含约 120 个常用实体（覆盖 Latin-1 Supplement、Latin Extended、通用标点、数学符号等）
 static const std::unordered_map<std::string_view, const char*>& named_entities() {
     static const std::unordered_map<std::string_view, const char*> entities = {
+        // 基本 XML 实体
         {"amp", "&"}, {"lt", "<"}, {"gt", ">"}, {"quot", "\""}, {"apos", "'"},
         {"nbsp", "\xC2\xA0"},
+        // 版权、商标
         {"copy", "\xC2\xA9"}, {"reg", "\xC2\xAE"}, {"trade", "\xE2\x84\xA2"},
+        // 破折号
         {"mdash", "\xE2\x80\x94"}, {"ndash", "\xE2\x80\x93"},
+        // 书名号
         {"laquo", "\xC2\xAB"}, {"raquo", "\xC2\xBB"},
+        // 引号
         {"lsquo", "\xE2\x80\x98"}, {"rsquo", "\xE2\x80\x99"},
         {"ldquo", "\xE2\x80\x9C"}, {"rdquo", "\xE2\x80\x9D"},
+        // 项目符号和标点
         {"bull", "\xE2\x80\xA2"}, {"hellip", "\xE2\x80\xA6"},
         {"middot", "\xC2\xB7"}, {"para", "\xC2\xB6"}, {"sect", "\xC2\xA7"},
+        // 数学符号
         {"deg", "\xC2\xB0"}, {"plusmn", "\xC2\xB1"},
         {"times", "\xC3\x97"}, {"divide", "\xC3\xB7"},
         {"frac12", "\xC2\xBD"}, {"frac14", "\xC2\xBC"}, {"frac34", "\xC2\xBE"},
+        // 倒置标点
         {"iexcl", "\xC2\xA1"}, {"iquest", "\xC2\xBF"},
+        // 货币符号
         {"cent", "\xC2\xA2"}, {"pound", "\xC2\xA3"}, {"curren", "\xC2\xA4"},
         {"yen", "\xC2\xA5"}, {"euro", "\xE2\x82\xAC"},
+        // Latin-1 带重音字符（小写）
         {"eacute", "\xC3\xA9"}, {"egrave", "\xC3\xA8"}, {"ecirc", "\xC3\xAA"},
         {"aacute", "\xC3\xA1"}, {"agrave", "\xC3\xA0"}, {"acirc", "\xC3\xA2"},
         {"uuml", "\xC3\xBC"}, {"uacute", "\xC3\xBA"}, {"ugrave", "\xC3\xB9"},
@@ -31,7 +43,7 @@ static const std::unordered_map<std::string_view, const char*>& named_entities()
         {"aring", "\xC3\xA5"}, {"aelig", "\xC3\xA6"},
         {"ccedil", "\xC3\xA7"}, {"ntilde", "\xC3\xB1"},
         {"szlig", "\xC3\x9F"},
-        // 大写变体
+        // Latin-1 带重音字符（大写）
         {"Agrave", "\xC3\x80"}, {"Aacute", "\xC3\x81"}, {"Acirc", "\xC3\x82"},
         {"Auml", "\xC3\x84"}, {"Aring", "\xC3\x85"}, {"AElig", "\xC3\x86"},
         {"Egrave", "\xC3\x88"}, {"Eacute", "\xC3\x89"}, {"Ecirc", "\xC3\x8A"},
@@ -42,20 +54,23 @@ static const std::unordered_map<std::string_view, const char*>& named_entities()
         {"THORN", "\xC3\x9E"}, {"thorn", "\xC3\xBE"},
         {"ETH", "\xC3\x90"}, {"eth", "\xC3\xB0"},
         {"Yacute", "\xC3\x9D"}, {"yacute", "\xC3\xBD"}, {"yuml", "\xC3\xBF"},
-        // 特殊符号
+        // 箭头符号
         {"larr", "\xE2\x86\x90"}, {"uarr", "\xE2\x86\x91"},
         {"rarr", "\xE2\x86\x92"}, {"darr", "\xE2\x86\x93"},
         {"harr", "\xE2\x86\x94"},
         {"lArr", "\xE2\x87\x90"}, {"uArr", "\xE2\x87\x91"},
         {"rArr", "\xE2\x87\x92"}, {"dArr", "\xE2\x87\x93"},
         {"hArr", "\xE2\x87\x94"},
+        // 扑克牌花色
         {"spades", "\xE2\x99\xA0"}, {"clubs", "\xE2\x99\xA3"},
         {"hearts", "\xE2\x99\xA5"}, {"diams", "\xE2\x99\xA6"},
         {"loz", "\xE2\x97\x8A"},
+        // 空白和控制字符
         {"ensp", "\xE2\x80\x82"}, {"emsp", "\xE2\x80\x83"}, {"thinsp", "\xE2\x80\x89"},
         {"zwnj", "\xE2\x80\x8C"}, {"zwj", "\xE2\x80\x8D"},
         {"lrm", "\xE2\x80\x8E"}, {"rlm", "\xE2\x80\x8F"},
         {"shy", "\xC2\xAD"},
+        // 其他修饰符号
         {"macr", "\xC2\xAF"}, {"acute", "\xC2\xB4"},
         {"micro", "\xC2\xB5"}, {"ordf", "\xC2\xAA"}, {"ordm", "\xC2\xBA"},
         {"sup1", "\xC2\xB9"}, {"sup2", "\xC2\xB2"}, {"sup3", "\xC2\xB3"},
@@ -68,19 +83,31 @@ static const std::unordered_map<std::string_view, const char*>& named_entities()
     return entities;
 }
 
-// Unicode 码点到 UTF-8 编码
+/**
+ * @brief Unicode 码点 → UTF-8 编码
+ *
+ * UTF-8 编码规则：
+ * - U+0000-U+007F:  0xxxxxxx                     (1 字节)
+ * - U+0080-U+07FF:  110xxxxx 10xxxxxx            (2 字节)
+ * - U+0800-U+FFFF:  1110xxxx 10xxxxxx 10xxxxxx   (3 字节)
+ * - U+10000+:      11110xxx 10xxxxxx 10xxxxxx 10xxxxxx (4 字节)
+ */
 static std::string unicode_to_utf8(uint32_t cp) {
     std::string result;
     if (cp <= 0x7F) {
+        // ASCII 范围：直接编码
         result += static_cast<char>(cp);
     } else if (cp <= 0x7FF) {
+        // 2 字节序列：110xxxxx 10xxxxxx
         result += static_cast<char>(0xC0 | (cp >> 6));
         result += static_cast<char>(0x80 | (cp & 0x3F));
     } else if (cp <= 0xFFFF) {
+        // 3 字节序列：1110xxxx 10xxxxxx 10xxxxxx
         result += static_cast<char>(0xE0 | (cp >> 12));
         result += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
         result += static_cast<char>(0x80 | (cp & 0x3F));
     } else if (cp <= 0x10FFFF) {
+        // 4 字节序列：11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
         result += static_cast<char>(0xF0 | (cp >> 18));
         result += static_cast<char>(0x80 | ((cp >> 12) & 0x3F));
         result += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
@@ -110,9 +137,16 @@ std::string EntityDecoder::decode(std::string_view text) {
     return result;
 }
 
+/**
+ * @brief 尝试从指定位置解码一个 HTML 实体
+ *
+ * 解码策略（优先级从高到低）：
+ * 1. 带分号的实体（&amp;）—— 精确匹配
+ * 2. 无分号的容错匹配（&amp）—— 从最长到最短尝试
+ * 3. 无法识别 —— 保留原始文本
+ */
 bool EntityDecoder::try_decode_entity(std::string_view text, size_t pos,
                                        size_t& entity_end, std::string& decoded) {
-    // text[pos] == '&'
     if (pos + 1 >= text.size()) return false;
 
     size_t start = pos + 1;
@@ -127,11 +161,11 @@ bool EntityDecoder::try_decode_entity(std::string_view text, size_t pos,
     bool has_semi = (semi_pos < limit && text[semi_pos] == ';');
 
     if (has_semi) {
-        // 提取实体名称（不含 & 和 ;）
+        // 带分号的标准实体
         std::string_view entity = text.substr(start, semi_pos - start);
         if (entity.empty()) return false;
 
-        // 尝试数字实体
+        // 尝试数字实体（&#60; 或 &#x3c;）
         if (entity[0] == '#') {
             bool is_hex = (entity.size() > 1 && (entity[1] == 'x' || entity[1] == 'X'));
             std::string_view num_part = is_hex ? entity.substr(2) : entity.substr(1);
@@ -153,14 +187,14 @@ bool EntityDecoder::try_decode_entity(std::string_view text, size_t pos,
         return false;
     }
 
-    // 没有找到 ';'，容错：尝试将 & 后的字母序列匹配已知实体名
+    // 没有找到 ';' —— 容错：尝试将 & 后的字母序列匹配已知实体名
+    // 策略：从最长到最短尝试匹配（最大嚼吃原则）
     size_t name_end = start;
     while (name_end < text.size() &&
            ((text[name_end] >= 'a' && text[name_end] <= 'z') ||
             (text[name_end] >= 'A' && text[name_end] <= 'Z'))) {
         name_end++;
     }
-    // 从最长到最短尝试匹配
     for (size_t len = name_end - start; len > 0; len--) {
         std::string_view candidate = text.substr(start, len);
         if (try_named_entity(candidate, decoded)) {
@@ -181,6 +215,15 @@ bool EntityDecoder::try_named_entity(std::string_view name, std::string& decoded
     return false;
 }
 
+/**
+ * @brief 尝试解码数字实体
+ *
+ * 验证规则：
+ * - 十进制/十六进制数字解析
+ * - 超出 Unicode 范围（> 0x10FFFF）→ 失败
+ * - 零值码点（U+0000）→ 失败
+ * - Surrogate 范围（U+D800-U+DFFF）→ 失败
+ */
 bool EntityDecoder::try_numeric_entity(std::string_view value, bool is_hex,
                                         std::string& decoded) {
     uint32_t cp = 0;
@@ -202,7 +245,7 @@ bool EntityDecoder::try_numeric_entity(std::string_view value, bool is_hex,
         }
     }
 
-    // 替代字符和无效码点
+    // 无效码点过滤：零值、surrogate 范围
     if (cp == 0 || (cp >= 0xD800 && cp <= 0xDFFF)) return false;
 
     decoded = unicode_to_utf8(cp);

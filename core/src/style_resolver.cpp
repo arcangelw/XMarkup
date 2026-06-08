@@ -6,7 +6,12 @@
 
 namespace xmarkup {
 
-// 标签名 → XMTagType 映射
+// pt → px 换算系数：1pt = 1/72 inch, 96 dpi → 96/72 ≈ 1.333
+static constexpr float kPtToPxFactor = 1.333f;
+
+// HTML 标签 → XMTagType 映射策略：
+// - 语义等价标签映射到同一类型（如 <b> 和 <strong> → XM_TAG_BOLD）
+// - <source> 映射为 0（特殊处理，依赖父标签上下文判定 VIDEO_SOURCE/AUDIO_SOURCE）
 static const std::unordered_map<std::string_view, int>& tag_map() {
     static const std::unordered_map<std::string_view, int> map = {
         // 文本样式
@@ -400,7 +405,7 @@ std::string StyleResolver::normalize_font_size(std::string_view value) const {
     } else if (unit == "rem") {
         px = num * base_font_size_;
     } else if (unit == "pt") {
-        px = num * 1.333; // 1pt ≈ 1.333px
+        px = num * kPtToPxFactor; // 1pt ≈ 1.333px
     } else if (unit == "%") {
         px = num * base_font_size_ / 100.0;
     }
