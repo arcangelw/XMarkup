@@ -8,10 +8,12 @@
     public typealias XMFont = UIFont
     public typealias XMColor = UIColor
     public typealias XMFontDescriptor = UIFontDescriptor
+    public typealias XMImage = UIImage
 #elseif canImport(AppKit)
     import AppKit
 
     public typealias XMFont = NSFont
     public typealias XMColor = NSColor
     public typealias XMFontDescriptor = NSFontDescriptor
+    public typealias XMImage = NSImage
 #endif

@@ -4,7 +4,7 @@ import CXMarkup
 ///
 /// 映射 HTML 标签到语义化的 Swift 枚举。
 /// 对于未知标签，保留原始 C 值供调试。
-public enum XMarkupTag: Sendable, Equatable {
+public enum XMarkupTag: Sendable, Equatable, Hashable {
     // 文本样式
     case bold
     case italic
