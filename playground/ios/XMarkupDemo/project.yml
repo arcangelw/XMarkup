@@ -3,6 +3,7 @@ options:
   bundleIdPrefix: com.xmarkup.demo
   deploymentTarget:
     iOS: "16.0"
+    macOS: "12.0"
   xcodeVersion: "16.0"
   generateEmptyDirectories: true
 
@@ -11,11 +12,13 @@ packages:
     path: ../../..
 
 targets:
-  XMarkupDemo:
+  # --- SwiftUI (iOS 16+) ---
+  XMarkupDemoSwiftUI:
     type: application
     platform: iOS
     sources:
-      - XMarkupDemo
+      - path: XMarkupDemo/Shared
+      - path: XMarkupDemo/SwiftUI
     dependencies:
       - package: XMarkup
     settings:
@@ -26,6 +29,52 @@ targets:
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait"
-        INFOPLIST_KEY_CFBundleDisplayName: "XMarkup Demo"
+        INFOPLIST_KEY_CFBundleDisplayName: "XMarkup Demo (SwiftUI)"
         MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: "1"
+        PRODUCT_BUNDLE_IDENTIFIER: com.xmarkup.demo.XMarkupDemoSwiftUI
+
+  # --- UIKit (iOS 15+) ---
+  XMarkupDemoUIKit:
+    type: application
+    platform: [iOS]
+    deploymentTarget:
+      iOS: "15.0"
+    sources:
+      - path: XMarkupDemo/Shared
+      - path: XMarkupDemo/UIKit
+        excludes:
+          - Info.plist
+    dependencies:
+      - package: XMarkup
+    settings:
+      base:
+        SWIFT_VERSION: "6.0"
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: XMarkupDemo/UIKit/Info.plist
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait"
+        INFOPLIST_KEY_CFBundleDisplayName: "XMarkup Demo (UIKit)"
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+        PRODUCT_BUNDLE_IDENTIFIER: com.xmarkup.demo.XMarkupDemoUIKit
+
+  # --- AppKit (macOS 12+) ---
+  XMarkupDemoAppKit:
+    type: application
+    platform: macOS
+    sources:
+      - path: XMarkupDemo/Shared
+      - path: XMarkupDemo/AppKit
+    dependencies:
+      - package: XMarkup
+    settings:
+      base:
+        SWIFT_VERSION: "6.0"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: "XMarkup Demo (AppKit)"
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+        PRODUCT_BUNDLE_IDENTIFIER: com.xmarkup.demo.XMarkupDemoAppKit
+        CODE_SIGN_IDENTITY: "-"
