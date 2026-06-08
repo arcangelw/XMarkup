@@ -38,3 +38,18 @@ TEST(EntityDecoder, NoEntities) {
 TEST(EntityDecoder, EmptyInput) {
     EXPECT_EQ(EntityDecoder::decode(""), "");
 }
+
+TEST(EntityDecoder, OversizedNumericEntity) {
+    // 超大数字实体应返回原始文本（超出 Unicode 范围）
+    EXPECT_EQ(EntityDecoder::decode("&#999999999;"), "&#999999999;");
+}
+
+TEST(EntityDecoder, ZeroNumericEntity) {
+    // 零值实体应返回原始文本（无效码点）
+    EXPECT_EQ(EntityDecoder::decode("&#0;"), "&#0;");
+}
+
+TEST(EntityDecoder, SurrogateRangeEntity) {
+    // surrogate 范围码点应返回原始文本
+    EXPECT_EQ(EntityDecoder::decode("&#xD800;"), "&#xD800;");
+}

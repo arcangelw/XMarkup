@@ -10,7 +10,7 @@
 class APITest : public ::testing::Test {
 protected:
     void SetUp() override {
-        XMConfig cfg = {1, 256, 16};
+        XMConfig cfg = {1, 256, 16.0f};
         parser_ = xmarkup_create(&cfg);
         ASSERT_NE(parser_, nullptr);
     }
@@ -357,7 +357,7 @@ TEST_F(APITest, ThreadSafety) {
 
     for (int t = 0; t < num_threads; t++) {
         threads.emplace_back([&]() {
-            XMConfig cfg = {1, 256, 16};
+            XMConfig cfg = {1, 256, 16.0f};
             XMParser* p = xmarkup_create(&cfg);
             for (int i = 0; i < 100; i++) {
                 auto* result = xmarkup_parse(p, html, std::strlen(html));
@@ -373,4 +373,44 @@ TEST_F(APITest, ThreadSafety) {
 
     for (auto& t : threads) t.join();
     EXPECT_EQ(errors, 0);
+}
+
+TEST_F(APITest, VersionString) {
+    const char* ver = xmarkup_version();
+    ASSERT_NE(ver, nullptr);
+    EXPECT_STREQ(ver, "0.1.0");
+}
+
+TEST_F(APITest, PureChineseHTML) {
+    auto* r = parse("<b>\xe4\xbd\xa0\xe5\xa5\xbd\xe4\xb8\x96\xe7\x95\x8c</b>"); // "你好世界"
+    ASSERT_NE(r, nullptr);
+    EXPECT_NE(r->text, nullptr);
+    EXPECT_EQ(r->span_count, 1u);
+    EXPECT_EQ(r->spans[0].tag, XM_TAG_BOLD);
+    xmarkup_result_free(r);
+}
+
+TEST_F(APITest, MixedMultilingual) {
+    // 中英日韩 Emoji 混合
+    auto* r = parse("<b>Hello\xe4\xb8\x96\xe7\x95\x8c\xe3\x81\x93\xe3\x82\x93\xe3\x81\xab\xe3\x81\xa1\xe3\x81\xaf\xf0\x9f\x98\x8a</b>");
+    ASSERT_NE(r, nullptr);
+    EXPECT_NE(r->text, nullptr);
+    EXPECT_GT(r->span_count, 0u);
+    xmarkup_result_free(r);
+}
+
+TEST_F(APITest, ConsecutiveParseWorks) {
+    // XMResult 在下一次 parse 前有效，使用后立即释放
+    {
+        auto* r1 = parse("<b>first</b>");
+        ASSERT_NE(r1, nullptr);
+        EXPECT_STREQ(r1->text, "first");
+        xmarkup_result_free(r1);
+    }
+    {
+        auto* r2 = parse("<i>second</i>");
+        ASSERT_NE(r2, nullptr);
+        EXPECT_STREQ(r2->text, "second");
+        xmarkup_result_free(r2);
+    }
 }

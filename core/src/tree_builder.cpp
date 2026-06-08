@@ -2,11 +2,28 @@
 
 namespace xmarkup {
 
+// HTML5 规范定义的 void 元素，不能有子节点
+// https://html.spec.whatwg.org/multipage/syntax.html#void-elements
+static const std::string_view kVoidElements[] = {
+    "area", "base", "br", "col", "embed", "hr", "img", "input",
+    "link", "meta", "param", "source", "track", "wbr"
+};
+
 TreeBuilder::TreeBuilder(uint16_t max_depth, bool autocorrect)
     : max_depth_(max_depth), autocorrect_(autocorrect) {
     (void)autocorrect_; // TODO: 自动纠错逻辑在后续增强中使用
 }
 
+/**
+ * @brief 从 Token 序列构建 AST
+ *
+ * 使用栈管理标签嵌套关系：
+ * - 栈底始终是 ROOT 节点
+ * - 遇到 START_TAG：创建节点并入栈（void 元素除外）
+ * - 遇到 END_TAG：在栈中从顶向下查找匹配的开始标签，弹出到该层
+ * - 遇到 SELF_CLOSING_TAG：创建叶子节点，不入栈
+ * - 未闭合标签自动补齐（栈中剩余节点留在 root 下）
+ */
 ASTNode TreeBuilder::build(const std::vector<Token>& tokens) {
     ASTNode root;
     root.type = ASTNode::ROOT;
@@ -43,6 +60,14 @@ ASTNode TreeBuilder::build(const std::vector<Token>& tokens) {
     return root;
 }
 
+/**
+ * @brief 处理开始标签
+ *
+ * 策略：
+ * 1. void 元素（如 <br>, <img>）：不入栈，直接作为叶子节点挂到当前栈顶
+ * 2. 超过最大嵌套深度：忽略该标签（防止恶意输入）
+ * 3. 普通标签：创建节点挂到当前栈顶，然后入栈成为新的当前父节点
+ */
 void TreeBuilder::handle_start_tag(const Token& tok) {
     // void 元素不入栈，直接作为叶子节点
     if (is_void_element(tok.tag_name)) {
@@ -54,9 +79,8 @@ void TreeBuilder::handle_start_tag(const Token& tok) {
         return;
     }
 
-    // 深度限制检查
+    // 深度限制检查（+1 因为栈底有 ROOT）
     if (stack_.size() >= static_cast<size_t>(max_depth_) + 1) {
-        // 超过最大嵌套深度，当作文本忽略（或跳过）
         return;
     }
 
@@ -70,13 +94,20 @@ void TreeBuilder::handle_start_tag(const Token& tok) {
     stack_.push_back(&stack_.back()->children.back());
 }
 
+/**
+ * @brief 处理结束标签
+ *
+ * 策略：从栈顶向下查找匹配的开始标签。
+ * - 找到匹配：弹出到匹配层（含），中间未闭合的标签自动补齐
+ * - 未找到匹配：多余的闭合标签忽略（HTML 容错）
+ */
 void TreeBuilder::handle_end_tag(const Token& tok) {
     if (stack_.size() <= 1) {
-        // 栈只剩 root，多余的闭合标签忽略
+        // 栈只剩 ROOT，多余的闭合标签忽略
         return;
     }
 
-    // 在栈中从顶向下查找匹配的开始标签
+    // 从栈顶向下查找匹配的开始标签
     size_t pop_count = 0;
     for (auto it = stack_.rbegin(); it != stack_.rend() - 1; ++it) {
         pop_count++;
@@ -90,8 +121,12 @@ void TreeBuilder::handle_end_tag(const Token& tok) {
     // 未找到匹配，多余的闭合标签忽略
 }
 
+/**
+ * @brief 处理自闭合标签
+ *
+ * 自闭合标签（如 <br/>）作为叶子节点，不入栈。
+ */
 void TreeBuilder::handle_self_closing(const Token& tok) {
-    // 自闭合标签作为叶子节点，不入栈
     ASTNode elem;
     elem.type = ASTNode::ELEMENT;
     elem.tag_name = tok.tag_name;
@@ -99,8 +134,13 @@ void TreeBuilder::handle_self_closing(const Token& tok) {
     stack_.back()->children.push_back(std::move(elem));
 }
 
+/**
+ * @brief 纠正错嵌套标签
+ *
+ * 在栈中查找指定标签，弹出到该层。
+ * 用于处理类似 <b><i></b></i> 的错嵌套情况。
+ */
 void TreeBuilder::autocorrect_misnested(std::string_view tag) {
-    // 在栈中查找标签
     for (auto it = stack_.rbegin(); it != stack_.rend() - 1; ++it) {
         if ((*it)->tag_name == tag) {
             auto depth = stack_.rend() - it;
@@ -111,12 +151,7 @@ void TreeBuilder::autocorrect_misnested(std::string_view tag) {
 }
 
 bool TreeBuilder::is_void_element(std::string_view tag) const {
-    // HTML void 元素列表
-    static const std::string_view void_tags[] = {
-        "area", "base", "br", "col", "embed", "hr", "img", "input",
-        "link", "meta", "param", "source", "track", "wbr"
-    };
-    for (const auto& vt : void_tags) {
+    for (const auto& vt : kVoidElements) {
         if (tag == vt) return true;
     }
     return false;

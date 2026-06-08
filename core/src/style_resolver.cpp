@@ -6,7 +6,12 @@
 
 namespace xmarkup {
 
-// 标签名 → XMTagType 映射
+// pt → px 换算系数：1pt = 1/72 inch, 96 dpi → 96/72 ≈ 1.333
+static constexpr float kPtToPxFactor = 1.333f;
+
+// HTML 标签 → XMTagType 映射策略：
+// - 语义等价标签映射到同一类型（如 <b> 和 <strong> → XM_TAG_BOLD）
+// - <source> 映射为 0（特殊处理，依赖父标签上下文判定 VIDEO_SOURCE/AUDIO_SOURCE）
 static const std::unordered_map<std::string_view, int>& tag_map() {
     static const std::unordered_map<std::string_view, int> map = {
         // 文本样式
@@ -44,7 +49,7 @@ static const std::unordered_map<std::string_view, int>& tag_map() {
     return map;
 }
 
-StyleResolver::StyleResolver(uint16_t base_font_size)
+StyleResolver::StyleResolver(float base_font_size)
     : base_font_size_(base_font_size) {}
 
 FlattenResult StyleResolver::resolve(const ASTNode& root) {
@@ -144,6 +149,24 @@ void StyleResolver::dfs(const ASTNode& node, bool inside_pre) {
 
         // 弹出父标签栈
         parent_stack_.pop_back();
+
+        // 为 void/empty 元素插入占位字符，使 span range 非零长度
+        // U+FFFC = 对象替换字符 (UTF-8: EF BF BC, 3 字节)
+        // \n = 换行符 (1 字节)
+        if (tag_type == XM_TAG_IMAGE || tag_type == XM_TAG_VIDEO ||
+            tag_type == XM_TAG_AUDIO || tag_type == XM_TAG_HORIZONTAL_RULE) {
+            result_.text += "\xEF\xBF\xBC"; // U+FFFC
+            byte_offset_ += 3;
+        } else if (tag_type == XM_TAG_LINE_BREAK) {
+            result_.text += "\n";
+            byte_offset_ += 1;
+        }
+
+        // 段落级标签在子节点后追加换行分隔
+        if (tag_type == XM_TAG_PARAGRAPH && byte_offset_ > span_start) {
+            result_.text += "\n";
+            byte_offset_ += 1;
+        }
 
         // 更新 byte_end 和添加 style spans
         if (tag_type != 0) {
@@ -375,22 +398,28 @@ std::string StyleResolver::normalize_font_size(std::string_view value) const {
         i++;
     }
 
-    // 换算为 px
+    // 换算为 px（保留浮点精度）
     double px = num;
     if (unit == "em") {
         px = num * base_font_size_;
     } else if (unit == "rem") {
         px = num * base_font_size_;
     } else if (unit == "pt") {
-        px = num * 1.333; // 1pt ≈ 1.333px
+        px = num * kPtToPxFactor; // 1pt ≈ 1.333px
     } else if (unit == "%") {
         px = num * base_font_size_ / 100.0;
     }
     // px 或无单位 → 直接用数值
 
-    // 四舍五入为整数
-    int result = static_cast<int>(px + 0.5);
-    return std::to_string(result);
+    // 格式化：最多 2 位小数，去除尾部零
+    char buf[32];
+    std::snprintf(buf, sizeof(buf), "%.2f", px);
+    std::string result(buf);
+    // 去除尾部 '0'
+    while (result.size() > 1 && result.back() == '0') result.pop_back();
+    // 去除尾部 '.'
+    if (result.size() > 1 && result.back() == '.') result.pop_back();
+    return result;
 }
 
 std::string StyleResolver::normalize_font_weight(std::string_view value) const {
