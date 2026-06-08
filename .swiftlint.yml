@@ -1,0 +1,34 @@
+included:
+  - bridges/ios/Sources/XMarkup
+  - Tests/XMarkupTests
+
+opt_in_rules:
+  - empty_count
+  - closure_spacing
+  - force_unwrapping
+  - implicitly_unwrapped_optional
+  - overridden_super_call
+  - vertical_whitespace_closing_braces
+
+disabled_rules:
+  - trailing_whitespace
+
+type_name:
+  min_length: 3
+  max_length: 50
+
+identifier_name:
+  min_length: 2
+  allowed_symbols: ["_"]
+
+line_length:
+  warning: 120
+  error: 200
+
+function_body_length:
+  warning: 50
+  error: 100
+
+file_length:
+  warning: 500
+  error: 1000
