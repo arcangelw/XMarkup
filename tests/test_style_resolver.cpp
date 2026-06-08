@@ -93,8 +93,8 @@ TEST_F(StyleResolverTest, PreTag) {
     auto r = resolve("<pre>  code  \n  line  </pre>");
     ASSERT_EQ(r.spans.size(), 1u);
     EXPECT_EQ(r.spans[0].tag, XM_TAG_PREFORMATTED);
-    // pre 内空白保留
-    EXPECT_EQ(r.text, "  code  \n  line  ");
+    // pre 内空白保留，且作为块级元素尾部追加 \n
+    EXPECT_EQ(r.text, "  code  \n  line  \n");
 }
 
 TEST_F(StyleResolverTest, CSSColorName) {
@@ -344,4 +344,104 @@ TEST_F(StyleResolverTest, VideoTagWithSourceChildSrcFallback) {
     }
     EXPECT_TRUE(found_video);
     EXPECT_TRUE(found_source);
+}
+
+// ============================================================
+// 块级元素换行规则测试
+// ============================================================
+
+TEST_F(StyleResolverTest, BlockNewline_HeadingThenParagraph) {
+    auto r = resolve("<h1>Title</h1><p>Para</p>");
+    EXPECT_EQ(r.text, "Title\nPara\n");
+}
+
+TEST_F(StyleResolverTest, BlockNewline_ConsecutiveHeadings) {
+    auto r = resolve("<h1>Title</h1><h2>Sub</h2>");
+    EXPECT_EQ(r.text, "Title\nSub\n");
+}
+
+TEST_F(StyleResolverTest, BlockNewline_InlineThenBlock) {
+    auto r = resolve("text<h1>Title</h1>");
+    EXPECT_EQ(r.text, "text\nTitle\n");
+}
+
+TEST_F(StyleResolverTest, BlockNewline_BlockThenInline) {
+    auto r = resolve("<h1>Title</h1>text");
+    EXPECT_EQ(r.text, "Title\ntext");
+}
+
+TEST_F(StyleResolverTest, BlockNewline_InlineBlockInline) {
+    auto r = resolve("before<h1>Title</h1>after");
+    EXPECT_EQ(r.text, "before\nTitle\nafter");
+}
+
+TEST_F(StyleResolverTest, BlockNewline_ConsecutiveParagraphs) {
+    auto r = resolve("<p>A</p><p>B</p><p>C</p>");
+    EXPECT_EQ(r.text, "A\nB\nC\n");
+}
+
+TEST_F(StyleResolverTest, BlockNewline_ListItemSeparation) {
+    auto r = resolve("<ul><li>A</li><li>B</li></ul>");
+    EXPECT_EQ(r.text, "A\nB\n");
+}
+
+TEST_F(StyleResolverTest, BlockNewline_OrderedListItems) {
+    auto r = resolve("<ol><li>A</li><li>B</li></ol>");
+    EXPECT_EQ(r.text, "A\nB\n");
+}
+
+TEST_F(StyleResolverTest, BlockNewline_HorizontalRuleSurrounded) {
+    auto r = resolve("<p>A</p><hr><p>B</p>");
+    // hr 插入 U+FFFC，前后有换行
+    EXPECT_NE(r.text.find("A\n"), std::string::npos);
+    EXPECT_NE(r.text.find("\nB\n"), std::string::npos);
+}
+
+TEST_F(StyleResolverTest, BlockNewline_TableCells) {
+    auto r = resolve("<table><tr><td>A</td><td>B</td></tr></table>");
+    EXPECT_EQ(r.text, "A\nB\n");
+}
+
+TEST_F(StyleResolverTest, BlockNewline_NestedDivH1P) {
+    auto r = resolve("<div><h1>T</h1><p>P</p></div>");
+    EXPECT_EQ(r.text, "T\nP\n");
+}
+
+TEST_F(StyleResolverTest, BlockNewline_BlockquoteWithParagraph) {
+    auto r = resolve("<blockquote><p>Q</p></blockquote>");
+    // 嵌套块级不堆叠多余空行：<p> 的尾部 \n 已满足 blockquote 的换行需求
+    EXPECT_EQ(r.text, "Q\n");
+}
+
+TEST_F(StyleResolverTest, BlockNewline_PreSurroundedByParagraphs) {
+    auto r = resolve("<p>A</p><pre>code</pre><p>B</p>");
+    EXPECT_EQ(r.text, "A\ncode\nB\n");
+}
+
+TEST_F(StyleResolverTest, BlockNewline_EmptyBlockElement) {
+    auto r = resolve("<p>A</p><p></p><p>B</p>");
+    // 空 <p> 不产生多余换行
+    EXPECT_EQ(r.text, "A\nB\n");
+}
+
+TEST_F(StyleResolverTest, BlockNewline_BrNotBlock) {
+    auto r = resolve("<p>A<br>B</p>");
+    // <br> 仍是行内 \n，不触发块级换行
+    EXPECT_EQ(r.text, "A\nB\n");
+}
+
+TEST_F(StyleResolverTest, BlockNewline_DivMixedContent) {
+    auto r = resolve("<div>text<h1>T</h1>more</div>");
+    EXPECT_EQ(r.text, "text\nT\nmore\n");
+}
+
+TEST_F(StyleResolverTest, BlockNewline_SingleBlockNoLeadingNewline) {
+    auto r = resolve("<h1>Title</h1>");
+    // 第一个块级元素前面无内容，不产生前缀 \n
+    EXPECT_EQ(r.text, "Title\n");
+}
+
+TEST_F(StyleResolverTest, BlockNewline_ComplexMixedContent) {
+    auto r = resolve("<h1>T</h1><p>P</p><ul><li>L</li></ul><p>E</p>");
+    EXPECT_EQ(r.text, "T\nP\nL\nE\n");
 }

@@ -67,6 +67,15 @@ private:
      */
     void dfs(const ASTNode& node, bool inside_pre);
 
+    /**
+     * @brief 确保已输出文本末尾有换行符
+     *
+     * 如果已输出文本非空且最后一个字符不是 '\\n'，追加一个换行符。
+     * 用于块级元素进入前和退出后，保证块级元素之间的换行分隔，
+     * 同时避免连续块级元素之间产生多余空行。
+     */
+    void ensure_newline();
+
     /** @brief 将 HTML 标签名映射为 XMTagType 值 */
     int  map_tag(std::string_view tag_name) const;
 

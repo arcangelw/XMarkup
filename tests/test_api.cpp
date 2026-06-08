@@ -135,7 +135,8 @@ TEST_F(APITest, HeadingH1) {
 TEST_F(APITest, PreWhitespacePreserved) {
     auto* r = parse("<pre>  spaces  \n  lines  </pre>");
     ASSERT_NE(r, nullptr);
-    EXPECT_STREQ(r->text, "  spaces  \n  lines  ");
+    // pre 内空白保留，且作为块级元素尾部追加 \n
+    EXPECT_STREQ(r->text, "  spaces  \n  lines  \n");
     xmarkup_result_free(r);
 }
 

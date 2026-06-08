@@ -49,6 +49,33 @@ static const std::unordered_map<std::string_view, int>& tag_map() {
     return map;
 }
 
+/// 判断标签是否为块级元素（block-level）
+///
+/// HTML 规范中块级元素在渲染时独占一行，前后需要换行分隔。
+/// 此函数覆盖所有 XMarkup 已支持的块级标签类型。
+static bool is_block_level(int tag_type) {
+    switch (tag_type) {
+    case XM_TAG_PARAGRAPH:
+    case XM_TAG_HEADING_1: case XM_TAG_HEADING_2:
+    case XM_TAG_HEADING_3: case XM_TAG_HEADING_4:
+    case XM_TAG_HEADING_5: case XM_TAG_HEADING_6:
+    case XM_TAG_BLOCKQUOTE:
+    case XM_TAG_PREFORMATTED:
+    case XM_TAG_DIVISION:
+    case XM_TAG_LIST_ORDERED:
+    case XM_TAG_LIST_UNORDERED:
+    case XM_TAG_LIST_ITEM:
+    case XM_TAG_TABLE:
+    case XM_TAG_TABLE_ROW:
+    case XM_TAG_TABLE_CELL:
+    case XM_TAG_TABLE_HEADER:
+    case XM_TAG_HORIZONTAL_RULE:
+        return true;
+    default:
+        return false;
+    }
+}
+
 StyleResolver::StyleResolver(float base_font_size)
     : base_font_size_(base_font_size) {}
 
@@ -59,6 +86,13 @@ FlattenResult StyleResolver::resolve(const ASTNode& root) {
     byte_offset_ = 0;
     dfs(root, false);
     return std::move(result_);
+}
+
+void StyleResolver::ensure_newline() {
+    if (!result_.text.empty() && result_.text.back() != '\n') {
+        result_.text += '\n';
+        byte_offset_ += 1;
+    }
 }
 
 void StyleResolver::dfs(const ASTNode& node, bool inside_pre) {
@@ -110,7 +144,13 @@ void StyleResolver::dfs(const ASTNode& node, bool inside_pre) {
             }
         }
 
-        // 记录 span 的起始位置
+        // 块级元素：进入前确保换行（在前面的内联内容之后插入分隔）
+        bool is_block = is_block_level(tag_type);
+        if (is_block) {
+            ensure_newline();
+        }
+
+        // 记录 span 的起始位置（在 ensure_newline 之后，换行符不计入 span）
         uint32_t span_start = byte_offset_;
 
         // 先产出 span（保证外层在前，即 outside-in 顺序）
@@ -164,10 +204,9 @@ void StyleResolver::dfs(const ASTNode& node, bool inside_pre) {
             byte_offset_ += 1;
         }
 
-        // 段落级标签在子节点后追加换行分隔
-        if (tag_type == XM_TAG_PARAGRAPH && byte_offset_ > span_start) {
-            result_.text += "\n";
-            byte_offset_ += 1;
+        // 块级元素：退出后确保换行（在内容之后插入分隔）
+        if (is_block) {
+            ensure_newline();
         }
 
         // 更新 byte_end 和添加 style spans
