@@ -413,7 +413,7 @@ iOS 端 `NSAttributedString+XMarkup.swift` 的 6 阶渲染管线**无需修改**
 | hr 前后换行 | `<p>A</p><hr><p>B</p>` | `A\n[OBJ]\nB\n` |
 | 表格单元格 | `<table><tr><td>A</td><td>B</td></tr></table>` | `A\nB\n` |
 | 嵌套 div>h1+p | `<div><h1>T</h1><p>P</p></div>` | `T\nP\n` |
-| blockquote>p | `<blockquote><p>Q</p></blockquote>` | `Q\n\n` |
+| blockquote>p | `<blockquote><p>Q</p></blockquote>` | `Q\n` |
 | pre 前后换行 | `<p>A</p><pre>code</pre><p>B</p>` | `A\ncode\nB\n` |
 | 空块级 | `<p>A</p><p></p><p>B</p>` | `A\nB\n` |
 | br 非块级 | `<p>A<br>B</p>` | `A\nB\n` |
