@@ -6,8 +6,10 @@
 import UIKit
 public typealias XMFont = UIFont
 public typealias XMColor = UIColor
+public typealias XMFontDescriptor = UIFontDescriptor
 #elseif canImport(AppKit)
 import AppKit
 public typealias XMFont = NSFont
 public typealias XMColor = NSColor
+public typealias XMFontDescriptor = NSFontDescriptor
 #endif

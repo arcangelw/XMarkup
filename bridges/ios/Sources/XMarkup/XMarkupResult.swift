@@ -47,10 +47,4 @@ public struct XMarkupResult: Sendable {
 
         return XMarkupResult(text: text, spans: spans)
     }
-
-    /// 转换为 NSAttributedString（便利层，在任务 11 中实现）
-    public func makeAttributedString(baseFont: XMFont? = nil) -> NSAttributedString {
-        // 占位实现，后续任务补充
-        return NSAttributedString(string: text)
-    }
 }
