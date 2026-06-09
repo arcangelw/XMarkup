@@ -187,3 +187,55 @@ TEST(Tokenizer, MixedCaseTag) {
     EXPECT_EQ(tokens[0].tag_name, "strong");
     EXPECT_EQ(tokens[2].tag_name, "strong");
 }
+
+// ============================================================
+// Code Review 修复验证测试
+// ============================================================
+
+TEST(Tokenizer, ScriptTagWithSimilarPrefix) {
+    // 修复 1: </scriptfoo> 不应被误判为 </script> 的闭合标签
+    Tokenizer t("before<script>x</scriptfoo>y</script>after");
+    Token tok1 = t.next();
+    EXPECT_EQ(tok1.type, TokenType::TEXT);
+    EXPECT_EQ(tok1.raw, "before");
+    Token tok2 = t.next();
+    EXPECT_EQ(tok2.type, TokenType::TEXT);
+    EXPECT_EQ(tok2.raw, "after");
+    EXPECT_FALSE(t.has_next());
+}
+
+TEST(Tokenizer, StyleTagWithSimilarPrefix) {
+    // 修复 1: </stylefoo> 不应被误判为 </style> 的闭合标签
+    Tokenizer t("before<style>x</stylefoo>y</style>after");
+    Token tok1 = t.next();
+    EXPECT_EQ(tok1.type, TokenType::TEXT);
+    EXPECT_EQ(tok1.raw, "before");
+    Token tok2 = t.next();
+    EXPECT_EQ(tok2.type, TokenType::TEXT);
+    EXPECT_EQ(tok2.raw, "after");
+    EXPECT_FALSE(t.has_next());
+}
+
+TEST(Tokenizer, TextareaContentNotParsed) {
+    // 修复 6: <textarea> 内容不应被作为 HTML 解析
+    Tokenizer t("<textarea><b>bold</b></textarea>");
+    std::vector<Token> tokens;
+    while (t.has_next()) tokens.push_back(t.next());
+    // textarea 内容被跳过，不产出任何 START_TAG/END_TAG token
+    for (auto& tok : tokens) {
+        EXPECT_NE(tok.type, TokenType::START_TAG) << "不应产出内部 <b> 标签";
+        EXPECT_NE(tok.type, TokenType::END_TAG) << "不应产出内部 </b> 标签";
+    }
+}
+
+TEST(Tokenizer, TitleContentNotParsed) {
+    // 修复 6: <title> 内容不应被作为 HTML 解析
+    Tokenizer t("before<title><b>bold</b></title>after");
+    Token tok1 = t.next();
+    EXPECT_EQ(tok1.type, TokenType::TEXT);
+    EXPECT_EQ(tok1.raw, "before");
+    Token tok2 = t.next();
+    EXPECT_EQ(tok2.type, TokenType::TEXT);
+    EXPECT_EQ(tok2.raw, "after");
+    EXPECT_FALSE(t.has_next());
+}

@@ -503,3 +503,73 @@ TEST_F(StyleResolverTest, CSSBackgroundColorNamed) {
     }
     EXPECT_TRUE(found);
 }
+
+// ============================================================
+// Code Review 修复验证测试
+// ============================================================
+
+TEST_F(StyleResolverTest, CSSFontSizePercent) {
+    // 修复 2: % 单位应被正确识别和换算
+    auto r = resolve(R"(<span style="font-size:150%">text</span>)", 16.0f);
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_FONT_SIZE && s.value == "24") found = true;
+    }
+    EXPECT_TRUE(found);
+}
+
+TEST_F(StyleResolverTest, CSSFontSizePercent200) {
+    // 修复 2: 200% × 16px = 32px
+    auto r = resolve(R"(<span style="font-size:200%">text</span>)", 16.0f);
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_FONT_SIZE && s.value == "32") found = true;
+    }
+    EXPECT_TRUE(found);
+}
+
+TEST_F(StyleResolverTest, CSSColorRgbWithSpaces) {
+    // 修复 3: rgb() 参数前导空白应被跳过
+    auto r = resolve(R"html(<span style="color:rgb( 255, 128, 0)">text</span>)html");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_FOREGROUND_COLOR && s.value == "#FF8000") found = true;
+    }
+    EXPECT_TRUE(found);
+}
+
+TEST_F(StyleResolverTest, CSSColorRgbMultipleSpaces) {
+    // 修复 3: rgb() 参数间多余空白应被跳过
+    auto r = resolve(R"html(<span style="color:rgb( 0 , 255 , 128 )">text</span>)html");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_FOREGROUND_COLOR && s.value == "#00FF80") found = true;
+    }
+    EXPECT_TRUE(found);
+}
+
+TEST_F(StyleResolverTest, BlockNewline_ArticleSection) {
+    // 修复 4: article/section 应作为块级元素，触发换行分隔
+    auto r = resolve("<article>A</article><section>B</section>");
+    EXPECT_EQ(r.text, "A\nB\n");
+    bool found_article = false, found_section = false;
+    for (auto& s : r.spans) {
+        if (s.tag == XM_TAG_ARTICLE) found_article = true;
+        if (s.tag == XM_TAG_SECTION) found_section = true;
+    }
+    EXPECT_TRUE(found_article);
+    EXPECT_TRUE(found_section);
+}
+
+TEST_F(StyleResolverTest, BlockNewline_HeaderFooter) {
+    // 修复 4: header/footer 应作为块级元素，触发换行分隔
+    auto r = resolve("<header>H</header><footer>F</footer>");
+    EXPECT_EQ(r.text, "H\nF\n");
+    bool found_header = false, found_footer = false;
+    for (auto& s : r.spans) {
+        if (s.tag == XM_TAG_HEADER) found_header = true;
+        if (s.tag == XM_TAG_FOOTER) found_footer = true;
+    }
+    EXPECT_TRUE(found_header);
+    EXPECT_TRUE(found_footer);
+}

@@ -161,19 +161,7 @@ Token Tokenizer::next() {
                 case TokenizerState::ATTR_NAME:
                     if (c == '=') {
                         pos_++;
-                        // '=' 后根据引号类型选择属性值状态
-                        if (pos_ < html_.size()) {
-                            char qc = html_[pos_];
-                            if (qc == '"') {
-                                state_ = TokenizerState::ATTR_VALUE_DOUBLE_Q;
-                                pos_++;
-                            } else if (qc == '\'') {
-                                state_ = TokenizerState::ATTR_VALUE_SINGLE_Q;
-                                pos_++;
-                            } else {
-                                state_ = TokenizerState::ATTR_VALUE_UNQUOTED;
-                            }
-                        }
+                        enter_attr_value();
                     } else if (is_whitespace(c)) {
                         pos_++;
                         state_ = TokenizerState::AFTER_ATTR_NAME;
@@ -190,18 +178,7 @@ Token Tokenizer::next() {
                         pos_++;
                     } else if (c == '=') {
                         pos_++;
-                        if (pos_ < html_.size()) {
-                            char qc = html_[pos_];
-                            if (qc == '"') {
-                                state_ = TokenizerState::ATTR_VALUE_DOUBLE_Q;
-                                pos_++;
-                            } else if (qc == '\'') {
-                                state_ = TokenizerState::ATTR_VALUE_SINGLE_Q;
-                                pos_++;
-                            } else {
-                                state_ = TokenizerState::ATTR_VALUE_UNQUOTED;
-                            }
-                        }
+                        enter_attr_value();
                     } else if (c == '>' || c == '/') {
                         state_ = TokenizerState::BEFORE_ATTR_NAME;
                     } else {
@@ -294,10 +271,9 @@ Token Tokenizer::next() {
                 // 处理 RAWTEXT 标签（script/style/noscript）——整体跳过内容，不产出 token
                 // 这是 HTML5 规范要求的特殊行为：这些标签的内容不是 HTML
                 if (!is_end_tag && !is_self_closing &&
-                    (tag_lower == "script" || tag_lower == "style" || tag_lower == "noscript")) {
-                    if (tag_lower == "script") skip_rawtext("script");
-                    else if (tag_lower == "style") skip_rawtext("style");
-                    else skip_rawtext("noscript");
+                    (tag_lower == "script" || tag_lower == "style" || tag_lower == "noscript" ||
+                     tag_lower == "textarea" || tag_lower == "title")) {
+                    skip_rawtext(tag_lower.c_str());
                     state_ = TokenizerState::DATA;
                     break; // 跳出 TAG_NAME，继续外层 while 寻找下一个 token
                 }
@@ -394,6 +370,13 @@ void Tokenizer::skip_rawtext(const char* end_tag) {
             if (a != b) match = false;
         }
         if (match) {
+            // 验证闭合标签名的完整性：后续字符必须是 '>'、空白或 EOF
+            size_t after = pos_ + close_len;
+            if (after < html_.size() && html_[after] != '>' &&
+                !is_whitespace(html_[after])) {
+                pos_++;
+                continue;
+            }
             pos_ += close_len;
             // 跳过闭合标签名后的空白和 '>'
             while (pos_ < html_.size() && html_[pos_] != '>') pos_++;
@@ -403,6 +386,21 @@ void Tokenizer::skip_rawtext(const char* end_tag) {
         pos_++;
     }
     pos_ = html_.size();
+}
+
+void Tokenizer::enter_attr_value() {
+    if (pos_ < html_.size()) {
+        char qc = html_[pos_];
+        if (qc == '"') {
+            state_ = TokenizerState::ATTR_VALUE_DOUBLE_Q;
+            pos_++;
+        } else if (qc == '\'') {
+            state_ = TokenizerState::ATTR_VALUE_SINGLE_Q;
+            pos_++;
+        } else {
+            state_ = TokenizerState::ATTR_VALUE_UNQUOTED;
+        }
+    }
 }
 
 } // namespace xmarkup

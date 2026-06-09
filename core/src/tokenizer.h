@@ -93,10 +93,13 @@ private:
     bool is_whitespace(char c) const;
 
     /**
-     * @brief 跳过原始文本内容（用于 script/style/noscript）
+     * @brief 跳过原始文本内容（用于 script/style/noscript/textarea/title）
      * @param end_tag 闭合标签名（如 "script"），不区分大小写匹配
      */
     void skip_rawtext(const char* end_tag);
+
+    /** @brief 根据 '=' 后的引号字符切换属性值解析状态 */
+    void enter_attr_value();
 
     std::string_view html_;           /**< 输入 HTML 字符串视图 */
     size_t pos_ = 0;                  /**< 当前读取位置 */

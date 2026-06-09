@@ -67,6 +67,9 @@ private:
      */
     void dfs(const ASTNode& node, bool inside_pre);
 
+    /** @brief 预估文本大小并 reserve */
+    void estimate_and_reserve(const ASTNode& root);
+
     /**
      * @brief 确保已输出文本末尾有换行符
      *
@@ -109,13 +112,6 @@ private:
      * @return px 数字字符串（如 "16", "21.75"），最多 2 位小数
      */
     std::string normalize_font_size(std::string_view value) const;
-
-    /**
-     * @brief 将 font-weight 值标准化
-     * @param value 输入值（normal/bold/100-900）
-     * @return 原样返回（当前不做转换）
-     */
-    std::string normalize_font_weight(std::string_view value) const;
 
     float base_font_size_;                    /**< 基准字号（px），用于单位换算 */
     FlattenResult result_;                     /**< 累积的解析结果 */

@@ -65,6 +65,21 @@ typedef enum XMTagType {
     XM_TAG_LINE_BREAK    = 71,  /**< 换行（<br>），文本中插入 \n */
     XM_TAG_DIVISION      = 72,  /**< 通用容器（<div>） */
     XM_TAG_SPAN          = 73,  /**< 行内容器（<span>） */
+
+    /* 语义化块级容器 */
+    XM_TAG_ARTICLE       = 74,  /**< 文章（<article>） */
+    XM_TAG_SECTION       = 75,  /**< 章节（<section>） */
+    XM_TAG_HEADER        = 76,  /**< 页眉（<header>） */
+    XM_TAG_FOOTER        = 77,  /**< 页脚（<footer>） */
+    XM_TAG_NAV           = 78,  /**< 导航（<nav>） */
+    XM_TAG_ASIDE         = 79,  /**< 侧边栏（<aside>） */
+    XM_TAG_FIGURE        = 80,  /**< 图文组（<figure>） */
+    XM_TAG_FIGCAPTION    = 81,  /**< 图文标题（<figcaption>） */
+    XM_TAG_MAIN          = 82,  /**< 主内容（<main>） */
+    XM_TAG_ADDRESS       = 83,  /**< 联系信息（<address>） */
+    XM_TAG_DL            = 84,  /**< 定义列表（<dl>） */
+    XM_TAG_DT            = 85,  /**< 定义术语（<dt>） */
+    XM_TAG_DD            = 86,  /**< 定义描述（<dd>） */
 } XMTagType;
 
 /**
@@ -178,6 +193,9 @@ typedef struct XMResult {
 
 /**
  * @brief 解析器配置
+ *
+ * @warning 日志回调使用全局静态状态，同一进程内所有 XMParser 实例共享最后创建时的日志配置。
+ *          如需多实例并行，请对各实例使用相同的日志回调，或在单线程环境中创建/销毁解析器。
  *
  * @code
  * XMConfig cfg = {1, 256, 16.0f};  // 启用纠错, 最大嵌套 256, 基准字号 16px

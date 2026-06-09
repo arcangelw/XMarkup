@@ -5,10 +5,13 @@ namespace xmarkup {
 
 // HTML5 规范定义的 void 元素，不能有子节点
 // https://html.spec.whatwg.org/multipage/syntax.html#void-elements
-static const std::string_view kVoidElements[] = {
-    "area", "base", "br", "col", "embed", "hr", "img", "input",
-    "link", "meta", "param", "source", "track", "wbr"
-};
+static const std::unordered_set<std::string_view>& void_element_set() {
+    static const std::unordered_set<std::string_view> s = {
+        "area", "base", "br", "col", "embed", "hr", "img", "input",
+        "link", "meta", "param", "source", "track", "wbr"
+    };
+    return s;
+}
 
 // ============================================================
 // 标签分类查表
@@ -357,10 +360,7 @@ void TreeBuilder::handle_self_closing(const Token& tok) {
 }
 
 bool TreeBuilder::is_void_element(std::string_view tag) const {
-    for (const auto& vt : kVoidElements) {
-        if (tag == vt) return true;
-    }
-    return false;
+    return void_element_set().count(tag) > 0;
 }
 
 } // namespace xmarkup

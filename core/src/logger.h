@@ -11,6 +11,10 @@ namespace xmarkup {
  * 通过 XMConfig.log_callback 向宿主输出日志。
  * callback 为 NULL 时所有方法为空操作，零性能开销。
  *
+ * @warning 使用全局静态状态——同一进程内仅支持单个 XMParser 实例的日志配置。
+ *          多个 XMParser 实例会共享最后一次 init() 设置的回调，
+ *          且 init() 本身非线程安全，不可并发调用。
+ *
  * 级别使用：
  * - ERROR: 解析异常（内存分配失败等不可恢复错误）
  * - WARN:  容错决策（隐式关闭、标签纠错、adoption agency 等）

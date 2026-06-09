@@ -46,6 +46,13 @@ static const std::unordered_map<std::string_view, int>& tag_map() {
         {"td", XM_TAG_TABLE_CELL}, {"th", XM_TAG_TABLE_HEADER},
         // 其他
         {"hr", XM_TAG_HORIZONTAL_RULE}, {"br", XM_TAG_LINE_BREAK},
+        // 语义化块级容器
+        {"article", XM_TAG_ARTICLE}, {"section", XM_TAG_SECTION},
+        {"header", XM_TAG_HEADER}, {"footer", XM_TAG_FOOTER},
+        {"nav", XM_TAG_NAV}, {"aside", XM_TAG_ASIDE},
+        {"figure", XM_TAG_FIGURE}, {"figcaption", XM_TAG_FIGCAPTION},
+        {"main", XM_TAG_MAIN}, {"address", XM_TAG_ADDRESS},
+        {"dl", XM_TAG_DL}, {"dt", XM_TAG_DT}, {"dd", XM_TAG_DD},
     };
     return map;
 }
@@ -71,6 +78,19 @@ static bool is_block_level(int tag_type) {
     case XM_TAG_TABLE_CELL:
     case XM_TAG_TABLE_HEADER:
     case XM_TAG_HORIZONTAL_RULE:
+    case XM_TAG_ARTICLE:
+    case XM_TAG_SECTION:
+    case XM_TAG_HEADER:
+    case XM_TAG_FOOTER:
+    case XM_TAG_NAV:
+    case XM_TAG_ASIDE:
+    case XM_TAG_FIGURE:
+    case XM_TAG_FIGCAPTION:
+    case XM_TAG_MAIN:
+    case XM_TAG_ADDRESS:
+    case XM_TAG_DL:
+    case XM_TAG_DT:
+    case XM_TAG_DD:
         return true;
     default:
         return false;
@@ -85,8 +105,22 @@ FlattenResult StyleResolver::resolve(const ASTNode& root) {
     result_.spans.clear();
     parent_stack_.clear();
     byte_offset_ = 0;
+    estimate_and_reserve(root);
     dfs(root, false);
     return std::move(result_);
+}
+
+void StyleResolver::estimate_and_reserve(const ASTNode& node) {
+    size_t estimated = 0;
+    struct Visitor {
+        size_t& total;
+        void visit(const ASTNode& n) {
+            if (n.type == ASTNode::TEXT) total += n.text.size();
+            for (auto& c : n.children) visit(c);
+        }
+    };
+    Visitor{estimated}.visit(node);
+    result_.text.reserve(estimated);
 }
 
 void StyleResolver::ensure_newline() {
@@ -267,7 +301,7 @@ void StyleResolver::add_style_spans(const std::string& style_str, uint32_t start
             normalized_value = normalize_font_size(val);
         } else if (prop == "font-weight") {
             style_type = XM_STYLE_FONT_WEIGHT;
-            normalized_value = normalize_font_weight(val);
+            normalized_value = val;
         } else if (prop == "font-style") {
             style_type = XM_STYLE_FONT_STYLE;
             normalized_value = val;
@@ -380,6 +414,8 @@ std::string StyleResolver::normalize_color(std::string_view value) const {
         size_t start = 4;
         int r = 0, g = 0, b = 0;
         auto parse_int = [&](size_t& p) -> int {
+            // 跳过前导空白
+            while (p < value.size() && (value[p] == ' ' || value[p] == '\t')) p++;
             // 处理负数前缀
             if (p < value.size() && value[p] == '-') {
                 while (p < value.size() && value[p] != ',') p++;
@@ -461,6 +497,10 @@ std::string StyleResolver::normalize_font_size(std::string_view value) const {
         unit += static_cast<char>(tolower(static_cast<unsigned char>(value[i])));
         i++;
     }
+    if (i < value.size() && value[i] == '%') {
+        unit = "%";
+        i++;
+    }
 
     // 换算为 px（保留浮点精度）
     double px = num;
@@ -485,11 +525,6 @@ std::string StyleResolver::normalize_font_size(std::string_view value) const {
     if (result.size() > 1 && result.back() == '.') result.pop_back();
     Logger::trace("normalize font-size: %.*s -> %s", (int)value.size(), value.data(), result.c_str());
     return result;
-}
-
-std::string StyleResolver::normalize_font_weight(std::string_view value) const {
-    // 直接返回值：normal/bold/100-900
-    return std::string(value);
 }
 
 } // namespace xmarkup
