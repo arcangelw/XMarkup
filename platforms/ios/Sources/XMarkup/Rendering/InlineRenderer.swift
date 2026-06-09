@@ -111,9 +111,7 @@ func applyFontTrait(
             if let descriptor = font.fontDescriptor.withSymbolicTraits(traits) {
                 attr[run.range].uiKit.font = UIFont(descriptor: descriptor, size: font.pointSize)
             } else if trait == traitItalic {
-                let matrix = CGAffineTransform(a: 1, b: 0, c: CGFloat(tanf(Float.pi / 180 * 14)), d: 1, tx: 0, ty: 0)
-                let descriptor = font.fontDescriptor.withMatrix(matrix)
-                attr[run.range].uiKit.font = UIFont(descriptor: descriptor, size: font.pointSize)
+                attr[run.range].uiKit.obliqueness = 0.25
             } else if trait == traitBold {
                 attr[run.range].uiKit.font = UIFont.systemFont(ofSize: font.pointSize, weight: .bold)
             }
@@ -126,11 +124,7 @@ func applyFontTrait(
             if let newFont = NSFont(descriptor: descriptor, size: font.pointSize) {
                 attr[run.range].appKit.font = newFont
             } else if trait == traitItalic {
-                let matrix = AffineTransform(m11: 1, m12: 0, m21: CGFloat(tanf(Float.pi / 180 * 14)), m22: 1, tX: 0, tY: 0)
-                let descriptor = font.fontDescriptor.withMatrix(matrix)
-                if let newFont = NSFont(descriptor: descriptor, size: font.pointSize) {
-                    attr[run.range].appKit.font = newFont
-                }
+                attr[run.range].appKit.obliqueness = 0.25
             } else if trait == traitBold {
                 attr[run.range].appKit.font = NSFont.boldSystemFont(ofSize: font.pointSize)
             }

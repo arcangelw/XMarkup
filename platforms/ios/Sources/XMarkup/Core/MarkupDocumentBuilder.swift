@@ -19,24 +19,40 @@ extension MarkupDocument {
 
         // 块级 tag 集合
         // 注：listOrdered/listUnordered 是容器，不产生独立 block
-        // 注：article/section/header/footer/nav/aside/main/figure/definitionList
-        //     是语义容器，其内部子元素才是真正的 block，容器本身不产生 block
         let blockTags: Set<XMarkupTag> = [
             .paragraph, .heading1, .heading2, .heading3, .heading4, .heading5, .heading6,
             .blockquote, .preformatted, .horizontalRule, .division,
             .listItem,
             .table, .tableRow, .tableCell, .tableHeader,
             .image, .video, .audio,
-            .figcaption, .address,
-            .definitionTerm, .definitionDescription,
+            .article, .section, .header, .footer, .nav, .aside,
+            .figure, .figcaption, .main, .address,
+            .definitionList, .definitionTerm, .definitionDescription,
         ]
 
         // 媒体 tag 集合
         let mediaTags: Set<XMarkupTag> = [.image, .video, .audio]
 
         // 提取块级 spans 和内联 spans
-        let blockSpans = spans.filter { blockTags.contains($0.tag) }
+        var blockSpans = spans.filter { blockTags.contains($0.tag) }
         let inlineSpans = spans.filter { !blockTags.contains($0.tag) }
+
+        // 去重：如果一个 block span 的范围内存在其他更小的 block span 子集，
+        // 则该 span 是容器，移除它以避免内容重复渲染。
+        // 例如 <div><p>text</p></div> 产出 div(0,4) 和 p(0,4)，只保留 p。
+        // 例如 <table><tr><td>text</td></tr></table> 产出 table/tr/td 三层，只保留 td。
+        // 但同类标签嵌套不去重（如 <ol><li>...<ul><li>inner</li></ul></li></ol>，两个 li 都保留）。
+        blockSpans = blockSpans.filter { outer in
+            let outerStart = outer.range.location
+            let outerEnd = outerStart + outer.range.length
+            let hasChild = blockSpans.contains { inner in
+                if inner.tag == outer.tag { return false }
+                let innerStart = inner.range.location
+                let innerEnd = innerStart + inner.range.length
+                return innerStart >= outerStart && innerEnd <= outerEnd
+            }
+            return !hasChild
+        }
 
         // 如果没有块级 span，整段文本作为一个 paragraph
         if blockSpans.isEmpty {
@@ -124,8 +140,9 @@ extension MarkupDocument {
             return .division
         case .image, .video, .audio:
             return .paragraph
-        case .figcaption, .address,
-             .definitionTerm, .definitionDescription:
+        case .article, .section, .header, .footer, .nav, .aside,
+             .figure, .figcaption, .main, .address,
+             .definitionList, .definitionTerm, .definitionDescription:
             return .division
         default:
             return .paragraph
