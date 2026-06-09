@@ -11,14 +11,14 @@ public enum Level: Int, Sendable, Equatable, Comparable, Codable {
 
 /// 段落类型
 public enum BlockKind: Sendable, Equatable {
-    case paragraph
-    case heading(Level)
-    case blockquote
-    case preformatted
-    case listItem(isOrdered: Bool, indentLevel: Int)
-    case division
-    case horizontalRule
-    case table(TableStructure)
+    case paragraph                                           // <p>
+    case heading(Level)                                      // <h1>~<h6>
+    case blockquote                                          // <blockquote>
+    case preformatted                                        // <pre>
+    case listItem(isOrdered: Bool, indentLevel: Int)         // <li>
+    case division                                            // <div>
+    case horizontalRule                                      // <hr>
+    case table(TableStructure)                               // <table>
 }
 
 /// 表格结构

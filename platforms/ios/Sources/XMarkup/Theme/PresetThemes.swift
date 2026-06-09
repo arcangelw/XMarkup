@@ -34,6 +34,10 @@ extension MarkupTheme {
     }()
 
     /// 暗色模式主题
+    ///
+    /// - Note: 当前为静态颜色占位实现。完整的暗色适配应使用
+    ///         `UIColor { traitCollection in ... }` 动态颜色，
+    ///         根据用户外观偏好自动切换，待 P2 实现。
     public static let dark: MarkupTheme = {
         var theme = MarkupTheme()
         #if canImport(UIKit)
