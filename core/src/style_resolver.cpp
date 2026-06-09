@@ -250,9 +250,17 @@ void StyleResolver::add_style_spans(const std::string& style_str, uint32_t start
         if (prop == "color") {
             style_type = XM_STYLE_FOREGROUND_COLOR;
             normalized_value = normalize_color(val);
-        } else if (prop == "background-color" || prop == "background") {
+        } else if (prop == "background-color") {
             style_type = XM_STYLE_BACKGROUND_COLOR;
             normalized_value = normalize_color(val);
+        } else if (prop == "background") {
+            // background 是简写属性，仅提取颜色值（跳过 url()、gradient 等）
+            if (val.find("url(") == std::string::npos &&
+                val.find("linear-gradient(") == std::string::npos &&
+                val.find("radial-gradient(") == std::string::npos) {
+                style_type = XM_STYLE_BACKGROUND_COLOR;
+                normalized_value = normalize_color(val);
+            }
         } else if (prop == "font-size") {
             style_type = XM_STYLE_FONT_SIZE;
             normalized_value = normalize_font_size(val);

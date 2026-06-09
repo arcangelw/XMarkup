@@ -485,3 +485,21 @@ TEST_F(StyleResolverTest, CSSFontSizeMultipleDots) {
     }
     EXPECT_TRUE(found);
 }
+
+TEST_F(StyleResolverTest, CSSBackgroundShorthandWithUrl) {
+    // background 简写含 url() 不应产生 backgroundColor span
+    auto r = resolve(R"html(<span style="background:url(bg.png) no-repeat">text</span>)html");
+    for (auto& s : r.spans) {
+        EXPECT_NE(s.style, XM_STYLE_BACKGROUND_COLOR)
+            << "background 简写含 url() 不应产生 backgroundColor span";
+    }
+}
+
+TEST_F(StyleResolverTest, CSSBackgroundColorNamed) {
+    auto r = resolve(R"(<span style="background-color:red">text</span>)");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_BACKGROUND_COLOR && s.value == "#FF0000") found = true;
+    }
+    EXPECT_TRUE(found);
+}
