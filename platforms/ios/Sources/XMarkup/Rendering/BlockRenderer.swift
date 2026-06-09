@@ -17,6 +17,17 @@ func renderBlock(_ block: MarkupBlock, theme: MarkupTheme) -> AttributedString {
     baseAttributes.appKit.font = theme.baseFont
     #endif
 
+    // 1.5 应用段落排版间距
+    let paragraphStyle = NSMutableParagraphStyle()
+    paragraphStyle.paragraphSpacingBefore = theme.paragraphSpacing.spacingBefore
+    paragraphStyle.paragraphSpacing = theme.paragraphSpacing.spacingAfter
+    paragraphStyle.lineSpacing = theme.paragraphSpacing.lineSpacing
+    #if canImport(UIKit)
+    baseAttributes.uiKit.paragraphStyle = paragraphStyle
+    #elseif canImport(AppKit)
+    baseAttributes.appKit.paragraphStyle = paragraphStyle
+    #endif
+
     // 2. 根据 block.kind 调整属性
     applyBlockKindAttributes(kind: block.kind, theme: theme, to: &baseAttributes)
 

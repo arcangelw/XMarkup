@@ -63,4 +63,61 @@ final class ParagraphSpacingTests: XCTestCase {
         }
         XCTAssertEqual(theme.paragraphSpacing, .default)
     }
+
+    // MARK: - 渲染管线验证
+
+    func testRenderAppliesParagraphSpacing() throws {
+        let theme = MarkupTheme {
+            ParagraphSpacingComponent(ParagraphSpacing(spacingBefore: 12, spacingAfter: 10, lineSpacing: 4))
+        }
+        let parser = try XMarkupParser()
+        let result = try parser.parse("<p>Hello</p><p>World</p>")
+        let doc = MarkupDocument.from(result)
+        let attr = doc.render(theme: theme)
+
+        // 验证 runs 中存在 paragraphStyle
+        var foundSpacing = false
+        for run in attr.runs {
+            #if canImport(UIKit)
+            if let ps = run.uiKit.paragraphStyle {
+                if ps.paragraphSpacingBefore == 12 && ps.paragraphSpacing == 10 && ps.lineSpacing == 4 {
+                    foundSpacing = true
+                }
+            }
+            #elseif canImport(AppKit)
+            if let ps = run.appKit.paragraphStyle {
+                if ps.paragraphSpacingBefore == 12 && ps.paragraphSpacing == 10 && ps.lineSpacing == 4 {
+                    foundSpacing = true
+                }
+            }
+            #endif
+        }
+        XCTAssertTrue(foundSpacing, "渲染结果应包含 ParagraphSpacing 配置的 NSParagraphStyle")
+    }
+
+    func testRenderDefaultThemeHasParagraphSpacing() throws {
+        let parser = try XMarkupParser()
+        let result = try parser.parse("<p>Hello</p>")
+        let doc = MarkupDocument.from(result)
+        let attr = doc.render()
+
+        // 默认主题应有 8pt 间距
+        var foundSpacing = false
+        for run in attr.runs {
+            #if canImport(UIKit)
+            if let ps = run.uiKit.paragraphStyle {
+                if ps.paragraphSpacingBefore == 8 && ps.paragraphSpacing == 8 {
+                    foundSpacing = true
+                }
+            }
+            #elseif canImport(AppKit)
+            if let ps = run.appKit.paragraphStyle {
+                if ps.paragraphSpacingBefore == 8 && ps.paragraphSpacing == 8 {
+                    foundSpacing = true
+                }
+            }
+            #endif
+        }
+        XCTAssertTrue(foundSpacing, "默认主题应包含 8pt 段落间距")
+    }
 }
