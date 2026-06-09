@@ -17,16 +17,18 @@ extension MarkupDocument {
             return MarkupDocument(blocks: [])
         }
 
-        // 块级 tag 集合（listOrdered/listUnordered 是容器，不产生独立 block）
+        // 块级 tag 集合
+        // 注：listOrdered/listUnordered 是容器，不产生独立 block
+        // 注：article/section/header/footer/nav/aside/main/figure/definitionList
+        //     是语义容器，其内部子元素才是真正的 block，容器本身不产生 block
         let blockTags: Set<XMarkupTag> = [
             .paragraph, .heading1, .heading2, .heading3, .heading4, .heading5, .heading6,
             .blockquote, .preformatted, .horizontalRule, .division,
             .listItem,
             .table, .tableRow, .tableCell, .tableHeader,
             .image, .video, .audio,
-            .article, .section, .header, .footer, .nav, .aside,
-            .figure, .figcaption, .main, .address,
-            .definitionList, .definitionTerm, .definitionDescription,
+            .figcaption, .address,
+            .definitionTerm, .definitionDescription,
         ]
 
         // 媒体 tag 集合
@@ -122,9 +124,8 @@ extension MarkupDocument {
             return .division
         case .image, .video, .audio:
             return .paragraph
-        case .article, .section, .header, .footer, .nav, .aside,
-             .figure, .figcaption, .main, .address,
-             .definitionList, .definitionTerm, .definitionDescription:
+        case .figcaption, .address,
+             .definitionTerm, .definitionDescription:
             return .division
         default:
             return .paragraph

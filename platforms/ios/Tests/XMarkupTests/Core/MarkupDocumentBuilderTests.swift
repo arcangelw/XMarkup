@@ -269,13 +269,17 @@ final class MarkupDocumentBuilderTests: XCTestCase {
     // MARK: - Code Review 修复验证
 
     func testArticleSectionBlock() throws {
+        // article/section 是语义容器，不产生独立 block
+        // 内部没有子块级元素时，整段文本退化为一个 paragraph
         let result = try parse("<article>A</article><section>B</section>")
         let doc = MarkupDocument.from(result)
-        XCTAssertGreaterThanOrEqual(doc.blocks.count, 2)
-        let divisions = doc.blocks.filter { $0.kind == .division }
-        XCTAssertEqual(divisions.count, 2)
-        XCTAssertEqual(divisions[0].text, "A")
-        XCTAssertEqual(divisions[1].text, "B")
+        XCTAssertFalse(doc.blocks.isEmpty)
+        let allText = doc.blocks.map(\.text).joined()
+        XCTAssertTrue(allText.contains("A"))
+        XCTAssertTrue(allText.contains("B"))
+        // 关键：不应重复
+        let countA = doc.blocks.filter { $0.text.contains("A") }.count
+        XCTAssertEqual(countA, 1, "A 不应重复出现在多个 block 中")
     }
 
     func testLeadingNewlinePreserved() throws {
