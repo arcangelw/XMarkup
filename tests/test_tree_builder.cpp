@@ -106,3 +106,85 @@ TEST_F(TreeBuilderTest, MaxNestingDepth) {
     // 不崩溃，文本保留，深度截断在 256 层
     EXPECT_GT(root.children.size(), 0u);
 }
+
+// ============================================================
+// 隐式关闭规则测试
+// ============================================================
+
+TEST_F(TreeBuilderTest, ImplicitClose_PSameP) {
+    // 规则 1：<p> 遇 <p> 自动关闭 → 两个平级 <p>
+    auto root = parse("<p>第一段<p>第二段</p>");
+    ASSERT_EQ(root.children.size(), 2u);
+    EXPECT_EQ(root.children[0].tag_name, "p");
+    EXPECT_EQ(root.children[1].tag_name, "p");
+}
+
+TEST_F(TreeBuilderTest, ImplicitClose_PBlockDiv) {
+    // 规则 1：<p> 遇块级 <div> 自动关闭
+    auto root = parse("<p>text<div>block</div>");
+    ASSERT_EQ(root.children.size(), 2u);
+    EXPECT_EQ(root.children[0].tag_name, "p");
+    EXPECT_EQ(root.children[1].tag_name, "div");
+}
+
+TEST_F(TreeBuilderTest, ImplicitClose_LILI) {
+    // 规则 2：<li> 遇 <li> 自动关闭
+    auto root = parse("<ul><li>A<li>B</ul>");
+    auto& ul = root.children[0];
+    EXPECT_EQ(ul.tag_name, "ul");
+    ASSERT_EQ(ul.children.size(), 2u);
+    EXPECT_EQ(ul.children[0].tag_name, "li");
+    EXPECT_EQ(ul.children[1].tag_name, "li");
+}
+
+TEST_F(TreeBuilderTest, ImplicitClose_DtDd) {
+    // 规则 3：<dt>/<dd> 互相关闭
+    auto root = parse("<dl><dt>term<dd>def</dl>");
+    auto& dl = root.children[0];
+    EXPECT_EQ(dl.tag_name, "dl");
+    ASSERT_EQ(dl.children.size(), 2u);
+    EXPECT_EQ(dl.children[0].tag_name, "dt");
+    EXPECT_EQ(dl.children[1].tag_name, "dd");
+}
+
+TEST_F(TreeBuilderTest, ImplicitClose_TrTr) {
+    // 规则 4：<tr> 遇 <tr> 自动关闭
+    auto root = parse("<table><tr><td>A</td></tr><tr><td>B</td></tr></table>");
+    auto& table = root.children[0];
+    EXPECT_EQ(table.tag_name, "table");
+    // 两个 <tr> 应为平级子节点
+    int tr_count = 0;
+    for (auto& child : table.children) {
+        if (child.tag_name == "tr") tr_count++;
+    }
+    EXPECT_EQ(tr_count, 2);
+}
+
+TEST_F(TreeBuilderTest, ImplicitClose_TdTh) {
+    // 规则 5：<td> 遇 <th> 自动关闭
+    auto root = parse("<table><tr><td>A<th>B</tr></table>");
+    auto& table = root.children[0];
+    auto& tr = table.children[0];
+    EXPECT_EQ(tr.tag_name, "tr");
+    ASSERT_EQ(tr.children.size(), 2u);
+    EXPECT_EQ(tr.children[0].tag_name, "td");
+    EXPECT_EQ(tr.children[1].tag_name, "th");
+}
+
+TEST_F(TreeBuilderTest, ImplicitClose_ScopeBoundary) {
+    // scope boundary：<p> 在 <div> 内遇到 <div> 不跳出
+    auto root = parse("<div><p>text<p>more</div>");
+    auto& div = root.children[0];
+    // 两个 <p> 关闭彼此，但不跳出 <div>
+    ASSERT_EQ(div.children.size(), 2u);
+    EXPECT_EQ(div.children[0].tag_name, "p");
+    EXPECT_EQ(div.children[1].tag_name, "p");
+}
+
+TEST_F(TreeBuilderTest, ImplicitClose_HeadingBlock) {
+    // 规则 6：<h1> 遇块级元素自动关闭
+    auto root = parse("<h1>Title</h1><p>Para</p>");
+    ASSERT_EQ(root.children.size(), 2u);
+    EXPECT_EQ(root.children[0].tag_name, "h1");
+    EXPECT_EQ(root.children[1].tag_name, "p");
+}

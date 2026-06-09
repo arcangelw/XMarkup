@@ -116,6 +116,51 @@ bool TreeBuilder::should_auto_close(const std::string& parent, const std::string
     return false;
 }
 
+// ============================================================
+// 隐式关闭 & Adoption Agency
+// ============================================================
+
+/**
+ * @brief 执行隐式关闭
+ *
+ * 从栈顶向下扫描，查找可以被 new_tag 触发隐式关闭的标签。
+ * 扫描遇到 scope boundary 时停止，防止跨容器隐式关闭。
+ *
+ * @param new_tag 新遇到的开标签名
+ */
+void TreeBuilder::perform_implicit_close(const std::string& new_tag) {
+    size_t pop_count = 0;
+    for (auto it = stack_.rbegin(); it != stack_.rend() - 1; ++it) {
+        const auto& parent_tag = (*it)->tag_name;
+
+        if (should_auto_close(parent_tag, new_tag)) {
+            Logger::warn("implicit close: <%s> closed by <%s>", parent_tag.c_str(), new_tag.c_str());
+            stack_.resize(stack_.size() - pop_count - 1);
+            return;
+        }
+
+        // 作用域边界：停止扫描，不跨容器隐式关闭
+        if (is_scope_boundary(parent_tag)) {
+            Logger::trace("implicit scan: scope boundary <%s> stops scan", parent_tag.c_str());
+            break;
+        }
+
+        pop_count++;
+    }
+}
+
+/**
+ * @brief 执行 Adoption Agency Algorithm（骨架，任务 4 完善）
+ *
+ * 当块级元素遇到行内格式化标签栈时，将行内标签重建到块级元素内部。
+ *
+ * @param new_tag 新遇到的开标签名
+ */
+void TreeBuilder::perform_adoption_agency(const std::string& new_tag) {
+    (void)new_tag;
+    // 任务 4 实现
+}
+
 TreeBuilder::TreeBuilder(uint16_t max_depth, bool autocorrect)
     : max_depth_(max_depth), autocorrect_(autocorrect) {
 }
@@ -162,6 +207,14 @@ ASTNode TreeBuilder::build(const std::vector<Token>& tokens) {
     }
 
     // 未闭合的标签自动补齐（栈中剩余的节点会留在栈中，root 已包含它们）
+    if (stack_.size() > 1) {
+        std::string unclosed;
+        for (size_t i = 1; i < stack_.size(); i++) {
+            if (i > 1) unclosed += ", ";
+            unclosed += "<" + stack_[i]->tag_name + ">";
+        }
+        Logger::warn("unclosed tags auto-closed: [%s]", unclosed.c_str());
+    }
     stack_.clear();
     return root;
 }
@@ -183,6 +236,14 @@ void TreeBuilder::handle_start_tag(const Token& tok) {
         elem.attributes = tok.attributes;
         stack_.back()->children.push_back(std::move(elem));
         return;
+    }
+
+    // 隐式关闭检查（始终生效）
+    perform_implicit_close(tok.tag_name);
+
+    // Adoption agency（enable_autocorrect 时生效）— 任务 4 完善
+    if (autocorrect_) {
+        perform_adoption_agency(tok.tag_name);
     }
 
     // 深度限制检查（+1 因为栈底有 ROOT）
@@ -225,6 +286,7 @@ void TreeBuilder::handle_end_tag(const Token& tok) {
     }
 
     // 未找到匹配，多余的闭合标签忽略
+    Logger::warn("extra close tag ignored: </%s>", tok.tag_name.c_str());
 }
 
 /**
