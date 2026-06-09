@@ -73,7 +73,21 @@ private:
 
     uint16_t max_depth_;         /**< 最大嵌套深度限制 */
     bool autocorrect_;           /**< 是否启用自动纠错 */
-    std::vector<ASTNode*> stack_; /**< 节点栈，管理当前嵌套路径 */
+    /**
+     * 节点栈，管理当前嵌套路径。
+     *
+     * 指针安全性不变式：
+     * stack_ 存储指向 parent->children 中元素的裸指针。这些指针在 parent 的
+     * children vector realloc 时会失效。当前实现保证安全，因为：
+     * - handle_start_tag() 只在 stack_.back() 的 children 中添加新节点
+     * - 新节点成为新的 stack_.back()，栈中没有指向同一 parent children 中
+     *   已有元素的指针（前一个 sibling 已出栈或仍在栈顶的更深层）
+     * - 未闭合标签不触发 parent children 的 realloc（新标签成为未闭合标签的子节点）
+     *
+     * ⚠️ 如果未来实现 HTML5 隐式关闭（如 <p> 遇到 <p> 时自动关闭前一个），
+     * 需要重新审视此不变式。届时建议改用 stable_vector 或索引方案替代裸指针。
+     */
+    std::vector<ASTNode*> stack_;
 };
 
 } // namespace xmarkup
