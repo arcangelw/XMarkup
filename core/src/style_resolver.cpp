@@ -1,5 +1,6 @@
 #include "style_resolver.h"
 #include "entity_decoder.h"
+#include "logger.h"
 #include <unordered_map>
 #include <cctype>
 #include <cstring>
@@ -299,6 +300,9 @@ void StyleResolver::add_style_spans(const std::string& style_str, uint32_t start
 int StyleResolver::map_tag(std::string_view tag_name) const {
     const auto& map = tag_map();
     auto it = map.find(tag_name);
+    if (it != map.end()) {
+        Logger::trace("map tag: %.*s -> XM_TAG_%d", (int)tag_name.size(), tag_name.data(), it->second);
+    }
     return it != map.end() ? it->second : 0;
 }
 
@@ -479,6 +483,7 @@ std::string StyleResolver::normalize_font_size(std::string_view value) const {
     while (result.size() > 1 && result.back() == '0') result.pop_back();
     // 去除尾部 '.'
     if (result.size() > 1 && result.back() == '.') result.pop_back();
+    Logger::trace("normalize font-size: %.*s -> %s", (int)value.size(), value.data(), result.c_str());
     return result;
 }
 

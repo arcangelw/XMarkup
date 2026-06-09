@@ -1,4 +1,5 @@
 #include "tokenizer.h"
+#include "logger.h"
 #include <cctype>
 
 namespace xmarkup {
@@ -116,6 +117,9 @@ Token Tokenizer::next() {
             tag_lower.reserve(raw_tag.size());
             for (char c : raw_tag) {
                 tag_lower += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            }
+            if (raw_tag != tag_lower) {
+                Logger::trace("tag normalize: %.*s -> %s", (int)raw_tag.size(), raw_tag.data(), tag_lower.c_str());
             }
 
             // 属性区域起始位置（紧跟标签名之后）
@@ -321,6 +325,7 @@ Token Tokenizer::next() {
                 if (pos_ < html_.size() && html_[pos_] == '-') {
                     pos_++;
                     // 确认是 <!-- 注释，跳过到 -->
+                    Logger::trace("tokenizer: skipping comment");
                     while (pos_ + 2 < html_.size()) {
                         if (html_[pos_] == '-' && html_[pos_ + 1] == '-' && html_[pos_ + 2] == '>') {
                             pos_ += 3;
@@ -376,6 +381,7 @@ bool Tokenizer::is_whitespace(char c) const {
  * @param end_tag 闭合标签名（如 "script"）
  */
 void Tokenizer::skip_rawtext(const char* end_tag) {
+    Logger::trace("tokenizer: skipping rawtext for </%s>", end_tag);
     std::string close_tag = "</";
     close_tag += end_tag;
     auto close_len = close_tag.size();
