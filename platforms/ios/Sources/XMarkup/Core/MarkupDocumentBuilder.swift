@@ -145,10 +145,18 @@ extension MarkupDocument {
         var inlines: [MarkupInline] = []
         inlines.reserveCapacity(spans.count)
 
+        // 计算当前块的尾部换行修剪位置（仅针对 parentRange 范围）
+        let nsString = text as NSString
+        let parentText = nsString.substring(with: parentRange)
+        let trimmedParentLength = parentText.trimmingTrailingNewlines.utf16.count
+
+        let parentEnd = parentRange.location + parentRange.length
+        let trimmedBlockEnd = parentRange.location + trimmedParentLength
+
         for span in spans {
-            // 只收集在 parentRange 范围内的 inline span
+            // inline span 的起始必须在 parentRange 内
             guard span.range.location >= parentRange.location,
-                  span.range.location + span.range.length <= parentRange.location + parentRange.length else {
+                  span.range.location < parentEnd else {
                 continue
             }
 
@@ -166,18 +174,15 @@ extension MarkupDocument {
 
             // 计算相对于块起始位置的 NSRange
             let relativeLocation = span.range.location - parentRange.location
-            // 如果尾部有换行被修剪，需要调整 length
-            let nsString = text as NSString
-            let textEnd = nsString.length
-            let trimmedEnd = (text as String).trimmingTrailingNewlines.utf16.count
+
+            // 截断超出 parentRange 的尾部，同时考虑尾部换行修剪
             let spanEnd = span.range.location + span.range.length
-            let adjustedEnd = spanEnd > trimmedEnd ? trimmedEnd : spanEnd
-            let adjustedLength = adjustedEnd - span.range.location
-            let relativeLength = max(adjustedLength, 0)
+            let adjustedEnd = min(spanEnd, trimmedBlockEnd)
+            let adjustedLength = max(adjustedEnd - span.range.location, 0)
 
-            guard relativeLength > 0 else { continue }
+            guard adjustedLength > 0 else { continue }
 
-            let relativeRange = NSRange(location: relativeLocation, length: relativeLength)
+            let relativeRange = NSRange(location: relativeLocation, length: adjustedLength)
             inlines.append(MarkupInline(range: relativeRange, kind: kind))
         }
 

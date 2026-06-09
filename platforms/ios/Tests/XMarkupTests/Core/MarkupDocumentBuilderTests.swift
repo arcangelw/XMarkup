@@ -241,4 +241,28 @@ final class MarkupDocumentBuilderTests: XCTestCase {
             return false
         }))
     }
+
+    // MARK: - 边界修复测试
+
+    func testPartiallyOverlappingInlineNotDropped() throws {
+        let result = try parse("<p><b>bold</b> text</p>")
+        let doc = MarkupDocument.from(result)
+        XCTAssertEqual(doc.blocks.count, 1)
+        XCTAssertEqual(doc.blocks[0].inlines.count, 1)
+        XCTAssertEqual(doc.blocks[0].inlines[0].kind, .bold)
+    }
+
+    func testInlineRangeRelativeToBlock() throws {
+        // 验证 inline range 是相对于块起始位置的偏移
+        let result = try parse("<p>Hello <b>bold</b></p>")
+        let doc = MarkupDocument.from(result)
+        XCTAssertEqual(doc.blocks.count, 1)
+        guard let inline = doc.blocks[0].inlines.first else {
+            XCTFail("Expected inline")
+            return
+        }
+        // "Hello bold" → "bold" 从 index 6 开始，长度 4
+        XCTAssertEqual(inline.range.location, 6)
+        XCTAssertEqual(inline.range.length, 4)
+    }
 }

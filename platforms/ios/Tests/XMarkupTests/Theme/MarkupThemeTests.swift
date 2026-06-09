@@ -47,13 +47,13 @@ final class MarkupThemeTests: XCTestCase {
 
     func testThemeEqualityIgnoresMediaStrategy() {
         let a = MarkupTheme(mediaStrategy: .placeholder)
-        let b = MarkupTheme(mediaStrategy: .imageProvider({ _ in nil }))
+        let b: MarkupTheme = MarkupTheme(mediaStrategy: .imageProvider({ _ in nil }))
         // mediaStrategy 不同但 baseFont/headingScale/tagStyles 相同，应判等
         XCTAssertEqual(a, b)
     }
 
     func testThemeInequalityDifferentTagStyles() {
-        var a = MarkupTheme()
+        let a = MarkupTheme()
         var b = MarkupTheme()
         var container = AttributeContainer()
         #if canImport(UIKit)
