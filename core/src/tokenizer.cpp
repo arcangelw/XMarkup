@@ -105,10 +105,17 @@ Token Tokenizer::next() {
                    html_[pos_] != '>' && html_[pos_] != '/') {
                 pos_++;
             }
-            std::string_view tag_name = html_.substr(name_start, pos_ - name_start);
-            if (tag_name.empty()) {
+            std::string_view raw_tag = html_.substr(name_start, pos_ - name_start);
+            if (raw_tag.empty()) {
                 state_ = TokenizerState::DATA;
                 break;
+            }
+
+            // 小写化标签名（HTML 标签名不区分大小写）
+            std::string tag_lower;
+            tag_lower.reserve(raw_tag.size());
+            for (char c : raw_tag) {
+                tag_lower += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
             }
 
             // 属性区域起始位置（紧跟标签名之后）
@@ -249,7 +256,7 @@ Token Tokenizer::next() {
                 Token tok;
                 tok.type = is_end_tag ? TokenType::END_TAG : TokenType::START_TAG;
                 tok.raw = raw;
-                tok.tag_name = tag_name;
+                tok.tag_name = std::move(tag_lower);
                 // 清理属性字符串前导空白
                 while (!attrs.empty() && is_whitespace(attrs.front())) attrs.remove_prefix(1);
                 tok.attributes = attrs.empty() ? std::string_view{} : attrs;
@@ -283,9 +290,9 @@ Token Tokenizer::next() {
                 // 处理 RAWTEXT 标签（script/style/noscript）——整体跳过内容，不产出 token
                 // 这是 HTML5 规范要求的特殊行为：这些标签的内容不是 HTML
                 if (!is_end_tag && !is_self_closing &&
-                    (tag_name == "script" || tag_name == "style" || tag_name == "noscript")) {
-                    if (tag_name == "script") skip_rawtext("script");
-                    else if (tag_name == "style") skip_rawtext("style");
+                    (tag_lower == "script" || tag_lower == "style" || tag_lower == "noscript")) {
+                    if (tag_lower == "script") skip_rawtext("script");
+                    else if (tag_lower == "style") skip_rawtext("style");
                     else skip_rawtext("noscript");
                     state_ = TokenizerState::DATA;
                     break; // 跳出 TAG_NAME，继续外层 while 寻找下一个 token
@@ -300,7 +307,7 @@ Token Tokenizer::next() {
                     tok.type = TokenType::START_TAG;
                 }
                 tok.raw = raw;
-                tok.tag_name = tag_name;
+                tok.tag_name = std::move(tag_lower);
                 tok.attributes = attrs.empty() ? std::string_view{} : attrs;
                 state_ = TokenizerState::DATA;
                 return tok;
@@ -322,7 +329,7 @@ Token Tokenizer::next() {
                         pos_++;
                     }
                     // 未找到 --> 则跳到末尾（容错）
-                    if (pos_ + 2 >= html_.size() && !(pos_ + 2 < html_.size())) {
+                    if (pos_ + 2 >= html_.size()) {
                         pos_ = html_.size();
                     }
                     state_ = TokenizerState::DATA;
@@ -339,16 +346,6 @@ Token Tokenizer::next() {
             break;
         }
 
-        // 以下两个状态在重构后不再使用，保留作为安全回退
-        case TokenizerState::COMMENT_DASH1:
-        case TokenizerState::COMMENT_DASH2:
-            state_ = TokenizerState::DATA;
-            break;
-
-        case TokenizerState::RAWTEXT:
-            state_ = TokenizerState::DATA;
-            break;
-
         default:
             state_ = TokenizerState::DATA;
             break;
@@ -356,16 +353,6 @@ Token Tokenizer::next() {
     }
 
     return {TokenType::TEXT, {}, {}, {}};
-}
-
-char Tokenizer::advance() {
-    if (pos_ >= html_.size()) return '\0';
-    return html_[pos_++];
-}
-
-char Tokenizer::peek() const {
-    if (pos_ >= html_.size()) return '\0';
-    return html_[pos_];
 }
 
 bool Tokenizer::is_eof() const {

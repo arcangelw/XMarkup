@@ -424,3 +424,20 @@ TEST_F(APITest, ConsecutiveParseWorks) {
         xmarkup_result_free(r2);
     }
 }
+
+TEST_F(APITest, UppercaseTagRecognized) {
+    auto* r = parse("<B>bold</B>");
+    ASSERT_NE(r, nullptr);
+    EXPECT_STREQ(r->text, "bold");
+    EXPECT_GE(r->span_count, 1u);
+    EXPECT_EQ(r->spans[0].tag, XM_TAG_BOLD);
+    xmarkup_result_free(r);
+}
+
+TEST_F(APITest, MixedCaseStrongTag) {
+    auto* r = parse("<STRONG>text</STRONG>");
+    ASSERT_NE(r, nullptr);
+    EXPECT_EQ(r->span_count, 1u);
+    EXPECT_EQ(r->spans[0].tag, XM_TAG_BOLD);
+    xmarkup_result_free(r);
+}

@@ -17,7 +17,7 @@ namespace xmarkup {
 struct ASTNode {
     enum Type { ROOT, ELEMENT, TEXT }; /**< 节点类型 */
     Type                 type;        /**< 当前节点类型 */
-    std::string_view     tag_name;    /**< 标签名（仅 ELEMENT 类型有效） */
+    std::string          tag_name;    /**< 标签名（小写化，仅 ELEMENT 类型有效） */
     std::string_view     attributes;  /**< 属性字符串（仅 ELEMENT 类型有效） */
     std::string_view     text;        /**< 文本内容（仅 TEXT 类型有效） */
     std::vector<ASTNode> children;    /**< 子节点列表（ROOT 和 ELEMENT 可有子节点） */

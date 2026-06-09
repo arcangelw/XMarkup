@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -35,21 +36,19 @@ enum class TokenizerState {
     ATTR_VALUE_UNQUOTED,/**< 无引号属性值 */
     SELF_CLOSING,       /**< 遇到 '/'，期望 '>' */
     COMMENT,            /**< 注释/声明处理 */
-    COMMENT_DASH1,      /**< 保留状态（重构后未使用） */
-    COMMENT_DASH2,      /**< 保留状态（重构后未使用） */
-    RAWTEXT,            /**< 保留状态（重构后由 skip_rawtext 替代） */
 };
 
 /**
  * @brief 词法单元
  *
  * 由 Tokenizer 从 HTML 字符串中提取的最小语法单位。
- * 所有 string_view 成员指向原始输入字符串，不持有数据。
+ * raw 和 attributes 为 string_view 指向原始输入；
+ * tag_name 为 owned 字符串（小写化后的标签名）。
  */
 struct Token {
     TokenType        type;       /**< token 类型 */
     std::string_view raw;        /**< 原始文本片段（含标签括号） */
-    std::string_view tag_name;   /**< 标签名（仅 START_TAG/END_TAG/SELF_CLOSING_TAG） */
+    std::string      tag_name;   /**< 标签名（小写化，owned） */
     std::string_view attributes; /**< 属性字符串（标签名之后、'>' 之前的内容） */
 };
 
@@ -58,7 +57,7 @@ struct Token {
  *
  * 将 HTML 字符串拆分为 Token 序列。支持：
  * - 文本节点提取
- * - 开始/结束/自闭合标签识别
+ * - 开始/结束/自闭合标签识别（标签名不区分大小写）
  * - 属性解析（双引号/单引号/无引号）
  * - HTML 注释和声明跳过
  * - script/style/noscript 原始文本跳过
@@ -86,10 +85,6 @@ public:
     Token next();
 
 private:
-    /** @brief 前进一个字符并返回 */
-    char advance();
-    /** @brief 查看当前字符但不前进 */
-    char peek() const;
     /** @brief 是否到达输入末尾 */
     bool is_eof() const;
     /** @brief 判断是否为 ASCII 字母 */

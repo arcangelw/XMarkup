@@ -167,3 +167,23 @@ TEST(Tokenizer, AttributeWithAmpersand) {
     ASSERT_GE(tokens.size(), 2u);
     EXPECT_EQ(tokens[0].type, TokenType::START_TAG);
 }
+
+TEST(Tokenizer, UppercaseTag) {
+    Tokenizer t("<DIV>content</DIV>");
+    std::vector<Token> tokens;
+    while (t.has_next()) tokens.push_back(t.next());
+    ASSERT_EQ(tokens.size(), 3u);
+    EXPECT_EQ(tokens[0].type, TokenType::START_TAG);
+    EXPECT_EQ(tokens[0].tag_name, "div");
+    EXPECT_EQ(tokens[2].type, TokenType::END_TAG);
+    EXPECT_EQ(tokens[2].tag_name, "div");
+}
+
+TEST(Tokenizer, MixedCaseTag) {
+    Tokenizer t("<StrOnG>bold</StRoNg>");
+    std::vector<Token> tokens;
+    while (t.has_next()) tokens.push_back(t.next());
+    ASSERT_EQ(tokens.size(), 3u);
+    EXPECT_EQ(tokens[0].tag_name, "strong");
+    EXPECT_EQ(tokens[2].tag_name, "strong");
+}
