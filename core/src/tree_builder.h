@@ -33,7 +33,9 @@ struct ASTNode {
  * - void 元素识别（不入栈，直接作为叶子节点）
  * - 嵌套深度限制（防止恶意输入导致栈溢出）
  * - 未闭合标签自动补齐（栈中剩余节点保留在根节点下）
- * - 错嵌套标签纠错（可选）
+ * - HTML5 隐式关闭 6 条规则（始终生效）
+ * - Adoption Agency Algorithm（enable_autocorrect 控制）
+ * - Scope Boundary 防跨容器关闭
  *
  * @code
  * TreeBuilder builder(256, true);
@@ -47,7 +49,7 @@ public:
     /**
      * @brief 构建树构建器
      * @param max_depth    最大嵌套深度，超过后忽略后续标签（防恶意输入）
-     * @param autocorrect  是否启用自动纠错（处理错嵌套标签）
+     * @param autocorrect  是否启用 Adoption Agency Algorithm（行内标签跨块级重建）
      */
     explicit TreeBuilder(uint16_t max_depth = 256, bool autocorrect = true);
 
@@ -92,15 +94,12 @@ private:
      * 节点栈，管理当前嵌套路径。
      *
      * 指针安全性不变式：
-     * stack_ 存储指向 parent->children 中元素的裸指针。这些指针在 parent 的
-     * children vector realloc 时会失效。当前实现保证安全，因为：
-     * - handle_start_tag() 只在 stack_.back() 的 children 中添加新节点
-     * - 新节点成为新的 stack_.back()，栈中没有指向同一 parent children 中
-     *   已有元素的指针（前一个 sibling 已出栈或仍在栈顶的更深层）
-     * - 未闭合标签不触发 parent children 的 realloc（新标签成为未闭合标签的子节点）
+     * stack_ 存储指向 parent->children 中元素的裸指针。隐式关闭通过
+     * stack_.resize() 弹出栈元素实现，不修改 AST 树结构（children vector），
+     * 因此不会触发 parent children 的 realloc，指针始终有效。
      *
-     * ⚠️ 如果未来实现 HTML5 隐式关闭（如 <p> 遇到 <p> 时自动关闭前一个），
-     * 需要重新审视此不变式。届时建议改用 stable_vector 或索引方案替代裸指针。
+     * Adoption Agency 同样只操作栈（resize + 新节点入栈），不修改已有节点
+     * 的 children，维持不变式。
      */
     std::vector<ASTNode*> stack_;
 };
