@@ -372,12 +372,26 @@ std::string StyleResolver::normalize_color(std::string_view value) const {
         size_t start = 4;
         int r = 0, g = 0, b = 0;
         auto parse_int = [&](size_t& p) -> int {
+            // 处理负数前缀
+            if (p < value.size() && value[p] == '-') {
+                while (p < value.size() && value[p] != ',') p++;
+                return 0;
+            }
             int v = 0;
+            bool overflow = false;
             while (p < value.size() && value[p] >= '0' && value[p] <= '9') {
-                v = v * 10 + (value[p] - '0');
+                if (!overflow) {
+                    int digit = value[p] - '0';
+                    if (v > (255 - digit) / 10) {
+                        overflow = true;
+                        v = 255;
+                    } else {
+                        v = v * 10 + digit;
+                    }
+                }
                 p++;
             }
-            return v;
+            return std::min(v, 255);
         };
         r = parse_int(start);
         while (start < value.size() && (value[start] == ',' || value[start] == ' ')) start++;

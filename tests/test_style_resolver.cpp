@@ -445,3 +445,29 @@ TEST_F(StyleResolverTest, BlockNewline_ComplexMixedContent) {
     auto r = resolve("<h1>T</h1><p>P</p><ul><li>L</li></ul><p>E</p>");
     EXPECT_EQ(r.text, "T\nP\nL\nE\n");
 }
+
+TEST_F(StyleResolverTest, CSSColorRgbOverflow) {
+    // rgb() 中的超大值应被钳位到 [0,255]，不崩溃不产生垃圾值
+    auto r = resolve(R"html(<span style="color:rgb(9999999999,0,0)">text</span>)html");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_FOREGROUND_COLOR) {
+            found = true;
+            EXPECT_EQ(s.value.substr(0, 1), "#");
+            EXPECT_EQ(s.value.size(), 7u);
+        }
+    }
+    EXPECT_TRUE(found);
+}
+
+TEST_F(StyleResolverTest, CSSColorRgbNegative) {
+    auto r = resolve(R"html(<span style="color:rgb(-1,128,256)">text</span>)html");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_FOREGROUND_COLOR) {
+            found = true;
+            EXPECT_EQ(s.value.substr(0, 1), "#");
+        }
+    }
+    EXPECT_TRUE(found);
+}
