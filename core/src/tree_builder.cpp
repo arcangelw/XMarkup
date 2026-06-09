@@ -1,4 +1,5 @@
 #include "tree_builder.h"
+#include "logger.h"
 
 namespace xmarkup {
 
@@ -9,9 +10,114 @@ static const std::string_view kVoidElements[] = {
     "link", "meta", "param", "source", "track", "wbr"
 };
 
+// ============================================================
+// 标签分类查表
+// ============================================================
+
+/// 自动关闭标签集：这些标签在特定条件下会被隐式关闭
+static const std::unordered_set<std::string>& auto_closable_set() {
+    static const std::unordered_set<std::string> s = {
+        "p", "li", "dt", "dd", "tr", "td", "th", "thead", "tbody", "tfoot",
+        "h1", "h2", "h3", "h4", "h5", "h6"
+    };
+    return s;
+}
+
+/// 扩展块级标签集（包含隐式关闭规则涉及的所有块级元素）
+static const std::unordered_set<std::string>& extended_block_set() {
+    static const std::unordered_set<std::string> s = {
+        "p", "div", "blockquote", "pre", "h1", "h2", "h3", "h4", "h5", "h6",
+        "ul", "ol", "li", "table", "tr", "td", "th", "thead", "tbody", "tfoot",
+        "hr", "dl", "dt", "dd", "article", "section", "header", "footer",
+        "main", "nav", "aside", "figure", "figcaption", "address"
+    };
+    return s;
+}
+
+/// 行内格式化标签集
+static const std::unordered_set<std::string>& formatting_tag_set() {
+    static const std::unordered_set<std::string> s = {
+        "b", "strong", "i", "em", "u", "s", "strike", "del",
+        "a", "code", "mark", "sub", "sup", "span"
+    };
+    return s;
+}
+
+/// 有格式语义的标签集（adoption agency 实际重建的标签）
+static const std::unordered_set<std::string>& formatting_semantic_set() {
+    static const std::unordered_set<std::string> s = {
+        "b", "strong", "i", "em", "u", "s", "strike", "del",
+        "a", "code", "mark"
+    };
+    return s;
+}
+
+/// 作用域边界标签集（阻止隐式关闭扫描跨越）
+static const std::unordered_set<std::string>& scope_boundary_set() {
+    static const std::unordered_set<std::string> s = {
+        "div", "blockquote", "pre", "table", "ul", "ol",
+        "video", "audio", "article", "section", "header",
+        "footer", "main", "nav", "aside"
+    };
+    return s;
+}
+
+bool TreeBuilder::is_auto_closable(const std::string& tag) {
+    return auto_closable_set().count(tag) > 0;
+}
+
+bool TreeBuilder::is_extended_block_level(const std::string& tag) {
+    return extended_block_set().count(tag) > 0;
+}
+
+bool TreeBuilder::is_formatting_tag(const std::string& tag) {
+    return formatting_tag_set().count(tag) > 0;
+}
+
+bool TreeBuilder::has_formatting_semantics(const std::string& tag) {
+    return formatting_semantic_set().count(tag) > 0;
+}
+
+bool TreeBuilder::is_scope_boundary(const std::string& tag) {
+    return scope_boundary_set().count(tag) > 0;
+}
+
+/// 隐式关闭规则表：parent 遇到 new_tag 时是否应该自动关闭
+/// @see docs/superpowers/specs/2026-06-09-xmarkup-implicit-close-design.md §3
+bool TreeBuilder::should_auto_close(const std::string& parent, const std::string& new_tag) {
+    // 规则 1：<p> 遇任何块级元素（含自身）自动关闭
+    if (parent == "p") return is_extended_block_level(new_tag);
+
+    // 规则 2：<li> 遇 <li> 自动关闭
+    if (parent == "li") return new_tag == "li";
+
+    // 规则 3：<dt>/<dd> 互相关闭
+    if (parent == "dt") return new_tag == "dt" || new_tag == "dd";
+    if (parent == "dd") return new_tag == "dt" || new_tag == "dd";
+
+    // 规则 4：<tr> 遇 <tr> 自动关闭
+    if (parent == "tr") return new_tag == "tr";
+
+    // 规则 5：<td>/<th> 遇 <td>/<th>/<tr> 自动关闭
+    if (parent == "td") return new_tag == "td" || new_tag == "th" || new_tag == "tr";
+    if (parent == "th") return new_tag == "td" || new_tag == "th" || new_tag == "tr";
+
+    // 表格段互关
+    if (parent == "thead") return new_tag == "tbody" || new_tag == "tfoot";
+    if (parent == "tbody") return new_tag == "tbody" || new_tag == "tfoot";
+    if (parent == "tfoot") return new_tag == "tbody";
+
+    // 规则 6：<h1>-<h6> 遇块级元素自动关闭
+    if (parent == "h1" || parent == "h2" || parent == "h3" ||
+        parent == "h4" || parent == "h5" || parent == "h6") {
+        return is_extended_block_level(new_tag);
+    }
+
+    return false;
+}
+
 TreeBuilder::TreeBuilder(uint16_t max_depth, bool autocorrect)
     : max_depth_(max_depth), autocorrect_(autocorrect) {
-    (void)autocorrect_; // TODO: 自动纠错逻辑在后续增强中使用
 }
 
 /**

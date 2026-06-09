@@ -3,6 +3,8 @@
 #include "tokenizer.h"
 #include <vector>
 #include <string_view>
+#include <unordered_set>
+#include <unordered_map>
 
 namespace xmarkup {
 
@@ -64,6 +66,17 @@ private:
      */
     bool is_void_element(std::string_view tag) const;
 
+    // === 隐式关闭 & Adoption Agency ===
+    static bool is_auto_closable(const std::string& tag);
+    static bool should_auto_close(const std::string& parent_tag, const std::string& new_tag);
+    static bool is_extended_block_level(const std::string& tag);
+    static bool is_formatting_tag(const std::string& tag);
+    static bool has_formatting_semantics(const std::string& tag);
+    static bool is_scope_boundary(const std::string& tag);
+
+    void perform_implicit_close(const std::string& new_tag);
+    void perform_adoption_agency(const std::string& new_tag);
+
     /** @brief 处理开始标签 token */
     void handle_start_tag(const Token& tok);
     /** @brief 处理结束标签 token */
@@ -73,6 +86,8 @@ private:
 
     uint16_t max_depth_;         /**< 最大嵌套深度限制 */
     bool autocorrect_;           /**< 是否启用自动纠错 */
+    static constexpr size_t kMaxAdoptionDepth = 32; /**< Adoption agency 重建深度上限 */
+    std::vector<std::string> pending_adoption_; /**< Adoption 等待重建的标签列表 */
     /**
      * 节点栈，管理当前嵌套路径。
      *
