@@ -1,6 +1,14 @@
 import Foundation
 
 /// 内联样式（字符级）
+///
+/// `range` 是相对于所属 `MarkupBlock.text` 的 UTF-16 NSRange 偏移。
+///
+/// ```swift
+/// let inline = doc.blocks[0].inlines[0]
+/// // inline.range = NSRange(location: 6, length: 4)
+/// // inline.kind = .bold
+/// ```
 public struct MarkupInline: Sendable, Equatable {
     /// 在所属 block.text 中的范围（相对于块文本起始位置，UTF-16 码元偏移）
     public let range: NSRange
