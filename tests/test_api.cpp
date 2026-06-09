@@ -5,12 +5,13 @@
 #include <atomic>
 #include <vector>
 #include <string>
+#include <utility>
 #include "xmarkup/xmarkup.h"
 
 class APITest : public ::testing::Test {
 protected:
     void SetUp() override {
-        XMConfig cfg = {1, 256, 16.0f};
+        XMConfig cfg = {1, 256, 16.0f, nullptr, nullptr, XM_LOG_ERROR};
         parser_ = xmarkup_create(&cfg);
         ASSERT_NE(parser_, nullptr);
     }
@@ -358,7 +359,7 @@ TEST_F(APITest, ThreadSafety) {
 
     for (int t = 0; t < num_threads; t++) {
         threads.emplace_back([&]() {
-            XMConfig cfg = {1, 256, 16.0f};
+            XMConfig cfg = {1, 256, 16.0f, nullptr, nullptr, XM_LOG_ERROR};
             XMParser* p = xmarkup_create(&cfg);
             for (int i = 0; i < 100; i++) {
                 auto* result = xmarkup_parse(p, html, std::strlen(html));
@@ -439,5 +440,46 @@ TEST_F(APITest, MixedCaseStrongTag) {
     ASSERT_NE(r, nullptr);
     EXPECT_EQ(r->span_count, 1u);
     EXPECT_EQ(r->spans[0].tag, XM_TAG_BOLD);
+    xmarkup_result_free(r);
+}
+
+// === 日志系统测试 ===
+
+namespace {
+    struct LogCapture {
+        std::vector<std::pair<XMLogLevel, std::string>> entries;
+        static void callback(XMLogLevel level, const char* message, void* context) {
+            auto* capture = static_cast<LogCapture*>(context);
+            capture->entries.emplace_back(level, std::string(message));
+        }
+    };
+}
+
+TEST_F(APITest, LogCallbackReceivesMessages) {
+    LogCapture capture;
+    xmarkup_destroy(parser_);
+    XMConfig cfg = {1, 256, 16.0f, LogCapture::callback, &capture, XM_LOG_INFO};
+    parser_ = xmarkup_create(&cfg);
+
+    auto* r = parse("<b>hello</b>");
+    ASSERT_NE(r, nullptr);
+    xmarkup_result_free(r);
+
+    // 应至少收到 INFO 级别的 parse start/done 消息
+    EXPECT_GE(capture.entries.size(), 2u);
+    bool has_info = false;
+    for (auto& entry : capture.entries) {
+        if (entry.first == XM_LOG_INFO) has_info = true;
+    }
+    EXPECT_TRUE(has_info);
+}
+
+TEST_F(APITest, LogCallbackNullNoop) {
+    xmarkup_destroy(parser_);
+    XMConfig cfg = {1, 256, 16.0f, nullptr, nullptr, XM_LOG_TRACE};
+    parser_ = xmarkup_create(&cfg);
+    // callback 为 NULL，不应崩溃
+    auto* r = parse("<b>test</b>");
+    ASSERT_NE(r, nullptr);
     xmarkup_result_free(r);
 }

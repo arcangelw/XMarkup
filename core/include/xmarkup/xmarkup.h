@@ -87,6 +87,28 @@ typedef enum XMStyleType {
 } XMStyleType;
 
 /**
+ * @brief 日志级别
+ *
+ * 控制日志输出的详细程度。级别越高输出越详细。
+ * 通过 XMConfig.log_level 设置最低输出级别。
+ */
+typedef enum XMLogLevel {
+    XM_LOG_ERROR = 0,  /**< 解析异常（内存分配失败等） */
+    XM_LOG_WARN  = 1,  /**< 容错决策（隐式关闭、标签纠错等） */
+    XM_LOG_INFO  = 2,  /**< 关键决策节点（解析开始/结束等） */
+    XM_LOG_TRACE = 3,  /**< 详细步骤（状态转换、CSS 标准化等） */
+} XMLogLevel;
+
+/**
+ * @brief 日志回调函数类型
+ *
+ * @param level   日志级别
+ * @param message 日志消息（UTF-8，以 \0 结尾）
+ * @param context 用户上下文指针（来自 XMConfig.log_context）
+ */
+typedef void (*XMLogCallback)(XMLogLevel level, const char* message, void* context);
+
+/**
  * @brief 错误码枚举
  */
 typedef enum XMError {
@@ -165,9 +187,12 @@ typedef struct XMResult {
  * @endcode
  */
 typedef struct XMConfig {
-    uint8_t  enable_autocorrect; /**< 是否启用自动纠错（处理未闭合/错嵌套标签） */
-    uint16_t max_nesting_depth;  /**< 最大标签嵌套深度，防止恶意输入，默认 256 */
-    float    base_font_size;     /**< 基准字号（px），支持浮点精度，用于 em/rem/% 换算 */
+    uint8_t       enable_autocorrect; /**< 是否启用自动纠错（处理未闭合/错嵌套标签） */
+    uint16_t      max_nesting_depth;  /**< 最大标签嵌套深度，防止恶意输入，默认 256 */
+    float         base_font_size;     /**< 基准字号（px），支持浮点精度，用于 em/rem/% 换算 */
+    XMLogCallback log_callback;       /**< 日志回调，NULL = 不输出日志 */
+    void*         log_context;        /**< 回调用户上下文指针，透传给 log_callback */
+    XMLogLevel    log_level;          /**< 最低输出级别，默认 XM_LOG_ERROR */
 } XMConfig;
 
 /** 不透明解析器句柄，内部实现细节不暴露 */

@@ -1,9 +1,13 @@
 #include "parser.h"
+#include "logger.h"
 
 // 默认解析器配置
-static constexpr uint8_t  kDefaultAutocorrect = 1;
-static constexpr uint16_t kDefaultMaxNestingDepth = 256;
-static constexpr float    kDefaultBaseFontSize = 16.0f;
+static constexpr uint8_t       kDefaultAutocorrect = 1;
+static constexpr uint16_t      kDefaultMaxNestingDepth = 256;
+static constexpr float         kDefaultBaseFontSize = 16.0f;
+static constexpr XMLogCallback kDefaultLogCallback = nullptr;
+static constexpr void*         kDefaultLogContext  = nullptr;
+static constexpr XMLogLevel    kDefaultLogLevel    = XM_LOG_ERROR;
 
 extern "C" {
 
@@ -14,8 +18,15 @@ extern "C" {
  * 使用 std::nothrow 避免异常，内存不足时返回 NULL。
  */
 XMParser* xmarkup_create(const XMConfig* config) {
-    XMConfig cfg = {kDefaultAutocorrect, kDefaultMaxNestingDepth, kDefaultBaseFontSize};
+    XMConfig cfg = {
+        kDefaultAutocorrect, kDefaultMaxNestingDepth, kDefaultBaseFontSize,
+        kDefaultLogCallback, kDefaultLogContext, kDefaultLogLevel
+    };
     if (config) cfg = *config;
+
+    // 初始化日志器
+    xmarkup::Logger::init(cfg.log_callback, cfg.log_context, cfg.log_level);
+
     auto* p = new (std::nothrow) xmarkup::ParserInternal();
     if (!p) return nullptr;
     p->config = cfg;

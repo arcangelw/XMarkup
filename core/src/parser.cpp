@@ -3,6 +3,7 @@
 #include "tree_builder.h"
 #include "style_resolver.h"
 #include "utf16_indexer.h"
+#include "logger.h"
 #include <cstring>
 #include <cstdlib>
 
@@ -44,6 +45,7 @@ XMResult* ParserInternal::parse(const char* html, size_t length) {
 
     // 空/null 输入：返回空结果（避免 std::string_view(nullptr, 0) 的 UB）
     if (!html || length == 0) {
+        Logger::info("parse start: length=0 (empty)");
         auto* result = new (std::nothrow) XMResult();
         if (!result) {
             last_error = XM_ERR_ALLOC_FAILED;
@@ -58,6 +60,7 @@ XMResult* ParserInternal::parse(const char* html, size_t length) {
     }
 
     // 阶段 1：词法分析
+    Logger::info("parse start: length=%zu", length);
     std::string_view html_view(html, length);
     Tokenizer tokenizer(html_view);
     std::vector<Token> tokens;
@@ -80,6 +83,7 @@ XMResult* ParserInternal::parse(const char* html, size_t length) {
     // 阶段 5：组装 XMResult
     auto* result = new (std::nothrow) XMResult();
     if (!result) {
+        Logger::error("alloc failed: XMResult");
         last_error = XM_ERR_ALLOC_FAILED;
         return nullptr;
     }
@@ -125,6 +129,7 @@ XMResult* ParserInternal::parse(const char* html, size_t length) {
         result->span_count = static_cast<uint32_t>(owned_spans_.size());
     }
 
+    Logger::info("parse done: text_len=%u, span_count=%u", result->text_len, result->span_count);
     return result;
 }
 

@@ -6,6 +6,7 @@ add_library(xmarkup_core STATIC
     src/utf16_indexer.cpp
     src/parser.cpp
     src/api.cpp
+    src/logger.cpp
 )
 
 target_include_directories(xmarkup_core
