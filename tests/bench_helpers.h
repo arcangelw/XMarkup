@@ -2,6 +2,8 @@
 
 #include <string>
 #include <cstddef>
+#include <chrono>
+#include <cstdint>
 
 // ============================================================
 // HTML 生成器 — 为 benchmark 生成各种模式的测试输入
@@ -127,5 +129,123 @@ struct HtmlGenerator {
         }
         html += "</div>";
         return html;
+    }
+};
+
+// ============================================================
+// 分阶段计时器 — 测量各管线阶段耗时
+// ============================================================
+
+#include "tokenizer.h"
+#include "tree_builder.h"
+#include "style_resolver.h"
+#include "utf16_indexer.h"
+
+struct StageTimer {
+    uint64_t tokenizer_us;
+    uint64_t tree_builder_us;
+    uint64_t style_resolver_us;
+    uint64_t utf16_indexer_us;
+    uint64_t total_us;
+
+    using Clock = std::chrono::high_resolution_clock;
+    using TimePoint = std::chrono::time_point<Clock>;
+
+    static uint64_t us_between(TimePoint start, TimePoint end) {
+        return static_cast<uint64_t>(
+            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+    }
+
+    static StageTimer measure(const char* html, size_t length, const XMConfig& cfg) {
+        StageTimer t{};
+        TimePoint t0, t1, t2, t3, t4;
+
+        // 阶段 1：词法分析
+        t0 = Clock::now();
+        std::string_view html_view(html, length);
+        xmarkup::Tokenizer tokenizer(html_view);
+        std::vector<xmarkup::Token> tokens;
+        while (tokenizer.has_next()) tokens.push_back(tokenizer.next());
+        t1 = Clock::now();
+
+        // 阶段 2：AST 构建
+        xmarkup::TreeBuilder tree_builder(cfg.max_nesting_depth, cfg.enable_autocorrect);
+        xmarkup::ASTNode ast = tree_builder.build(tokens);
+        t2 = Clock::now();
+
+        // 阶段 3：样式解析
+        xmarkup::StyleResolver style_resolver(cfg.base_font_size);
+        xmarkup::FlattenResult flat = style_resolver.resolve(ast);
+        t3 = Clock::now();
+
+        // 阶段 4：UTF-16 映射
+        xmarkup::UTF16Indexer indexer;
+        indexer.build(flat.text);
+        t4 = Clock::now();
+
+        t.tokenizer_us     = us_between(t0, t1);
+        t.tree_builder_us  = us_between(t1, t2);
+        t.style_resolver_us = us_between(t2, t3);
+        t.utf16_indexer_us = us_between(t3, t4);
+        t.total_us         = us_between(t0, t4);
+        return t;
+    }
+};
+
+// ============================================================
+// 内存追踪器 — 测量解析过程内存增量
+// ============================================================
+
+#ifdef __APPLE__
+#include <mach/mach.h>
+#elif defined(__linux__)
+#include <fstream>
+#endif
+
+struct MemoryTracker {
+    size_t peak_rss_kb;
+    size_t delta_rss_kb;
+
+    static size_t get_rss_kb() {
+#ifdef __APPLE__
+        struct mach_task_basic_info info;
+        mach_msg_type_number_t count = MACH_TASK_BASIC_INFO_COUNT;
+        if (task_info(mach_task_self(), MACH_TASK_BASIC_INFO,
+                      (thread_info_t)&info, &count) == KERN_SUCCESS) {
+            return info.resident_size / 1024;
+        }
+        return 0;
+#elif defined(__linux__)
+        std::ifstream ifs("/proc/self/status");
+        std::string line;
+        while (std::getline(ifs, line)) {
+            if (line.compare(0, 6, "VmRSS:") == 0) {
+                return std::stoul(line.substr(6));
+            }
+        }
+        return 0;
+#else
+        return 0;
+#endif
+    }
+
+    static MemoryTracker snapshot() {
+        MemoryTracker mt;
+        mt.peak_rss_kb = get_rss_kb();
+        mt.delta_rss_kb = 0;
+        return mt;
+    }
+
+    static MemoryTracker measure_parsing(const char* html, size_t length, const XMConfig& cfg) {
+        size_t before = get_rss_kb();
+        XMParser* p = xmarkup_create(&cfg);
+        XMResult* r = xmarkup_parse(p, html, length);
+        size_t after = get_rss_kb();
+        xmarkup_result_free(r);
+        xmarkup_destroy(p);
+        MemoryTracker mt;
+        mt.peak_rss_kb = after;
+        mt.delta_rss_kb = (after > before) ? (after - before) : 0;
+        return mt;
     }
 };
