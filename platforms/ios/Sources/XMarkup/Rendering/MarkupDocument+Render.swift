@@ -133,6 +133,11 @@ private func applyInlineAttributes(
     // inline.range 是 UTF-16 NSRange（相对于块文本起始位置）
     // 通过 String.Index 中转后使用 character offset 定位 AttributedString，
     // 避免 Range(NSRange, in: AttributedString) 在 emoji 场景下可能出现的边界错位。
+    //
+    // 关键假设：AttributedString(block.text) 的 character index 与 String(block.text) 的
+    // character index 一致（两者都基于 Extended Grapheme Cluster）。
+    // Apple 的 AttributedString 初始化时未做 Unicode 规范化（NFC），
+    // 因此此假设在当前 Apple 实现下成立。
     let attrRange: Range<AttributedString.Index>
     do {
         guard let stringRange = Range(inline.range, in: blockText) else { return }
@@ -141,6 +146,10 @@ private func applyInlineAttributes(
         guard charLength > 0 else { return }
         let start = attr.index(attr.startIndex, offsetByCharacters: charOffset)
         let end = attr.index(start, offsetByCharacters: charLength)
+        #if DEBUG
+        assert(String(attr[start..<end].characters) == String(blockText[stringRange]),
+               "AttributedString character index 与 String character index 不一致，请检查 Unicode 规范化问题")
+        #endif
         attrRange = start..<end
     }
 
