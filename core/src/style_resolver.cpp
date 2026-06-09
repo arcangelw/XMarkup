@@ -436,6 +436,7 @@ std::string StyleResolver::normalize_font_size(std::string_view value) const {
     double frac = 0.1;
     while (i < value.size() && ((value[i] >= '0' && value[i] <= '9') || value[i] == '.')) {
         if (value[i] == '.') {
+            if (has_dot) break;  // 第二个小数点，停止解析
             has_dot = true;
         } else if (!has_dot) {
             num = num * 10 + (value[i] - '0');

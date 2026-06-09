@@ -471,3 +471,17 @@ TEST_F(StyleResolverTest, CSSColorRgbNegative) {
     }
     EXPECT_TRUE(found);
 }
+
+TEST_F(StyleResolverTest, CSSFontSizeMultipleDots) {
+    // "1.2.3px" —— 遇到第二个 '.' 停止解析，取 "1.2px"
+    auto r = resolve(R"(<span style="font-size:1.2.3px">text</span>)");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_FONT_SIZE) {
+            found = true;
+            // 取 1.2（无单位），直接输出 "1.2"
+            EXPECT_EQ(s.value, "1.2");
+        }
+    }
+    EXPECT_TRUE(found);
+}
