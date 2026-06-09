@@ -76,7 +76,7 @@ static const std::unordered_map<std::string_view, const char*>& named_entities()
         {"sup1", "\xC2\xB9"}, {"sup2", "\xC2\xB2"}, {"sup3", "\xC2\xB3"},
         {"not", "\xC2\xAC"}, {"brvbar", "\xC2\xA6"}, {"cedil", "\xC2\xB8"},
         {"uml", "\xC2\xA8"}, {"circ", "\xCB\x86"}, {"tilde", "\xCB\x9C"},
-        {"ring", "\xCB\x9A"}, {"cedil", "\xC2\xB8"},
+        {"ring", "\xCB\x9A"},
         {"dagger", "\xE2\x80\xA0"}, {"Dagger", "\xE2\x80\xA1"},
         {"permil", "\xE2\x80\xB0"}, {"lsaquo", "\xE2\x80\xB9"}, {"rsaquo", "\xE2\x80\xBA"},
     };
