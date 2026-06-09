@@ -79,9 +79,6 @@ private:
     /** @brief 将 HTML 标签名映射为 XMTagType 值 */
     int  map_tag(std::string_view tag_name) const;
 
-    /** @brief 解析内联 style 属性（已弃用，由 add_style_spans 替代） */
-    void parse_inline_style(std::string_view style_str);
-
     /**
      * @brief 解析 CSS inline style 字符串，添加样式 span
      * @param style_str CSS 属性字符串（如 "color:red; font-size:16px"）

@@ -70,13 +70,10 @@ private:
     void handle_end_tag(const Token& tok);
     /** @brief 处理自闭合标签 token */
     void handle_self_closing(const Token& tok);
-    /** @brief 纠正错嵌套标签 */
-    void autocorrect_misnested(std::string_view tag);
 
     uint16_t max_depth_;         /**< 最大嵌套深度限制 */
     bool autocorrect_;           /**< 是否启用自动纠错 */
     std::vector<ASTNode*> stack_; /**< 节点栈，管理当前嵌套路径 */
-    ASTNode root_;               /**< 根节点（build 调用间复用） */
 };
 
 } // namespace xmarkup

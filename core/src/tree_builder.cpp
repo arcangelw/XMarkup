@@ -134,22 +134,6 @@ void TreeBuilder::handle_self_closing(const Token& tok) {
     stack_.back()->children.push_back(std::move(elem));
 }
 
-/**
- * @brief 纠正错嵌套标签
- *
- * 在栈中查找指定标签，弹出到该层。
- * 用于处理类似 <b><i></b></i> 的错嵌套情况。
- */
-void TreeBuilder::autocorrect_misnested(std::string_view tag) {
-    for (auto it = stack_.rbegin(); it != stack_.rend() - 1; ++it) {
-        if ((*it)->tag_name == tag) {
-            auto depth = stack_.rend() - it;
-            stack_.resize(static_cast<size_t>(depth));
-            return;
-        }
-    }
-}
-
 bool TreeBuilder::is_void_element(std::string_view tag) const {
     for (const auto& vt : kVoidElements) {
         if (tag == vt) return true;

@@ -302,10 +302,6 @@ int StyleResolver::map_tag(std::string_view tag_name) const {
     return it != map.end() ? it->second : 0;
 }
 
-void StyleResolver::parse_inline_style(std::string_view) {
-    // 已由 add_style_spans 处理，此方法保留为空
-}
-
 void StyleResolver::extract_attribute_value(std::string_view attrs, const char* attr_name,
                                              std::string& out_value) const {
     out_value.clear();
