@@ -42,10 +42,27 @@ final class MarkupThemeTests: XCTestCase {
     func testThemeEquality() {
         let a = MarkupTheme.default
         let b = MarkupTheme.default
-        // MediaRenderingStrategy 含闭包不可比较，只比较非闭包字段
-        XCTAssertEqual(a.baseFont, b.baseFont)
-        XCTAssertEqual(a.headingScale, b.headingScale)
-        XCTAssertEqual(a.tagStyles, b.tagStyles)
+        XCTAssertEqual(a, b)
+    }
+
+    func testThemeEqualityIgnoresMediaStrategy() {
+        let a = MarkupTheme(mediaStrategy: .placeholder)
+        let b = MarkupTheme(mediaStrategy: .imageProvider({ _ in nil }))
+        // mediaStrategy 不同但 baseFont/headingScale/tagStyles 相同，应判等
+        XCTAssertEqual(a, b)
+    }
+
+    func testThemeInequalityDifferentTagStyles() {
+        var a = MarkupTheme()
+        var b = MarkupTheme()
+        var container = AttributeContainer()
+        #if canImport(UIKit)
+        container.uiKit.foregroundColor = .red
+        #elseif canImport(AppKit)
+        container.appKit.foregroundColor = .red
+        #endif
+        b.tagStyles[.bold] = container
+        XCTAssertNotEqual(a, b)
     }
 
     func testThemeWithCustomTagStyle() {

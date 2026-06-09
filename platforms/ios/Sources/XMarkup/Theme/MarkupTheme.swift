@@ -7,16 +7,18 @@ import AppKit
 #endif
 
 /// 纯值类型的样式主题
-/// XMFont/NSFont 在 Apple 平台上实际是线程安全的 immutable 对象，
-/// 但未标记 Sendable。使用 @unchecked Sendable 是安全的。
-public struct MarkupTheme: @unchecked Sendable {
+///
+/// `Equatable` 仅比较 `baseFont`、`headingScale`、`tagStyles` 三个样式配置字段。
+/// `mediaStrategy` 包含闭包（`.imageProvider` / `.customAttachment`），不可比较，因此不参与判等。
+/// 如需比较渲染策略是否相同，请单独检查 `mediaStrategy` 的 case。
+public struct MarkupTheme: @unchecked Sendable, Equatable {
     /// 基础字体
     public var baseFont: XMFont
     /// 标题缩放系数
     public var headingScale: HeadingScale
     /// 标签样式映射
     public var tagStyles: [TagStyleKey: AttributeContainer]
-    /// 媒体渲染策略
+    /// 媒体渲染策略（不参与 Equatable 比较，因包含闭包）
     public var mediaStrategy: MediaRenderingStrategy
 
     public init(
@@ -31,6 +33,7 @@ public struct MarkupTheme: @unchecked Sendable {
         self.mediaStrategy = mediaStrategy
     }
 
+    /// Equatable 仅比较样式配置项，排除 mediaStrategy（闭包不可比较）
     public static func == (lhs: MarkupTheme, rhs: MarkupTheme) -> Bool {
         lhs.baseFont == rhs.baseFont
             && lhs.headingScale == rhs.headingScale
