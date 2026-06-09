@@ -1,12 +1,15 @@
 #include <benchmark/benchmark.h>
 #include "xmarkup/xmarkup.h"
+#include "bench_helpers.h"
 
-// 占位 benchmark，验证编译和链接
-static void BM_Placeholder(benchmark::State& state) {
+// 验证 HtmlGenerator 编译和运行
+static void BM_HtmlGeneratorCheck(benchmark::State& state) {
+    auto html = HtmlGenerator::mixed(1024);
     for (auto _ : state) {
-        // 空操作
+        auto copy = html;
+        benchmark::DoNotOptimize(copy);
     }
 }
-BENCHMARK(BM_Placeholder);
+BENCHMARK(BM_HtmlGeneratorCheck);
 
 BENCHMARK_MAIN();
