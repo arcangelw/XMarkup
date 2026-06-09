@@ -1,17 +1,17 @@
 import SwiftUI
 
-/// 示例详情页：三段 Tab（HTML 源码 / 渲染效果 / Span 数据）
+/// 示例详情页：四段 Tab（HTML 源码 / 渲染效果 / WebView / Span 数据）
 struct ExampleDetailView: View {
     let example: DemoExample
     @State private var selectedTab = 0
 
     var body: some View {
         VStack(spacing: 0) {
-            // 三段 Tab 切换
             Picker("视图", selection: $selectedTab) {
                 Text("HTML 源码").tag(0)
                 Text("渲染效果").tag(1)
-                Text("Span 数据").tag(2)
+                Text("WebView").tag(2)
+                Text("Span 数据").tag(3)
             }
             .pickerStyle(.segmented)
             .padding(.horizontal, 16)
@@ -19,7 +19,6 @@ struct ExampleDetailView: View {
 
             Divider()
 
-            // 内容区域 — 每个 Tab 视图自行撑满剩余空间
             contentView
         }
         .navigationTitle(example.title)
@@ -36,6 +35,8 @@ struct ExampleDetailView: View {
         case 1:
             RenderedTextView(example: example)
         case 2:
+            WebViewPreviewView(html: example.html)
+        case 3:
             SpanDataView(example: example)
         default:
             EmptyView()
