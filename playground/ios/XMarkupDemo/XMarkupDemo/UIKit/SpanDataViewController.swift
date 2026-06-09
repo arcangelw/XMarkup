@@ -174,6 +174,19 @@ extension SpanDataViewController: UITableViewDataSource {
         case .lineBreak: "br"
         case .division: "div"
         case .span: "span"
+        case .article: "article"
+        case .section: "section"
+        case .header: "header"
+        case .footer: "footer"
+        case .nav: "nav"
+        case .aside: "aside"
+        case .figure: "figure"
+        case .figcaption: "figcaption"
+        case .main: "main"
+        case .address: "address"
+        case .definitionList: "dl"
+        case .definitionTerm: "dt"
+        case .definitionDescription: "dd"
         case let .unknown(v): "unknown(\(v))"
         }
     }
@@ -189,6 +202,8 @@ extension SpanDataViewController: UITableViewDataSource {
         case .lineHeight: "lineHeight"
         case .textAlign: "textAlign"
         case .letterSpacing: "letterSpacing"
+        case .mediaType: "mediaType"
+        case .mediaQuery: "mediaQuery"
         case let .unknown(v): "unknown(\(v))"
         }
     }
