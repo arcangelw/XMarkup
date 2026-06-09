@@ -82,3 +82,16 @@ public struct MediaComponent: ThemeComponent {
 public func Media(_ strategy: MediaRenderingStrategy) -> MediaComponent {
     MediaComponent(strategy)
 }
+
+/// 段落排版组件
+public struct ParagraphSpacingComponent: ThemeComponent {
+    public let spacing: ParagraphSpacing
+
+    public init(_ spacing: ParagraphSpacing) {
+        self.spacing = spacing
+    }
+
+    public func apply(to theme: inout MarkupTheme) {
+        theme.paragraphSpacing = spacing
+    }
+}
