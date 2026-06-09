@@ -1,7 +1,7 @@
 # XMarkup C++ 核心解析引擎设计规格说明书
 
 > 子项目 A：C++17 核心引擎 + CMake 构建 + 单元测试
-> 日期：2026-06-05
+> 日期：2026-06-05（更新：2026-06-09 — 隐式关闭 + Adoption Agency + 日志系统）
 > 状态：待用户审查
 
 ---
@@ -159,6 +159,17 @@ typedef enum XMStyleType {
     XM_STYLE_MEDIA_QUERY      = 11,  // 媒体查询条件（source 的 media 属性）
 } XMStyleType;
 
+/* 日志级别 */
+typedef enum XMLogLevel {
+    XM_LOG_ERROR = 0,  // 解析异常（内存分配失败等不可恢复错误）
+    XM_LOG_WARN  = 1,  // 容错决策（隐式关闭、标签纠错、adoption agency 等）
+    XM_LOG_INFO  = 2,  // 关键决策节点（解析开始/结束）
+    XM_LOG_TRACE = 3,  // 详细步骤（状态转换、CSS 标准化）
+} XMLogLevel;
+
+/* 日志回调函数类型 */
+typedef void (*XMLogCallback)(XMLogLevel level, const char* message, void* context);
+
 /* 文本区间（UTF-16 索引） */
 typedef struct XMRange {
     uint32_t start;
@@ -185,9 +196,12 @@ typedef struct XMResult {
 
 /* 配置 */
 typedef struct XMConfig {
-    uint8_t  enable_autocorrect;   // 是否启用乱序嵌套自动纠错（默认 1）
-    uint16_t max_nesting_depth;    // 最大嵌套深度（默认 256，防 DoS）
-    uint16_t base_font_size;       // 基准字体大小，单位 px（默认 16，用于 em/rem/pt 换算）
+    uint8_t       enable_autocorrect;   // 是否启用乱序嵌套自动纠错（默认 1）
+    uint16_t      max_nesting_depth;    // 最大嵌套深度（默认 256，防 DoS）
+    float         base_font_size;       // 基准字体大小，单位 px（默认 16.0，用于 em/rem/pt 换算）
+    XMLogCallback log_callback;         // 日志回调，NULL = 不输出日志
+    void*         log_context;          // 回调用户上下文指针，透传给 log_callback
+    XMLogLevel    log_level;            // 最低输出级别（默认 XM_LOG_ERROR）
 } XMConfig;
 
 /* 错误码 */
@@ -295,7 +309,7 @@ struct Token {
 struct ASTNode {
     enum Type { ROOT, ELEMENT, TEXT };
     Type                 type;
-    std::string_view     tag_name;
+    std::string          tag_name;    // 小写化（std::string 拥有所有权）
     std::string_view     attributes;
     std::string_view     text;
     std::vector<ASTNode> children;
@@ -306,11 +320,55 @@ struct ASTNode {
 
 | 场景 | 输入示例 | 纠错行为 |
 |------|---------|---------|
-| 乱序嵌套 | `<a><b></a></b>` | 先闭合 `<b>`，闭合 `<a>`，重开 `<b>` |
 | 未闭合标签 | `<div><p>text` | 文档末尾自动补齐 `</p></div>` |
 | 多余闭合标签 | `</b>text` | 忽略无匹配的 `</b>`，保留文本 |
 | 自闭合标签 | `<br>`, `<img>` | 不入栈，直接作为叶子节点 |
 | 嵌套超限 | 超过 max_nesting_depth | 截断超出层级，文本保留 |
+
+#### HTML5 隐式关闭规则（始终生效）
+
+> HTML5 规范中，某些标签在遇到特定后续标签时会自动关闭前一个同名或相关标签。
+> 隐式关闭**始终生效**，不受 `enable_autocorrect` 配置控制。
+
+| 规则 | 标签 | 触发条件 | 示例 |
+|------|------|---------|------|
+| 1 | `<p>` | 遇任何块级元素（含自身） | `<p>第一段<p>第二段` → 两个平级 `<p>` |
+| 2 | `<li>` | 遇 `<li>` | `<ul><li>A<li>B` → 两个平级 `<li>` |
+| 3 | `<dt>`/`<dd>` | 互相关闭 | `<dt>term<dd>def` → 平级 `<dt>` + `<dd>` |
+| 4 | `<tr>` | 遇 `<tr>` | `<tr><td>A<tr><td>B` → 两个平级 `<tr>` |
+| 5 | `<td>`/`<th>` | 遇 `<td>`/`<th>`/`<tr>` | `<td>A<th>B` → 平级 `<td>` + `<th>` |
+| 6 | `<h1>`-`<h6>` | 遇块级元素 | `<h1>T<p>P` → 平级 `<h1>` + `<p>` |
+
+**作用域边界**：`div`, `blockquote`, `pre`, `table`, `ul`, `ol`, `video`, `audio`, `article`, `section`, `header`, `footer`, `main`, `nav`, `aside` — 隐式关闭扫描遇到这些标签时停止，防止跨容器误关闭。
+
+#### Adoption Agency Algorithm（`enable_autocorrect` 控制开关）
+
+> 当行内格式化标签（`<b>`, `<i>`, `<a>` 等）跨越块级元素边界时，Adoption Agency 将行内标签重建到块级元素内部。
+
+**触发条件**：
+- `enable_autocorrect = true`（默认）
+- 新开标签为块级元素
+- 栈顶有连续的行内格式化标签
+
+**行为**：
+1. 从栈顶收集连续的行内格式化标签
+2. 筛选有语义的标签（跳过 `span`, `sub`, `sup`）
+3. 弹出收集到的标签
+4. 在新块级元素入栈后，按从外到内的顺序重建行内标签克隆链
+
+**深度限制**：`max_adoption_depth = 32`，超出截断并输出 WARN 日志。
+
+**示例**：
+```
+输入: <div><b>text<p>para</p></b></div>
+输出:
+  <div>
+    <b>text</b>        ← <b> 在 <p> 前关闭
+    <p>
+      <b>para</b>      ← adoption 重建 <b> 克隆
+    </p>
+  </div>
+```
 
 #### void 元素列表（不入栈）
 
@@ -1185,16 +1243,40 @@ spans:
 
 ### 11.8 自动纠错场景
 
-#### 乱序嵌套纠错
+#### 隐式关闭 — `<p>` 遇 `<p>` 自动关闭
 
 ```
-输入: <a>链接<b>粗体</a>文字</b>
-text: "链接粗体文字"
+输入: <p>第一段<p>第二段</p>
+text: "第一段第二段"
 spans:
-  { range: {0, 4}, tag: XM_TAG_LINK }
-  { range: {2, 4}, tag: XM_TAG_BOLD }
-  { range: {4, 6}, tag: XM_TAG_BOLD }          ← 纠错后重新打开的 <b>
+  { range: {0, 3}, tag: XM_TAG_PARAGRAPH }     ← 第一个 <p>，遇第二个 <p> 自动关闭
+  { range: {3, 6}, tag: XM_TAG_PARAGRAPH }     ← 第二个 <p>
 ```
+
+#### 隐式关闭 — `<li>` 遇 `<li>` 自动关闭
+
+```
+输入: <ul><li>A<li>B</ul>
+text: "AB"
+spans:
+  { range: {0, 2}, tag: XM_TAG_LIST_UNORDERED }
+  { range: {0, 1}, tag: XM_TAG_LIST_ITEM }     ← 第一个 <li>
+  { range: {1, 2}, tag: XM_TAG_LIST_ITEM }     ← 第二个 <li>
+```
+
+#### Adoption Agency — `<b>` 跨越 `<p>` 重建
+
+```
+输入: <div><b>text<p>para</p></b></div>
+text: "textpara"
+spans:
+  { range: {0, 8}, tag: XM_TAG_DIVISION }
+  { range: {0, 4}, tag: XM_TAG_BOLD }          ← <b> 在 <p> 前的部分
+  { range: {4, 8}, tag: XM_TAG_PARAGRAPH }
+  { range: {4, 8}, tag: XM_TAG_BOLD }          ← adoption 重建的 <b> 克隆
+```
+
+> 注意：Adoption Agency 仅在 `enable_autocorrect = true` 时触发。
 
 #### 未闭合标签自动补齐
 
