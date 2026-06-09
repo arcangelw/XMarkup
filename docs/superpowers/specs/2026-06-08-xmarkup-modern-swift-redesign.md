@@ -120,8 +120,14 @@ public struct TableStructure: Sendable, Equatable {
 
 /// 内联样式（字符级）
 public struct MarkupInline: Sendable, Equatable {
-    /// 在所属 block.text 中的范围（String.Index）
-    public let range: Range<String.Index>
+    /// 在所属 block.text 中的范围（UTF-16 码元偏移，相对于块文本起始位置）
+    ///
+    /// - Note: 使用 NSRange（UTF-16）而非 Range<String.Index>（grapheme cluster），
+    ///         因为 C++ 核心引擎输出的 span range 基于 UTF-16 编码单元索引，
+    ///         与 NSString/NSAttributedString 索引体系直接对齐。
+    ///         emoji 等多字节字符（如 🔄 = 2 UTF-16 码元但 1 grapheme）在 UTF-16 体系下
+    ///         具有确定且一致的偏移量。
+    public let range: NSRange
     /// 内联类型
     public let kind: InlineKind
 }
@@ -684,60 +690,66 @@ platforms/ios/Tests/XMarkupTests/        ← 扁平目录
 
 ```
 platforms/ios/Sources/XMarkup/           ← SPM 递归扫描子目录，无需改 Package.swift
-├── Core/
-│   ├── MarkupDocument.swift             # [新建] MarkupDocument + MarkupBlock + BlockKind
-│   ├── MarkupInline.swift              # [新建] MarkupInline + InlineKind + InlineStyle
-│   ├── MarkupAttachment.swift          # [新建] MarkupAttachment + AttachmentContent
-│   ├── MarkupDocumentBuilder.swift     # [新建] XMarkupResult → MarkupDocument 转换
-│   └── DocumentDiff.swift              # [新建] 增量更新（预留接口）
-├── Theme/
-│   ├── MarkupTheme.swift               # [新建] MarkupTheme 主结构
-│   ├── HeadingScale.swift              # [新建] 标题缩放配置
-│   ├── MediaRenderingStrategy.swift    # [新建] 媒体渲染策略
-│   ├── ThemeComponent.swift            # [新建] ThemeComponent 协议 + DSL 组件
-│   ├── MarkupThemeBuilder.swift        # [新建] @resultBuilder
-│   └── PresetThemes.swift              # [新建] .default / .dark / .chat / .article
-├── Attributes/
-│   ├── XMarkupScope.swift              # [新建] 自定义 AttributedStringKey + AttributeScope
-│   └── AttributeContainer+Theme.swift  # [新建] 主题解析扩展
-├── Rendering/
-│   ├── MarkupRenderer.swift            # [新建] MarkupRenderer 协议
-│   ├── NSAttributedStringRenderer.swift # [新建] UIKit/AppKit 渲染器
-│   ├── SwiftUITextRenderer.swift       # [P2] SwiftUI Text 渲染器
-│   ├── TextKit2Renderer.swift          # [P2] TextKit 2 渲染器
-│   └── MarkupDocument+Render.swift     # [新建] render(theme:) 实现
 ├── Bridge/
-│   ├── PlatformTypes.swift             # [迁移] ← 原 PlatformTypes.swift（不变）
-│   ├── XMarkupParser.swift             # [迁移] ← 原 XMarkupParser.swift（更新文档注释）
-│   ├── XMarkupResult.swift             # [迁移] ← 原 XMarkupResult.swift（更新文档注释）
-│   ├── XMarkupSpan.swift               # [迁移] ← 原 XMarkupSpan.swift，改标记 internal
-│   ├── XMarkupTag.swift                # [迁移] ← 原 XMarkupTag.swift（保留 public）
-│   ├── XMarkupStyle.swift              # [迁移] ← 原 XMarkupStyle.swift，改标记 internal
-│   ├── XMarkupError.swift              # [迁移] ← 原 XMarkupError.swift（不变）
-│   └── ColorParser.swift               # [迁移] ← 原 ColorParser.swift（不变）
-└── XMarkup.swift                        # [新建] 公共导出（re-export 所有 public 类型）
+│   ├── ColorParser.swift               # 颜色解析
+│   ├── PlatformTypes.swift             # XMFont/XMColor 类型别名
+│   ├── XMarkupError.swift              # 错误枚举
+│   ├── XMarkupParser.swift             # C++ 引擎桥接
+│   ├── XMarkupResult.swift             # C++ 结果桥接
+│   ├── XMarkupSpan.swift               # C++ Span 映射（public，原始数据层）
+│   ├── XMarkupStyle.swift              # CSS Style 枚举（public，原始数据层）
+│   └── XMarkupTag.swift                # Tag 枚举
+├── Core/
+│   ├── BlockKind.swift                 # 段落类型 + Level + TableStructure
+│   ├── MarkupAttachment.swift          # 附件模型 + AttachmentContent
+│   ├── MarkupBlock.swift               # 段落级块
+│   ├── MarkupDocument.swift            # 文档模型
+│   ├── MarkupDocumentBuilder.swift     # XMarkupResult → MarkupDocument 转换
+│   └── MarkupInline.swift              # 内联样式 + InlineKind + InlineStyle
+├── Theme/
+│   ├── HeadingScale.swift              # 标题缩放配置
+│   ├── MarkupTheme.swift               # 主题主结构
+│   ├── MarkupThemeBuilder.swift        # @resultBuilder
+│   ├── MediaRenderingStrategy.swift    # 媒体渲染策略
+│   ├── PresetThemes.swift              # 预置主题
+│   ├── TagStyleKey.swift               # 主题配置 key
+│   └── ThemeComponent.swift            # DSL 组件
+├── Attributes/
+│   └── XMarkupScope.swift              # 自定义 AttributedStringKey + AttributeScope
+└── Rendering/
+    ├── MarkupDocument+Render.swift     # render(theme:) 实现
+    ├── MarkupRenderer.swift            # MarkupRenderer 协议
+    └── NSAttributedStringRenderer.swift # UIKit/AppKit 渲染器
 ```
+
+> **Note:** 规划中的 `DocumentDiff.swift`（增量更新预留）和 `XMarkup.swift`（公共导出伞文件）
+> 将在后续版本按需添加。`AttributeContainer+Theme.swift` 未单独拆分，主题解析逻辑
+> 直接在 `MarkupDocument+Render.swift` 中实现。P2 渲染器（`SwiftUITextRenderer`、
+> `TextKit2Renderer`）待后续版本实现。
 
 ### 9.3 测试文件目标结构
 
 ```
 platforms/ios/Tests/XMarkupTests/
-├── Core/
-│   ├── MarkupDocumentTests.swift       # [新建] MarkupDocument 构建和结构测试
-│   ├── MarkupDocumentBuilderTests.swift # [新建] XMarkupResult → MarkupDocument 转换测试
-│   └── MarkupAttachmentTests.swift     # [新建] 附件模型测试
-├── Theme/
-│   ├── MarkupThemeTests.swift          # [新建] 主题配置测试
-│   ├── ThemeBuilderTests.swift         # [新建] Result Builder DSL 测试
-│   └── PresetThemesTests.swift         # [新建] 预置主题测试
-├── Rendering/
-│   ├── RenderTests.swift               # [新建] MarkupDocument → AttributedString 渲染测试
-│   └── NSAttributedStringRendererTests.swift # [新建] NSAttr 渲染器测试
 ├── Bridge/
-│   ├── XMarkupParserTests.swift        # [迁移] ← 原文件（不变）
-│   ├── XMarkupResultTests.swift        # [迁移] ← 原文件（不变）
-│   ├── ColorParserTests.swift          # [迁移] ← 原文件（不变）
-│   └── CrossPlatformTests.swift        # [迁移] ← 原文件（不变）
+│   ├── XMarkupParserTests.swift        # 解析器生命周期测试
+│   ├── XMarkupResultTests.swift        # 结果转换测试
+│   ├── ColorParserTests.swift          # 颜色解析测试
+│   └── CrossPlatformTests.swift        # 跨平台编译验证
+├── Core/
+│   ├── BlockKindTests.swift
+│   ├── MarkupAttachmentTests.swift
+│   ├── MarkupBlockTests.swift
+│   ├── MarkupDocumentBuilderTests.swift
+│   ├── MarkupDocumentTests.swift
+│   └── MarkupInlineTests.swift
+├── Theme/
+│   └── MarkupThemeTests.swift          # 主题 + DSL + 预置主题测试
+├── Attributes/
+│   └── XMarkupScopeTests.swift
+└── Rendering/
+    ├── NSAttributedStringRendererTests.swift
+    └── RenderTests.swift
 ```
 
 ### 9.4 文件变更汇总
