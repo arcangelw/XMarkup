@@ -5,6 +5,7 @@ import XMarkup
 final class SpanDataViewController: UIViewController {
     private let example: DemoExample
     private var result: XMarkupResult?
+    private var secondResult: XMarkupResult?
     private let tableView = UITableView(frame: .zero, style: .insetGrouped)
 
     init(example: DemoExample) {
@@ -45,6 +46,9 @@ final class SpanDataViewController: UIViewController {
         do {
             let parser = try XMarkupParser()
             result = try parser.parse(example.html)
+            if let secondHTML = example.secondHTML {
+                secondResult = try parser.parse(secondHTML)
+            }
         } catch {
             result = nil
         }
@@ -56,20 +60,31 @@ final class SpanDataViewController: UIViewController {
 
 extension SpanDataViewController: UITableViewDataSource {
     func numberOfSections(in tableView: UITableView) -> Int {
-        2 // 纯文本 + Span 列表
+        let baseSections = 2 // 纯文本 + Span 列表
+        return secondResult != nil ? baseSections + 2 : baseSections
     }
 
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         guard let result else { return 0 }
-        return section == 0 ? 1 : result.spans.count
+
+        switch section {
+        case 0: return 1  // 纯文本
+        case 1: return result.spans.count
+        case 2: return 1  // 第二段纯文本
+        case 3: return secondResult?.spans.count ?? 0
+        default: return 0
+        }
     }
 
     func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
         guard result != nil else { return nil }
-        if section == 0 {
-            return "纯文本"
+        switch section {
+        case 0: return "纯文本"
+        case 1: return "Span 列表（\(result?.spans.count ?? 0) 个）"
+        case 2: return "第二段纯文本"
+        case 3: return "第二段 Span 列表（\(secondResult?.spans.count ?? 0) 个）"
+        default: return nil
         }
-        return "Span 列表（\(result?.spans.count ?? 0) 个）"
     }
 
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
@@ -84,24 +99,41 @@ extension SpanDataViewController: UITableViewDataSource {
 
         var config = cell.defaultContentConfiguration()
 
-        if indexPath.section == 0 {
+        switch indexPath.section {
+        case 0:
             config.text = result.text
             config.textProperties.font = .monospacedSystemFont(ofSize: 14, weight: .regular)
-        } else {
+        case 1:
             let span = result.spans[indexPath.row]
-            config.text = "#\(indexPath.row + 1)  \(tagDescription(span.tag))"
-            config.secondaryText = """
-            tag: \(tagDescription(span.tag))
-            style: \(styleDescription(span.style))
-            range: [\(span.range.location), \(span.range.location + span.range.length))
-            \(span.value.map { "value: \($0)" } ?? "")
-            """
-            config.secondaryTextProperties.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
-            config.secondaryTextProperties.color = .secondaryLabel
+            configureSpanCell(&config, span: span, index: indexPath.row)
+        case 2:
+            config.text = secondResult?.text ?? ""
+            config.textProperties.font = .monospacedSystemFont(ofSize: 14, weight: .regular)
+        case 3:
+            if let secondResult, indexPath.row < secondResult.spans.count {
+                let span = secondResult.spans[indexPath.row]
+                configureSpanCell(&config, span: span, index: indexPath.row)
+            }
+        default:
+            break
         }
 
         cell.contentConfiguration = config
         return cell
+    }
+
+    // MARK: - Cell Configuration
+
+    private func configureSpanCell(_ config: inout UIListContentConfiguration, span: XMarkupSpan, index: Int) {
+        config.text = "#\(index + 1)  \(tagDescription(span.tag))"
+        config.secondaryText = """
+        tag: \(tagDescription(span.tag))
+        style: \(styleDescription(span.style))
+        range: [\(span.range.location), \(span.range.location + span.range.length))
+        \(span.value.map { "value: \($0)" } ?? "")
+        """
+        config.secondaryTextProperties.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        config.secondaryTextProperties.color = .secondaryLabel
     }
 
     // MARK: - Description Helpers

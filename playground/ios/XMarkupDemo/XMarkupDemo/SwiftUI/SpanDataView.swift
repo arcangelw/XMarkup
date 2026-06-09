@@ -5,6 +5,7 @@ import XMarkup
 struct SpanDataView: View {
     let example: DemoExample
     @State private var result: XMarkupResult?
+    @State private var secondResult: XMarkupResult?
     @State private var errorMessage: String?
 
     var body: some View {
@@ -17,6 +18,15 @@ struct SpanDataView: View {
             } else if let result {
                 plainTextSection(result)
                 spansSection(result.spans)
+                if let secondResult {
+                    Section {
+                        Text(secondResult.text)
+                            .font(.system(.body, design: .monospaced))
+                    } header: {
+                        Text("第二段纯文本")
+                    }
+                    spansSection(secondResult.spans)
+                }
             }
         }
         .task {
@@ -158,6 +168,9 @@ struct SpanDataView: View {
         do {
             let parser = try XMarkupParser()
             result = try parser.parse(example.html)
+            if let secondHTML = example.secondHTML {
+                secondResult = try parser.parse(secondHTML)
+            }
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription

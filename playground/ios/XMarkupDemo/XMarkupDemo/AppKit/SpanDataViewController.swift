@@ -5,6 +5,7 @@ import XMarkup
 final class SpanDataViewController: NSViewController {
     private let example: DemoExample
     private var result: XMarkupResult?
+    private var secondResult: XMarkupResult?
     private let tableView = NSTableView()
     private let scrollView = NSScrollView()
 
@@ -30,11 +31,17 @@ final class SpanDataViewController: NSViewController {
 
     override func viewDidLayout() {
         super.viewDidLayout()
-        // 每次布局都更新 documentView 的 frame 以填满可见区域
         let visibleRect = scrollView.documentVisibleRect
         if visibleRect.width > 0 {
-            let rowCount = result?.spans.isEmpty == true ? 1 : (result?.spans.count ?? 1)
-            let contentHeight = CGFloat(rowCount) * 48
+            let totalCount: Int
+            if let result, let secondResult {
+                totalCount = result.spans.count + secondResult.spans.count + 2
+            } else if let result {
+                totalCount = max(result.spans.count, 1)
+            } else {
+                totalCount = 1
+            }
+            let contentHeight = CGFloat(totalCount) * 48
             tableView.frame = NSRect(
                 x: 0, y: 0,
                 width: visibleRect.width,
@@ -55,7 +62,6 @@ final class SpanDataViewController: NSViewController {
         tableView.rowSizeStyle = .medium
         tableView.usesAlternatingRowBackgroundColors = true
 
-        // scrollView 填满 view（Auto Layout）
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
@@ -68,7 +74,6 @@ final class SpanDataViewController: NSViewController {
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
 
-        // 不设 tableView.frame，在 viewDidLayout 中动态设置
         scrollView.documentView = tableView
     }
 
@@ -76,6 +81,9 @@ final class SpanDataViewController: NSViewController {
         do {
             let parser = try XMarkupParser()
             result = try parser.parse(example.html)
+            if let secondHTML = example.secondHTML {
+                secondResult = try parser.parse(secondHTML)
+            }
         } catch {
             result = nil
         }
@@ -88,6 +96,9 @@ final class SpanDataViewController: NSViewController {
 extension SpanDataViewController: NSTableViewDataSource {
     func numberOfRows(in tableView: NSTableView) -> Int {
         guard let result else { return 1 }
+        if let secondResult {
+            return result.spans.count + secondResult.spans.count + 2 // 两段纯文本 + 所有 span
+        }
         return result.spans.isEmpty ? 1 : result.spans.count
     }
 }
@@ -113,17 +124,55 @@ extension SpanDataViewController {
             return cell
         }
 
-        if result.spans.isEmpty {
-            let label = NSTextField(labelWithString: "无 Span 数据")
-            label.textColor = .tertiaryLabelColor
-            cell.addSubview(label)
-            cell.identifier = NSUserInterfaceItemIdentifier("Cell")
-            return cell
+        if let secondResult {
+            // 有第二段结果：行 0 = 第一段纯文本，行 1~count = 第一段 span，
+            // 行 count+1 = 第二段纯文本，行 count+2~ = 第二段 span
+            if row == 0 {
+                buildPlainTextCell(cell, text: result.text)
+            } else if row <= result.spans.count {
+                let span = result.spans[row - 1]
+                buildSpanCell(cell, index: row - 1, span: span)
+            } else if row == result.spans.count + 1 {
+                buildPlainTextCell(cell, text: secondResult.text)
+            } else {
+                let secondIndex = row - result.spans.count - 2
+                if secondIndex < secondResult.spans.count {
+                    let span = secondResult.spans[secondIndex]
+                    buildSpanCell(cell, index: secondIndex, span: span)
+                }
+            }
+        } else {
+            if result.spans.isEmpty {
+                let label = NSTextField(labelWithString: "无 Span 数据")
+                label.textColor = .tertiaryLabelColor
+                cell.addSubview(label)
+            } else {
+                let span = result.spans[row]
+                buildSpanCell(cell, index: row, span: span)
+            }
         }
 
-        let span = result.spans[row]
+        cell.identifier = NSUserInterfaceItemIdentifier("Cell")
+        return cell
+    }
 
-        let titleLabel = NSTextField(labelWithString: "#\(row + 1)  \(tagDescription(span.tag))")
+    // MARK: - Cell Builders
+
+    private func buildPlainTextCell(_ cell: NSTableCellView, text: String) {
+        let label = NSTextField(labelWithString: text)
+        label.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        label.lineBreakMode = .byTruncatingTail
+        label.translatesAutoresizingMaskIntoConstraints = false
+        cell.addSubview(label)
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 4),
+            label.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -4),
+            label.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+        ])
+    }
+
+    private func buildSpanCell(_ cell: NSTableCellView, index: Int, span: XMarkupSpan) {
+        let titleLabel = NSTextField(labelWithString: "#\(index + 1)  \(tagDescription(span.tag))")
         titleLabel.font = .systemFont(ofSize: 13, weight: .medium)
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
 
@@ -148,9 +197,6 @@ extension SpanDataViewController {
             detailLabel.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -4),
             detailLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 2),
         ])
-
-        cell.identifier = NSUserInterfaceItemIdentifier("Cell")
-        return cell
     }
 
     // MARK: - Description Helpers
