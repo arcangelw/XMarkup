@@ -1,4 +1,5 @@
 import Foundation
+import XMarkup
 
 /// 预设 HTML 示例
 struct DemoExample: Identifiable {
@@ -7,6 +8,30 @@ struct DemoExample: Identifiable {
     let description: String
     let html: String
     let category: Category
+    let customTheme: MarkupTheme?       // 该示例使用的自定义主题
+    let secondHTML: String?             // 用于 api-append 拼接演示的第二段 HTML
+
+    /// 便利初始化（无自定义主题和第二段 HTML）
+    init(id: String, title: String, description: String, html: String, category: Category) {
+        self.id = id
+        self.title = title
+        self.description = description
+        self.html = html
+        self.category = category
+        self.customTheme = nil
+        self.secondHTML = nil
+    }
+
+    /// 完整初始化（含自定义主题和第二段 HTML）
+    init(id: String, title: String, description: String, html: String, category: Category, customTheme: MarkupTheme? = nil, secondHTML: String? = nil) {
+        self.id = id
+        self.title = title
+        self.description = description
+        self.html = html
+        self.category = category
+        self.customTheme = customTheme
+        self.secondHTML = secondHTML
+    }
 
     enum Category: String, CaseIterable {
         case basic = "基础格式"
@@ -17,6 +42,10 @@ struct DemoExample: Identifiable {
         case complex = "复杂 HTML"
         case scenario = "场景实战"
         case media = "媒体"
+        case boundary = "边界用例"
+        case spacing = "段落排版"
+        case longform = "长内容"
+        case apiTest = "API 测试"
     }
 }
 
@@ -303,6 +332,222 @@ extension DemoExample {
             <p>—— 全程使用 iPhone 拍摄，<a href="https://example.com/gear">拍摄器材清单</a></p>
             """,
             category: .media
+        ),
+
+        // MARK: - 边界用例
+
+        DemoExample(
+            id: "emoji-only",
+            title: "纯 Emoji",
+            description: "仅包含 Emoji 字符",
+            html: "🔄❤️🎉✨👀💬🔥💡🚀",
+            category: .boundary
+        ),
+        DemoExample(
+            id: "empty-doc",
+            title: "空文档",
+            description: "空字符串输入",
+            html: "",
+            category: .boundary
+        ),
+        DemoExample(
+            id: "plain-text",
+            title: "纯文本无标签",
+            description: "无任何 HTML 标签的纯文字",
+            html: "这是一段没有任何 HTML 标签的纯文字，只有普通字符和标点符号。它应该被正确解析为一个段落。",
+            category: .boundary
+        ),
+        DemoExample(
+            id: "unicode-mix",
+            title: "Unicode 混合",
+            description: "多语言 + Emoji 混合",
+            html: "مرحبا 你好 こんにちは 안녕하세요 🌍 Héllo wörld",
+            category: .boundary
+        ),
+        DemoExample(
+            id: "nested-deep",
+            title: "多层嵌套",
+            description: "<b><i><u><s> 四层嵌套",
+            html: "普通文字 <b><i><u><s>四层嵌套加粗斜体下划线删除线</s></u></i></b> 恢复普通",
+            category: .boundary
+        ),
+        DemoExample(
+            id: "html-entities",
+            title: "HTML 实体转义",
+            description: "&amp; &lt; &gt; 等实体",
+            html: "常用实体：&amp; &lt; &gt; &quot; &#x1F600; 还有一些特殊字符：© ® ™",
+            category: .boundary
+        ),
+
+        // MARK: - 段落排版
+
+        DemoExample(
+            id: "spacing-default",
+            title: "默认间距",
+            description: "ParagraphSpacing(8, 8, 0)",
+            html: """
+            <p>这是第一段文字，使用默认段落间距（段前 8pt、段后 8pt、行距 0）。</p>
+            <p>这是第二段文字，注意观察段落之间的间距。合理的段落间距能显著提升阅读体验。</p>
+            <p>这是第三段文字。每个 <code>&lt;p&gt;</code> 标签对应一个独立的段落 block。</p>
+            <p>这是第四段文字。通过对比其他间距示例，可以直观感受不同配置的效果。</p>
+            <h3>标题也参与段落间距</h3>
+            <p>这是标题下方的第五段文字。</p>
+            """,
+            category: .spacing,
+            customTheme: .default
+        ),
+        DemoExample(
+            id: "spacing-compact",
+            title: "紧凑排版",
+            description: "ParagraphSpacing(2, 2, 0)",
+            html: """
+            <p>这是第一段文字，使用紧凑段落间距（段前 2pt、段后 2pt、行距 0）。</p>
+            <p>这是第二段文字，紧凑排版适合信息密度高的场景，如列表、数据展示。</p>
+            <p>这是第三段文字。段落之间几乎没有额外空白。</p>
+            <p>这是第四段文字。紧凑排版可让更多内容在有限空间内展示。</p>
+            <h3>紧凑标题</h3>
+            <p>这是标题下方的第五段文字。</p>
+            """,
+            category: .spacing,
+            customTheme: .spacingCompact
+        ),
+        DemoExample(
+            id: "spacing-relaxed",
+            title: "宽松排版 + 行距",
+            description: "ParagraphSpacing(16, 16, 6)",
+            html: """
+            <p>这是第一段文字，使用宽松段落间距（段前 16pt、段后 16pt、行距 6pt）。</p>
+            <p>这是第二段文字，宽松排版适合长文阅读场景，给眼睛更多呼吸空间。</p>
+            <p>这是第三段文字。额外的行间距让每行文字更加清晰可辨。</p>
+            <p>这是第四段文字。适合文章、书籍等需要舒适阅读体验的场景。</p>
+            <h3>宽松标题</h3>
+            <p>这是标题下方的第五段文字。</p>
+            """,
+            category: .spacing,
+            customTheme: .spacingRelaxed
+        ),
+        DemoExample(
+            id: "spacing-none",
+            title: "零间距",
+            description: "ParagraphSpacing(0, 0, 0)",
+            html: """
+            <p>这是第一段文字，使用零间距（段前 0pt、段后 0pt、行距 0pt）。</p>
+            <p>这是第二段文字，段落之间没有任何额外间距，紧密相连。</p>
+            <p>这是第三段文字。适用于需要精确控制排版的特殊场景。</p>
+            <p>这是第四段文字。零间距让所有内容挤在一起。</p>
+            <h3>零间距标题</h3>
+            <p>这是标题下方的第五段文字。</p>
+            """,
+            category: .spacing,
+            customTheme: .spacingNone
+        ),
+
+        // MARK: - 长内容
+
+        DemoExample(
+            id: "long-article",
+            title: "完整技术文章",
+            description: "~1000 字，含多级标题、段落、引用、代码、链接",
+            html: """
+            <h1>SwiftUI 性能优化完全指南</h1>
+            <p>SwiftUI 作为 Apple 推出的声明式 UI 框架，在简化开发流程的同时，也带来了新的性能挑战。本文将从实际场景出发，系统讲解 SwiftUI 性能优化的核心策略。</p>
+
+            <h2>一、视图重组与 diff 机制</h2>
+            <p>SwiftUI 使用 <b>声明式 diff 算法</b> 来决定哪些视图需要更新。每次状态变化时，框架会重新求值 body 属性，并与前一次的结构进行对比。</p>
+            <p>关键优化点在于减少 <i>不必要的视图重组</i>。当一个视图的输入没有变化时，它的 body 不应该被重新求值。</p>
+            <blockquote>性能优化的第一原则：让 SwiftUI 只做必要的 diff。任何导致不必要 diff 的代码都是潜在的性能瓶颈。</blockquote>
+
+            <h3>1.1 Equatable 优化</h3>
+            <p>当视图的参数实现了 <code>Equatable</code> 协议时，SwiftUI 可以跳过不必要的 body 求值。使用 <code>.equatable()</code> 修饰符：</p>
+            <p>通过实现 <code>Equatable</code>，你告诉 SwiftUI 何时视图真正需要更新，从而避免无意义的重绘。</p>
+
+            <h3>1.2 @Observable 与细粒度追踪</h3>
+            <p>Swift 5.9 引入的 <code>@Observable</code> 宏实现了<b>属性级依赖追踪</b>。相比旧的 <code>ObservableObject</code>，它能更精确地定位哪些属性发生了变化，从而减少视图更新范围。</p>
+            <p>关键区别：<code>@Observable</code> 在访问属性时建立依赖，而非在视图初始化时订阅整个对象。</p>
+
+            <h2>二、列表性能优化</h2>
+            <p><code>LazyVStack</code> 和 <code>LazyHStack</code> 是处理大量数据的关键。它们只渲染可见区域的内容，避免一次性创建所有视图。</p>
+            <p>使用 <code>List</code> 时，确保每个 row 的 <code>id</code> 稳定且唯一。不稳定的 id 会导致整个列表重新渲染。</p>
+
+            <h3>2.1 识别模式</h3>
+            <p>优先使用 <code>Identifiable</code> 协议而非 <code>ForEach(_, id:)</code> 闭包。后者在每次 diff 时都会调用闭包，增加计算开销。</p>
+
+            <h3>2.2 图片加载优化</h3>
+            <p>在列表中加载图片时，使用 <code>AsyncImage</code> 配合 <code>transaction</code> 控制动画。避免在滚动时触发大量并发图片请求。</p>
+            <p>建议使用 <a href="https://developer.apple.com/documentation/swiftui/asyncimage">AsyncImage</a> 搭配自定义的图片缓存策略。</p>
+
+            <h2>三、动画性能</h2>
+            <p>SwiftUI 动画默认使用 <code>Core Animation</code>，在 GPU 上执行。但如果动画闭包中包含<b>非可动画属性</b>的变更，可能导致回退到 CPU 渲染。</p>
+            <p>使用 <code>drawingGroup()</code> 修饰符将复杂视图组合并为单个 Metal 绘制调用，显著提升渲染性能。</p>
+
+            <h4>小结</h4>
+            <p>性能优化是一个持续迭代的过程。从 Instruments 工具出发，定位瓶颈，有针对性地优化，而不是盲目猜测。更多详情请参考 <a href="https://developer.apple.com/videos/">WWDC 视频</a>。</p>
+            """,
+            category: .longform
+        ),
+        DemoExample(
+            id: "gallery",
+            title: "多媒体相册",
+            description: "6+ 张图片混合文字描述，展示图片占位和间距",
+            html: """
+            <h1>2026 夏日旅行相册</h1>
+            <p>这次旅行横跨三个国家，用镜头记录了每一个难忘瞬间。</p>
+
+            <h2>🇯🇵 日本 · 东京</h2>
+            <p><img src="https://example.com/tokyo-tower.jpg"></p>
+            <p>东京塔的夜景令人震撼，整座城市被灯光点亮，宛如星河倒映在大地上。</p>
+            <p><img src="https://example.com/shibuya-crossing.jpg"></p>
+            <p>涩谷十字路口，世界上最繁忙的人行横道。每次绿灯亮起，多达 3000 人同时穿越。</p>
+
+            <h2>🇫🇷 法国 · 巴黎</h2>
+            <p><img src="https://example.com/eiffel-tower.jpg"></p>
+            <p>从战神广场仰望埃菲尔铁塔，黄昏时分的金色光芒洒满整座塔身。</p>
+            <p><img src="https://example.com/louvre.jpg"></p>
+            <p>卢浮宫前的玻璃金字塔，建筑大师贝聿铭的杰作。夜晚灯光映衬下更显神秘。</p>
+
+            <h2>🇮🇹 意大利 · 罗马</h2>
+            <p><img src="https://example.com/colosseum.jpg"></p>
+            <p>罗马斗兽场，两千年历史的见证。站在废墟中，仿佛能听到角斗士的呐喊。</p>
+            <p><img src="https://example.com/vatican.jpg"></p>
+            <p>梵蒂冈圣彼得大教堂内部，米开朗基罗的穹顶令人叹为观止。</p>
+            <p><img src="https://example.com/trevi-fountain.jpg"></p>
+            <p>许愿池前抛一枚硬币，传说这样就能再次回到罗马 🪙</p>
+
+            <p><i>全程使用 iPhone 16 Pro Max 拍摄，后期使用 <a href="https://example.com/lightroom">Lightroom</a> 调色。</i></p>
+            """,
+            category: .longform
+        ),
+
+        // MARK: - API 测试
+
+        DemoExample(
+            id: "api-append",
+            title: "appending() 拼接",
+            description: "两段独立 HTML 分别解析后 append",
+            html: """
+            <h3>第一段：核心特性</h3>
+            <p>XMarkup 支持 <b>粗体</b>、<i>斜体</i>、<u>下划线</u> 等基础格式。</p>
+            <p>还支持 <code>行内代码</code> 和 <a href="https://example.com">超链接</a>。</p>
+            """,
+            category: .apiTest,
+            secondHTML: """
+            <h3>第二段：高级特性</h3>
+            <p>支持 <span style="color:#FF0000">彩色文字</span> 和 <span style="background-color:#FFFF00">高亮背景</span>。</p>
+            <p>支持各级标题 <b>H1~H6</b> 和 <mark>标记高亮</mark>。</p>
+            """
+        ),
+        DemoExample(
+            id: "api-themes",
+            title: "多主题对比",
+            description: "同一 HTML 在 default/chat/article 三种主题下渲染",
+            html: """
+            <h2>XMarkup 渲染引擎</h2>
+            <p>XMarkup 是一个高性能的 <b>HTML 富文本解析引擎</b>，支持多种格式和样式。</p>
+            <p>它使用 <code>render(theme:)</code> 方法将解析结果转换为 <code>AttributedString</code>。</p>
+            <p>通过不同的 <a href="https://example.com/themes">MarkupTheme</a> 配置，同一内容可以有截然不同的呈现效果。</p>
+            <blockquote>试试切换不同的主题，感受排版的差异。</blockquote>
+            """,
+            category: .apiTest
         ),
     ]
 }
