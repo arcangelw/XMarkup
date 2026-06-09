@@ -42,6 +42,21 @@ XMResult* ParserInternal::parse(const char* html, size_t length) {
     owned_spans_.clear();
     owned_values_.clear();
 
+    // 空/null 输入：返回空结果（避免 std::string_view(nullptr, 0) 的 UB）
+    if (!html || length == 0) {
+        auto* result = new (std::nothrow) XMResult();
+        if (!result) {
+            last_error = XM_ERR_ALLOC_FAILED;
+            return nullptr;
+        }
+        result->error = XM_OK;
+        result->text = "";
+        result->text_len = 0;
+        result->spans = nullptr;
+        result->span_count = 0;
+        return result;
+    }
+
     // 阶段 1：词法分析
     std::string_view html_view(html, length);
     Tokenizer tokenizer(html_view);

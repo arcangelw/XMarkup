@@ -400,6 +400,15 @@ TEST_F(APITest, MixedMultilingual) {
     xmarkup_result_free(r);
 }
 
+TEST_F(APITest, NullHtmlWithZeroLength) {
+    auto* result = xmarkup_parse(parser_, nullptr, 0);
+    ASSERT_NE(result, nullptr);
+    EXPECT_EQ(result->error, XM_OK);
+    EXPECT_NE(result->text, nullptr);
+    EXPECT_EQ(result->span_count, 0u);
+    xmarkup_result_free(result);
+}
+
 TEST_F(APITest, ConsecutiveParseWorks) {
     // XMResult 在下一次 parse 前有效，使用后立即释放
     {
