@@ -1,7 +1,9 @@
 import UIKit
 import XMarkup
 
-/// NSAttributedString 渲染视图
+/// NSAttributedString 渲染视图（UIKit）
+///
+/// 支持 customTheme 和 secondHTML 拼接渲染。
 final class RenderedTextViewController: UIViewController {
     private let example: DemoExample
     private let textView = UITextView()
@@ -46,14 +48,28 @@ final class RenderedTextViewController: UIViewController {
 
     private func parseAndRender() {
         do {
-            let parser = try XMarkupParser()
-            let result = try parser.parse(example.html)
-            let document = MarkupDocument.from(result)
+            let theme: MarkupTheme = example.customTheme ?? .default
+            let document = try parseDocument()
             let renderer = NSAttributedStringRenderer()
-            textView.attributedText = renderer.render(document.render())
+            textView.attributedText = renderer.render(document.render(theme: theme))
         } catch {
             textView.text = "解析错误：\(error.localizedDescription)"
             textView.textColor = .systemRed
         }
+    }
+
+    /// 解析文档，支持 secondHTML 拼接
+    private func parseDocument() throws -> MarkupDocument {
+        let parser = try XMarkupParser()
+        let result1 = try parser.parse(example.html)
+        let doc1 = MarkupDocument.from(result1)
+
+        if let secondHTML = example.secondHTML {
+            let result2 = try parser.parse(secondHTML)
+            let doc2 = MarkupDocument.from(result2)
+            return doc1.appending(doc2)
+        }
+
+        return doc1
     }
 }

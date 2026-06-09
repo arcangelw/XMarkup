@@ -1,13 +1,14 @@
 import UIKit
 
-/// 示例详情：三段 Tab 切换（HTML 源码 / 渲染效果 / Span 数据）
+/// 示例详情：四段 Tab 切换（HTML 源码 / 渲染效果 / WebView / Span 数据）
 final class ExampleDetailViewController: UIViewController {
     private let example: DemoExample
-    private let segmentedControl = UISegmentedControl(items: ["HTML 源码", "渲染效果", "Span 数据"])
+    private let segmentedControl = UISegmentedControl(items: ["HTML 源码", "渲染效果", "WebView", "Span 数据"])
     private let containerView = UIView()
 
     private var htmlVC: HTMLSourceViewController?
     private var renderedVC: RenderedTextViewController?
+    private var webViewVC: WebViewViewController?
     private var spanVC: SpanDataViewController?
 
     init(example: DemoExample) {
@@ -62,9 +63,10 @@ final class ExampleDetailViewController: UIViewController {
     private func setupChildViewControllers() {
         htmlVC = HTMLSourceViewController(html: example.html)
         renderedVC = RenderedTextViewController(example: example)
+        webViewVC = WebViewViewController(html: example.html)
         spanVC = SpanDataViewController(example: example)
 
-        let children: [UIViewController] = [htmlVC!, renderedVC!, spanVC!]
+        let children: [UIViewController] = [htmlVC!, renderedVC!, webViewVC!, spanVC!]
         for child in children {
             addChild(child)
             containerView.addSubview(child.view)
@@ -88,6 +90,7 @@ final class ExampleDetailViewController: UIViewController {
     private func switchTab() {
         htmlVC?.view.isHidden = segmentedControl.selectedSegmentIndex != 0
         renderedVC?.view.isHidden = segmentedControl.selectedSegmentIndex != 1
-        spanVC?.view.isHidden = segmentedControl.selectedSegmentIndex != 2
+        webViewVC?.view.isHidden = segmentedControl.selectedSegmentIndex != 2
+        spanVC?.view.isHidden = segmentedControl.selectedSegmentIndex != 3
     }
 }
