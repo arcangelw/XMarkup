@@ -15,7 +15,7 @@ public struct NSAttributedStringRenderer: MarkupRenderer, Sendable {
     public func render(_ attributed: AttributedString) -> NSAttributedString {
         let nsAttr = NSMutableAttributedString(attributedString: NSAttributedString(attributed))
         transferCustomKeys(from: attributed, to: nsAttr)
-        return NSAttributedString(attributedString: nsAttr)
+        return nsAttr
     }
 
     public func measure(_ attributed: AttributedString, constrainedTo width: CGFloat) -> CGSize {
