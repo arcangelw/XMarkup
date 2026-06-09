@@ -296,25 +296,176 @@ div
 
 ---
 
-## 8. 需要更新的文档
+## 8. 日志系统
 
-| 文档 | 更新内容 |
-|------|----------|
-| `docs/superpowers/specs/2026-06-05-xmarkup-core-design.md` §4.2 | 更新自动纠错规则表 + 添加隐式关闭规则 + adoption agency 描述 + scope boundary |
-| 同上 §11.8 | 更新自动纠错场景的输入→输出契约（`<p><p>` → 平级而非嵌套） |
-| `core/src/tree_builder.h` | 移除 `(void)autocorrect_;`，更新类文档 |
-| `core/src/api.cpp` | `enable_autocorrect` 注释更新：说明它控制 adoption agency |
-| `core/include/xmarkup/xmarkup.h` | `enable_autocorrect` 字段注释更新 |
+### 8.1 设计目标
+
+为 C++ 核心引擎添加结构化日志能力，让三端桥接层和开发者能观测解析器的内部决策过程，尤其在隐式关闭和 adoption agency 的容错行为上提供可追踪性。
+
+### 8.2 日志级别
+
+```c
+typedef enum XMLogLevel {
+    XM_LOG_ERROR = 0,  /**< 解析异常，不应出现 */
+    XM_LOG_WARN  = 1,  /**< 非标准输入但已容错（隐式关闭、adoption 等） */
+    XM_LOG_INFO  = 2,  /**< 关键决策节点（解析开始/完成等） */
+    XM_LOG_TRACE = 3,  /**< 详细步骤（状态转换、栈操作等） */
+} XMLogLevel;
+```
+
+### 8.3 日志回调
+
+```c
+/**
+ * @brief 日志回调函数类型
+ *
+ * @param level   日志级别
+ * @param message 日志消息（UTF-8，以 \0 结尾，回调期间有效）
+ * @param context 用户上下文指针（由 XMConfig.log_context 传入）
+ */
+typedef void (*XMLogCallback)(XMLogLevel level, const char* message, void* context);
+```
+
+### 8.4 配置扩展
+
+在 `XMConfig` 中添加两个新字段：
+
+```c
+typedef struct XMConfig {
+    uint8_t  enable_autocorrect;   /* 是否启用 adoption agency（默认 1） */
+    uint16_t max_nesting_depth;    /* 最大嵌套深度（默认 256） */
+    float    base_font_size;       /* 基准字号 px（默认 16.0） */
+    XMLogCallback log_callback;    /* 日志回调（NULL = 不输出日志） */
+    void*         log_context;     /* 日志回调用户上下文 */
+    XMLogLevel    log_level;       /* 最低输出级别（默认 XM_LOG_ERROR） */
+} XMConfig;
+```
+
+### 8.5 内部实现
+
+新增 `core/src/logger.h` + `core/src/logger.cpp`：
+
+```cpp
+// logger.h
+namespace xmarkup {
+
+class Logger {
+public:
+    static void init(XMLogCallback callback, void* context, XMLogLevel level);
+
+    static void error(const char* fmt, ...);
+    static void warn(const char* fmt, ...);
+    static void info(const char* fmt, ...);
+    static void trace(const char* fmt, ...);
+
+private:
+    static void log(XMLogLevel level, const char* fmt, va_list args);
+    static XMLogCallback callback_;
+    static void* context_;
+    static XMLogLevel min_level_;
+};
+
+} // namespace xmarkup
+```
+
+**性能保障：**
+- `callback_ == nullptr` 时，所有日志函数直接 return（编译器可优化为空操作）
+- `level < min_level_` 时跳过格式化和回调（O(1) 判断）
+- Release 构建建议设置 `log_callback = NULL` 或 `log_level = XM_LOG_ERROR`
+
+### 8.6 插桩点
+
+| 模块 | 级别 | 插桩点 | 日志消息示例 |
+|------|------|--------|-------------|
+| **api.cpp** | INFO | `xmarkup_parse()` 开始 | `"parse start: length=1234"` |
+| **api.cpp** | INFO | `xmarkup_parse()` 完成 | `"parse done: text_len=890, span_count=42, error=0"` |
+| **api.cpp** | ERROR | 内存分配失败 | `"alloc failed: XMResult"` |
+| **parser.cpp** | ERROR | 嵌套溢出截断 | `"nesting overflow: depth=256, truncated"` |
+| **tree_builder.cpp** | WARN | 隐式关闭触发 | `"implicit close: <p> closed by <div>"` |
+| **tree_builder.cpp** | WARN | Adoption 执行 | `"adoption: [b, i] rebuilt inside <p>"` |
+| **tree_builder.cpp** | WARN | 未闭合标签自动补齐 | `"unclosed tags auto-closed: [div, p]"` |
+| **tree_builder.cpp** | WARN | 多余闭合标签忽略 | `"extra close tag ignored: </b>"` |
+| **tree_builder.cpp** | TRACE | 标签入栈 | `"push: <div> depth=3"` |
+| **tree_builder.cpp** | TRACE | 标签出栈 | `"pop: </div> depth=2"` |
+| **tree_builder.cpp** | TRACE | 隐式关闭扫描 | `"implicit scan: checking <p> against <div>"` |
+| **tree_builder.cpp** | TRACE | Adoption 收集 | `"adoption collect: [i, b], rebuild: [i, b]"` |
+| **tree_builder.cpp** | TRACE | Adoption 重建 | `"adoption rebuild: pushing b' clone"` |
+| **tokenizer.cpp** | TRACE | 状态转换 | `"tokenizer: DATA → TAG_OPEN"` |
+| **tokenizer.cpp** | TRACE | 标签名小写化 | `"tag normalize: DIV → div"` |
+| **style_resolver.cpp** | TRACE | CSS 值标准化 | `"normalize color: red → #FF0000"` |
+| **style_resolver.cpp** | TRACE | 标签映射 | `"map tag: strong → XM_TAG_BOLD(1)"` |
+
+### 8.7 默认行为
+
+| 配置 | 行为 |
+|------|------|
+| `log_callback = NULL`（默认） | 零开销，所有日志调用被跳过 |
+| `log_callback = my_log, log_level = XM_LOG_WARN` | 只输出 WARN 和 ERROR |
+| `log_callback = my_log, log_level = XM_LOG_TRACE` | 输出所有级别，调试模式 |
+
+### 8.8 桥接层使用示例
+
+**iOS (Swift):**
+```swift
+let config = XMConfig(
+    enable_autocorrect: 1,
+    max_nesting_depth: 256,
+    base_font_size: 16.0,
+    log_callback: { level, message, context in
+        os_log("[XMarkup] %{public}s", message!)
+    },
+    log_context: nil,
+    log_level: XM_LOG_WARN
+)
+```
+
+**Android (JNI → Kotlin):**
+```kotlin
+val config = XMConfig(
+    enable_autocorrect = 1,
+    max_nesting_depth = 256,
+    base_font_size = 16.0f,
+    log_callback = { level, message, _ ->
+        when (level) {
+            XM_LOG_ERROR -> Log.e("XMarkup", message)
+            XM_LOG_WARN -> Log.w("XMarkup", message)
+            else -> Log.d("XMarkup", message)
+        }
+    },
+    log_context = null,
+    log_level = XM_LOG_WARN
+)
+```
 
 ---
 
-## 9. 文件变更清单
+## 9. 需要更新的文档
+
+| 文档 | 更新内容 |
+|------|----------|
+| `docs/superpowers/specs/2026-06-05-xmarkup-core-design.md` §3.1 | 添加 `XMLogLevel`、`XMLogCallback`、`XMConfig` 扩展字段 |
+| 同上 §4.2 | 更新自动纠错规则表 + 添加隐式关闭规则 + adoption agency 描述 + scope boundary |
+| 同上 §11.8 | 更新自动纠错场景的输入→输出契约（`<p><p>` → 平级而非嵌套） |
+| `core/src/tree_builder.h` | 移除 `(void)autocorrect_;`，更新类文档 |
+| `core/src/api.cpp` | `enable_autocorrect` 注释更新 + Logger::init() 调用 |
+| `core/include/xmarkup/xmarkup.h` | 更新 `enable_autocorrect` 字段注释 + 新增日志类型和字段 |
+
+---
+
+## 10. 文件变更清单
 
 | 文件 | 操作 | 职责变更 |
 |------|------|----------|
+| `core/src/logger.h` | **新增** | Logger 类定义（静态方法，全局单例行为） |
+| `core/src/logger.cpp` | **新增** | Logger 实现：级别过滤、格式化、回调分发 |
 | `core/src/tree_builder.h` | 修改 | 添加查表函数声明、`pending_adoption_` 成员、`max_adoption_depth` 常量 |
-| `core/src/tree_builder.cpp` | 修改 | 实现查表函数 + `perform_implicit_close()` + `perform_adoption_agency()` + 修改 `handle_start_tag()` |
-| `core/src/api.cpp` | 修改 | 更新 `enable_autocorrect` 注释 |
-| `core/include/xmarkup/xmarkup.h` | 修改 | 更新 `enable_autocorrect` 字段注释 |
-| `docs/superpowers/specs/2026-06-05-xmarkup-core-design.md` | 修改 | §4.2 和 §11.8 内容更新 |
+| `core/src/tree_builder.cpp` | 修改 | 实现查表函数 + 隐式关闭 + adoption agency + 日志插桩 |
+| `core/src/tokenizer.cpp` | 修改 | TRACE 级别日志插桩（状态转换、标签小写化） |
+| `core/src/style_resolver.cpp` | 修改 | TRACE 级别日志插桩（CSS 标准化、标签映射） |
+| `core/src/parser.cpp` | 修改 | ERROR 日志插桩 + Logger::init() 调用 |
+| `core/src/api.cpp` | 修改 | Logger::init() + enable_autocorrect 注释更新 |
+| `core/include/xmarkup/xmarkup.h` | 修改 | 新增 `XMLogLevel`、`XMLogCallback`、`XMConfig` 扩展字段 |
+| `core/CMakeLists.txt` | 修改 | 添加 `logger.cpp` 到源文件列表 |
+| `docs/superpowers/specs/2026-06-05-xmarkup-core-design.md` | 修改 | §3.1 + §4.2 + §11.8 内容更新 |
 | `tests/test_tree_builder.cpp` | 修改 | 调整现有测试 + 新增 12 个隐式关闭/adoption 测试 |
+| `tests/test_api.cpp` | 修改 | 新增日志回调测试 |
