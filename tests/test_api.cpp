@@ -483,3 +483,74 @@ TEST_F(APITest, LogCallbackNullNoop) {
     ASSERT_NE(r, nullptr);
     xmarkup_result_free(r);
 }
+
+// === 性能回归测试 ===
+
+TEST_F(APITest, PerfRegression_50KB_Under15ms) {
+    // 生成 50KB 混合 HTML
+    std::string html;
+    html.reserve(50000);
+    const char* paragraph = "<p><b style=\"color:#ff0000\">Bold</b><i>Italic</i></p>";
+    size_t par_len = std::char_traits<char>::length(paragraph);
+    while (html.size() + par_len <= 50000) {
+        html += paragraph;
+    }
+
+    auto start = std::chrono::high_resolution_clock::now();
+    auto* r = xmarkup_parse(parser_, html.c_str(), html.size());
+    auto end = std::chrono::high_resolution_clock::now();
+
+    ASSERT_NE(r, nullptr);
+    EXPECT_EQ(r->error, XM_OK);
+    xmarkup_result_free(r);
+
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    EXPECT_LT(ms, 15) << "50KB 混合 HTML 解析耗时 " << ms << "ms，超出 15ms 基线";
+}
+
+TEST_F(APITest, PerfRegression_100KB_ScaleLinear) {
+    // 生成 50KB 和 100KB HTML，验证线性缩放
+    auto gen_50kb = [&]() {
+        std::string html;
+        html.reserve(50000);
+        const char* paragraph = "<p><b style=\"color:#ff0000\">Bold</b><i>Italic</i></p>";
+        size_t par_len = std::char_traits<char>::length(paragraph);
+        while (html.size() + par_len <= 50000) html += paragraph;
+        return html;
+    };
+
+    auto html_50 = gen_50kb();
+    auto html_100 = gen_50kb() + gen_50kb();
+
+    auto time_parse = [&](const std::string& h) -> double {
+        auto s = std::chrono::high_resolution_clock::now();
+        auto* r = xmarkup_parse(parser_, h.c_str(), h.size());
+        auto e = std::chrono::high_resolution_clock::now();
+        xmarkup_result_free(r);
+        return std::chrono::duration_cast<std::chrono::microseconds>(e - s).count() / 1000.0;
+    };
+
+    double ms_50 = time_parse(html_50);
+    double ms_100 = time_parse(html_100);
+
+    // 100KB 耗时不应超过 50KB 的 2.5 倍（允许一定波动）
+    EXPECT_LT(ms_100, ms_50 * 2.5)
+        << "100KB (" << ms_100 << "ms) vs 50KB (" << ms_50 << "ms)，非线性缩放";
+}
+
+TEST_F(APITest, PerfRegression_DeepNesting_NoExplosion) {
+    std::string html;
+    for (int i = 0; i < 1000; i++) html += "<div>";
+    html += "text";
+
+    auto start = std::chrono::high_resolution_clock::now();
+    auto* r = xmarkup_parse(parser_, html.c_str(), html.size());
+    auto end = std::chrono::high_resolution_clock::now();
+
+    ASSERT_NE(r, nullptr);
+    EXPECT_NE(r->text, nullptr);
+    xmarkup_result_free(r);
+
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    EXPECT_LT(ms, 5) << "1000 层嵌套解析耗时 " << ms << "ms，超出 5ms 基线";
+}
