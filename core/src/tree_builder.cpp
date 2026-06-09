@@ -150,15 +150,56 @@ void TreeBuilder::perform_implicit_close(const std::string& new_tag) {
 }
 
 /**
- * @brief 执行 Adoption Agency Algorithm（骨架，任务 4 完善）
+ * @brief 执行 Adoption Agency Algorithm
  *
- * 当块级元素遇到行内格式化标签栈时，将行内标签重建到块级元素内部。
+ * 当块级元素开始标签遇到栈中连续的行内格式化标签时：
+ * 1. 收集栈顶连续的行内格式化标签
+ * 2. 筛选有语义的标签（跳过 span/sub/sup）
+ * 3. 弹出收集到的标签
+ * 4. 将有语义的标签保存到 pending_adoption_，在入栈阶段重建
  *
  * @param new_tag 新遇到的开标签名
  */
 void TreeBuilder::perform_adoption_agency(const std::string& new_tag) {
-    (void)new_tag;
-    // 任务 4 实现
+    // 只在块级元素触发
+    if (!is_extended_block_level(new_tag)) return;
+
+    // 从栈顶收集连续的行内格式化标签
+    size_t all_collected = 0;   // 所有格式化标签数量（含无语义）
+    std::vector<std::string> rebuild_list; // 有语义的重建列表
+
+    size_t scan = stack_.size();
+    while (scan > 1) {
+        scan--;
+        const auto& tag = stack_[scan]->tag_name;
+        if (!is_formatting_tag(tag)) break;
+        all_collected++;
+        if (has_formatting_semantics(tag)) {
+            rebuild_list.push_back(tag);
+        }
+    }
+
+    if (rebuild_list.empty()) return;
+
+    // 深度限制
+    if (rebuild_list.size() > kMaxAdoptionDepth) {
+        rebuild_list.resize(kMaxAdoptionDepth);
+        Logger::warn("adoption depth truncated to %zu", kMaxAdoptionDepth);
+    }
+
+    // 日志
+    std::string tags_str;
+    for (size_t i = 0; i < rebuild_list.size(); i++) {
+        if (i > 0) tags_str += ", ";
+        tags_str += rebuild_list[i];
+    }
+    Logger::warn("adoption: [%s] rebuilt inside <%s>", tags_str.c_str(), new_tag.c_str());
+
+    // 弹出所有收集到的标签（含无语义的）
+    stack_.resize(stack_.size() - all_collected);
+
+    // 保存重建列表，在入栈阶段使用
+    pending_adoption_ = std::move(rebuild_list);
 }
 
 TreeBuilder::TreeBuilder(uint16_t max_depth, bool autocorrect)
@@ -259,6 +300,19 @@ void TreeBuilder::handle_start_tag(const Token& tok) {
 
     // 新节点入栈（指向刚插入的最后一个子节点）
     stack_.push_back(&stack_.back()->children.back());
+
+    // Adoption 重建行内格式化链：从外到内依次重建
+    if (!pending_adoption_.empty()) {
+        for (auto it = pending_adoption_.rbegin(); it != pending_adoption_.rend(); ++it) {
+            ASTNode fmt_clone;
+            fmt_clone.type = ASTNode::ELEMENT;
+            fmt_clone.tag_name = *it;
+            Logger::trace("adoption rebuild: pushing <%s> clone", it->c_str());
+            stack_.back()->children.push_back(std::move(fmt_clone));
+            stack_.push_back(&stack_.back()->children.back());
+        }
+        pending_adoption_.clear();
+    }
 }
 
 /**

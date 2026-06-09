@@ -188,3 +188,60 @@ TEST_F(TreeBuilderTest, ImplicitClose_HeadingBlock) {
     EXPECT_EQ(root.children[0].tag_name, "h1");
     EXPECT_EQ(root.children[1].tag_name, "p");
 }
+
+// ============================================================
+// Adoption Agency 测试
+// ============================================================
+
+TEST_F(TreeBuilderTest, Adoption_BasicBP) {
+    // <b>text<p>para</p> → <b>text</b><p><b'>para</b'></p>
+    auto root = parse("<div><b>text<p>para</p></b></div>");
+    auto& div = root.children[0];
+    // div 有两个子节点：<b> 和 <p>
+    ASSERT_EQ(div.children.size(), 2u);
+    EXPECT_EQ(div.children[0].tag_name, "b");
+    EXPECT_EQ(div.children[1].tag_name, "p");
+    // <p> 内应有重建的 <b>
+    auto& p = div.children[1];
+    ASSERT_FALSE(p.children.empty());
+    EXPECT_EQ(p.children[0].tag_name, "b");
+}
+
+TEST_F(TreeBuilderTest, Adoption_MultiLayer) {
+    // <b><i>text<p>para → 重建 <b>→<i> 在 <p> 内
+    auto root = parse("<div><b><i>text<p>para</p></i></b></div>");
+    auto& div = root.children[0];
+    ASSERT_EQ(div.children.size(), 2u);
+    auto& p = div.children[1];
+    EXPECT_EQ(p.tag_name, "p");
+    // <p> 内应重建 <b> → <i>
+    ASSERT_GE(p.children.size(), 1u);
+    auto& b_clone = p.children[0];
+    EXPECT_EQ(b_clone.tag_name, "b");
+    ASSERT_GE(b_clone.children.size(), 1u);
+    EXPECT_EQ(b_clone.children[0].tag_name, "i");
+}
+
+TEST_F(TreeBuilderTest, Adoption_SkipSpan) {
+    // <span><b>text<p>para → 只重建 <b>，不重建 <span>
+    auto root = parse("<div><span><b>text<p>para</p></b></span></div>");
+    auto& div = root.children[0];
+    auto& p = div.children[1];
+    EXPECT_EQ(p.tag_name, "p");
+    // 只重建 <b>，不重建 <span>
+    ASSERT_GE(p.children.size(), 1u);
+    EXPECT_EQ(p.children[0].tag_name, "b");
+}
+
+TEST_F(TreeBuilderTest, Adoption_Disabled) {
+    // enable_autocorrect = false 时不触发 adoption
+    Tokenizer tok("<div><b>text<p>para</p></b></div>");
+    std::vector<Token> tokens;
+    while (tok.has_next()) tokens.push_back(tok.next());
+    TreeBuilder builder(256, false);  // autocorrect = false
+    auto root = builder.build(tokens);
+    auto& div = root.children[0];
+    // <b> 不被 adoption 重建，<p> 嵌套在 <b> 内
+    ASSERT_EQ(div.children.size(), 1u);
+    EXPECT_EQ(div.children[0].tag_name, "b");
+}
