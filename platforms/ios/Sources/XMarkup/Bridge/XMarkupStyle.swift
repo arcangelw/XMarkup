@@ -11,6 +11,8 @@ public enum XMarkupStyle: Sendable, Equatable {
     case lineHeight
     case textAlign
     case letterSpacing
+    case mediaType
+    case mediaQuery
     /// 未知样式，保留原始 C 值
     case unknown(styleValue: UInt32)
 
@@ -26,6 +28,8 @@ public enum XMarkupStyle: Sendable, Equatable {
         case XM_STYLE_LINE_HEIGHT: self = .lineHeight
         case XM_STYLE_TEXT_ALIGN: self = .textAlign
         case XM_STYLE_LETTER_SPACING: self = .letterSpacing
+        case XM_STYLE_MEDIA_TYPE: self = .mediaType
+        case XM_STYLE_MEDIA_QUERY: self = .mediaQuery
         default: self = .unknown(styleValue: cValue.rawValue)
         }
     }

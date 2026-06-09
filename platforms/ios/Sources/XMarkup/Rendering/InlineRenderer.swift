@@ -181,7 +181,7 @@ func applyInlineStyle(
             attr[range].appKit.strikethroughStyle = .single
             #endif
         }
-    case .fontWeight, .lineHeight, .letterSpacing:
+    case .fontWeight, .lineHeight, .letterSpacing, .textAlign:
         break  // P2
     }
 }

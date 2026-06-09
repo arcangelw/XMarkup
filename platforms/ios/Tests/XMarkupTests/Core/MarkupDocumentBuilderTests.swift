@@ -265,4 +265,201 @@ final class MarkupDocumentBuilderTests: XCTestCase {
         XCTAssertEqual(inline.range.location, 6)
         XCTAssertEqual(inline.range.length, 4)
     }
+
+    // MARK: - Code Review 修复验证
+
+    func testArticleSectionBlock() throws {
+        let result = try parse("<article>A</article><section>B</section>")
+        let doc = MarkupDocument.from(result)
+        XCTAssertGreaterThanOrEqual(doc.blocks.count, 2)
+        let divisions = doc.blocks.filter { $0.kind == .division }
+        XCTAssertEqual(divisions.count, 2)
+        XCTAssertEqual(divisions[0].text, "A")
+        XCTAssertEqual(divisions[1].text, "B")
+    }
+
+    func testLeadingNewlinePreserved() throws {
+        // 验证 trimmingTrailingNewlines 只修剪尾部，不影响前导字符
+        let input = "\nHello\n"
+        let trimmed = input.trimmingTrailingNewlines
+        XCTAssertTrue(trimmed.hasPrefix("\n"), "前导换行应保留")
+        XCTAssertFalse(trimmed.hasSuffix("\n"), "尾部换行应被裁剪")
+        XCTAssertEqual(trimmed, "\nHello")
+    }
+
+    func testNestedListIsOrderedUsesNearestAncestor() throws {
+        let result = try parse("<ol><li>outer<ul><li>inner</li></ul></li></ol>")
+        let doc = MarkupDocument.from(result)
+        let listItems = doc.blocks.filter {
+            if case .listItem = $0.kind { return true }
+            return false
+        }
+        XCTAssertGreaterThanOrEqual(listItems.count, 2)
+        let innerItem = listItems.last!
+        if case let .listItem(isOrdered, _) = innerItem.kind {
+            XCTAssertFalse(isOrdered, "内层 <ul><li> 应为无序")
+        }
+    }
+
+    func testCSSTextAlignInline() throws {
+        let result = try parse("<p style=\"text-align:center\">centered</p>")
+        let doc = MarkupDocument.from(result)
+        let inlines = doc.blocks.flatMap(\.inlines)
+        let hasTextAlign = inlines.contains {
+            if case .span(let styles) = $0.kind {
+                return styles.contains(.textAlign("center"))
+            }
+            return false
+        }
+        XCTAssertTrue(hasTextAlign, "应产出 textAlign 内联样式")
+    }
+
+    // MARK: - CSS 样式完整性
+
+    func testCSSBackgroundColor() throws {
+        let result = try parse("<span style=\"background-color:#00FF00\">green</span>")
+        let doc = MarkupDocument.from(result)
+        let hasStyle = doc.blocks.flatMap(\.inlines).contains {
+            if case .span(let styles) = $0.kind {
+                return styles.contains(.backgroundColor("#00FF00"))
+            }
+            return false
+        }
+        XCTAssertTrue(hasStyle)
+    }
+
+    func testCSSFontSize() throws {
+        let result = try parse("<span style=\"font-size:20px\">big</span>")
+        let doc = MarkupDocument.from(result)
+        let hasStyle = doc.blocks.flatMap(\.inlines).contains {
+            if case .span(let styles) = $0.kind {
+                return styles.contains(.fontSize(20))
+            }
+            return false
+        }
+        XCTAssertTrue(hasStyle)
+    }
+
+    func testCSSFontWeight() throws {
+        let result = try parse("<span style=\"font-weight:bold\">bold</span>")
+        let doc = MarkupDocument.from(result)
+        let hasStyle = doc.blocks.flatMap(\.inlines).contains {
+            if case .span(let styles) = $0.kind {
+                return styles.contains(.fontWeight("bold"))
+            }
+            return false
+        }
+        XCTAssertTrue(hasStyle)
+    }
+
+    func testCSSFontStyle() throws {
+        let result = try parse("<span style=\"font-style:italic\">italic</span>")
+        let doc = MarkupDocument.from(result)
+        let hasStyle = doc.blocks.flatMap(\.inlines).contains {
+            if case .span(let styles) = $0.kind {
+                return styles.contains(.fontStyle("italic"))
+            }
+            return false
+        }
+        XCTAssertTrue(hasStyle)
+    }
+
+    func testCSSTextDecoration() throws {
+        let result = try parse("<span style=\"text-decoration:underline\">under</span>")
+        let doc = MarkupDocument.from(result)
+        let hasStyle = doc.blocks.flatMap(\.inlines).contains {
+            if case .span(let styles) = $0.kind {
+                return styles.contains(.textDecoration("underline"))
+            }
+            return false
+        }
+        XCTAssertTrue(hasStyle)
+    }
+
+    func testCSSLineHeight() throws {
+        let result = try parse("<span style=\"line-height:1.5\">text</span>")
+        let doc = MarkupDocument.from(result)
+        let hasStyle = doc.blocks.flatMap(\.inlines).contains {
+            if case .span(let styles) = $0.kind {
+                return styles.contains(.lineHeight(1.5))
+            }
+            return false
+        }
+        XCTAssertTrue(hasStyle)
+    }
+
+    func testCSSLetterSpacing() throws {
+        // letter-spacing 值由 C 引擎原样传递（如 "2px"），Float() 无法解析则不产出
+        // 使用纯数字值测试
+        let result = try parse("<span style=\"letter-spacing:2\">spaced</span>")
+        let doc = MarkupDocument.from(result)
+        let hasStyle = doc.blocks.flatMap(\.inlines).contains {
+            if case .span(let styles) = $0.kind {
+                return styles.contains(.letterSpacing(2))
+            }
+            return false
+        }
+        XCTAssertTrue(hasStyle)
+    }
+
+    // MARK: - Unicode 边界
+
+    func testEmojiTextRange() throws {
+        let result = try parse("<b>🎉hello</b>")
+        let doc = MarkupDocument.from(result)
+        XCTAssertEqual(doc.blocks.count, 1)
+        guard let inline = doc.blocks[0].inlines.first else {
+            XCTFail("Expected bold inline")
+            return
+        }
+        XCTAssertEqual(inline.kind, .bold)
+        XCTAssertEqual(inline.range.location, 0)
+        let expectedLength = ("🎉hello" as NSString).length
+        XCTAssertEqual(inline.range.length, expectedLength)
+    }
+
+    func testChineseTextRange() throws {
+        let result = try parse("<b>中文</b>测试")
+        let doc = MarkupDocument.from(result)
+        guard let inline = doc.blocks[0].inlines.first else {
+            XCTFail("Expected bold inline")
+            return
+        }
+        XCTAssertEqual(inline.kind, .bold)
+        XCTAssertEqual(inline.range.location, 0)
+        let expectedLength = ("中文" as NSString).length
+        XCTAssertEqual(inline.range.length, expectedLength)
+    }
+
+    func testMultipleInlineSameBlock() throws {
+        let result = try parse("<p><b>A</b><i>B</i><u>C</u></p>")
+        let doc = MarkupDocument.from(result)
+        XCTAssertEqual(doc.blocks.count, 1)
+        XCTAssertEqual(doc.blocks[0].inlines.count, 3)
+        let ranges = doc.blocks[0].inlines.map(\.range)
+        for i in 0 ..< ranges.count - 1 {
+            let end = ranges[i].location + ranges[i].length
+            XCTAssertLessThanOrEqual(end, ranges[i + 1].location, "内联 range 不应重叠")
+        }
+    }
+
+    // MARK: - 其他块级元素
+
+    func testDivisionBlock() throws {
+        let result = try parse("<div>text</div>")
+        let doc = MarkupDocument.from(result)
+        let divBlocks = doc.blocks.filter { $0.kind == .division }
+        XCTAssertFalse(divBlocks.isEmpty)
+        XCTAssertEqual(divBlocks[0].text, "text")
+    }
+
+    func testTableCellBlocks() throws {
+        let result = try parse("<table><tr><td>A</td><td>B</td></tr></table>")
+        let doc = MarkupDocument.from(result)
+        XCTAssertFalse(doc.blocks.isEmpty)
+        let hasA = doc.blocks.contains { $0.text.contains("A") }
+        let hasB = doc.blocks.contains { $0.text.contains("B") }
+        XCTAssertTrue(hasA)
+        XCTAssertTrue(hasB)
+    }
 }

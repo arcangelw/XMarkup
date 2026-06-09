@@ -306,4 +306,109 @@ final class RenderTests: XCTestCase {
         }
         XCTAssertTrue(foundPurpleLink, "链接颜色应被 DSL 主题覆盖为紫色")
     }
+
+    // MARK: - Code Review 修复验证
+
+    func testHeadingFontSizeAlwaysApplied() throws {
+        // h4 的 scale=1.0 字号与默认相同，跳过
+        let levels = ["h1", "h2", "h3", "h5", "h6"]
+        for level in levels {
+            let attr = try parseAndRender("<\(level)>Title</\(level)>")
+            let nsAttr = NSAttributedStringRenderer().render(attr)
+            let font = nsAttr.attribute(.font, at: 0, effectiveRange: nil) as? XMFont
+            XCTAssertNotNil(font, "\(level) 应有字体")
+            XCTAssertNotEqual(font?.pointSize, 16, "\(level) 字号不应为默认 16pt")
+        }
+    }
+
+    func testRenderHeadingH2Scale() throws {
+        let attr = try parseAndRender("<h2>Sub</h2>")
+        let nsAttr = NSAttributedStringRenderer().render(attr)
+        let font = nsAttr.attribute(.font, at: 0, effectiveRange: nil) as? XMFont
+        XCTAssertNotNil(font)
+        XCTAssertEqual(font!.pointSize, 16 * 1.5, accuracy: 0.5)
+    }
+
+    func testRenderHeadingH6Scale() throws {
+        let attr = try parseAndRender("<h6>Small</h6>")
+        let nsAttr = NSAttributedStringRenderer().render(attr)
+        let font = nsAttr.attribute(.font, at: 0, effectiveRange: nil) as? XMFont
+        XCTAssertNotNil(font)
+        XCTAssertEqual(font!.pointSize, 16 * 0.67, accuracy: 0.5)
+    }
+
+    // MARK: - 更多渲染场景
+
+    func testRenderPreHasMonospaceFont() throws {
+        let attr = try parseAndRender("<pre>code block</pre>")
+        let nsAttr = NSAttributedStringRenderer().render(attr)
+        let font = nsAttr.attribute(.font, at: 0, effectiveRange: nil) as? XMFont
+        XCTAssertNotNil(font)
+        #if canImport(UIKit)
+        XCTAssertTrue(font!.fontDescriptor.symbolicTraits.contains(.traitMonoSpace))
+        #elseif canImport(AppKit)
+        XCTAssertTrue(font!.fontDescriptor.symbolicTraits.contains(.monoSpace))
+        #endif
+    }
+
+    func testRenderBlockquoteBlock() throws {
+        let attr = try parseAndRender("<blockquote>quote text</blockquote>")
+        let text = String(attr.characters)
+        XCTAssertTrue(text.contains("quote text"))
+    }
+
+    func testRenderCSSBackgroundColor() throws {
+        let attr = try parseAndRender("<span style=\"background-color:#00FF00\">green</span>")
+        let nsAttr = NSAttributedStringRenderer().render(attr)
+        let bg = nsAttr.attribute(.backgroundColor, at: 0, effectiveRange: nil) as? XMColor
+        XCTAssertNotNil(bg, "background-color 应生效")
+    }
+
+    func testRenderCSSFontSize() throws {
+        let attr = try parseAndRender("<span style=\"font-size:20px\">big</span>")
+        let nsAttr = NSAttributedStringRenderer().render(attr)
+        let font = nsAttr.attribute(.font, at: 0, effectiveRange: nil) as? XMFont
+        XCTAssertNotNil(font)
+        XCTAssertEqual(font!.pointSize, 20, accuracy: 0.5)
+    }
+
+    func testRenderMultipleBlocksSeparation() throws {
+        let attr = try parseAndRender("<h1>T</h1><p>P</p><p>Q</p>")
+        let text = String(attr.characters)
+        XCTAssertTrue(text.contains("T"))
+        XCTAssertTrue(text.contains("P"))
+        XCTAssertTrue(text.contains("Q"))
+        XCTAssertTrue(text.contains("\n"), "块间应有换行分隔")
+    }
+
+    func testRenderListItemBlock() throws {
+        let attr = try parseAndRender("<ul><li>Item</li></ul>")
+        let text = String(attr.characters)
+        XCTAssertTrue(text.contains("Item"))
+    }
+
+    func testRenderHorizontalRule() throws {
+        let attr = try parseAndRender("<hr>")
+        XCTAssertFalse(String(attr.characters).isEmpty)
+    }
+
+    func testRenderVideoAttachment() throws {
+        let attr = try parseAndRender("<video src=\"v.mp4\"></video>")
+        let nsAttr = NSAttributedStringRenderer().render(attr)
+        var foundAttachment = false
+        nsAttr.enumerateAttribute(.attachment, in: NSRange(location: 0, length: nsAttr.length)) { value, _, _ in
+            if value is NSTextAttachment { foundAttachment = true }
+        }
+        XCTAssertTrue(foundAttachment)
+    }
+
+    func testRenderAudioAttachment() throws {
+        let attr = try parseAndRender("<audio src=\"a.mp3\"></audio>")
+        let nsAttr = NSAttributedStringRenderer().render(attr)
+        var foundAttachment = false
+        nsAttr.enumerateAttribute(.attachment, in: NSRange(location: 0, length: nsAttr.length)) { value, _, _ in
+            if value is NSTextAttachment { foundAttachment = true }
+        }
+        XCTAssertTrue(foundAttachment)
+    }
 }

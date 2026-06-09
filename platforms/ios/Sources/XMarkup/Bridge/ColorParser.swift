@@ -24,10 +24,6 @@ enum ColorParser {
         let g = CGFloat((rgb >> 8) & 0xFF) / 255.0
         let b = CGFloat(rgb & 0xFF) / 255.0
 
-        #if canImport(UIKit)
-            return XMColor(red: r, green: g, blue: b, alpha: 1.0)
-        #elseif canImport(AppKit)
-            return XMColor(red: r, green: g, blue: b, alpha: 1.0)
-        #endif
+        return XMColor(red: r, green: g, blue: b, alpha: 1.0)
     }
 }

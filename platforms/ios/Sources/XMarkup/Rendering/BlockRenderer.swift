@@ -86,11 +86,15 @@ func applyBlockKindAttributes(
         #if canImport(UIKit)
         if let boldDescriptor = theme.baseFont.fontDescriptor.withSymbolicTraits(traitBold) {
             attributes.uiKit.font = UIFont(descriptor: boldDescriptor, size: fontSize)
+        } else {
+            attributes.uiKit.font = UIFont.systemFont(ofSize: fontSize, weight: .bold)
         }
         #elseif canImport(AppKit)
         let boldDescriptor = theme.baseFont.fontDescriptor.withSymbolicTraits(.bold)
         if let font = NSFont(descriptor: boldDescriptor, size: fontSize) {
             attributes.appKit.font = font
+        } else {
+            attributes.appKit.font = NSFont.boldSystemFont(ofSize: fontSize)
         }
         #endif
 

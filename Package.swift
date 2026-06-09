@@ -17,7 +17,6 @@ let package = Package(
             sources: ["src"],
             publicHeadersPath: "include",
             cxxSettings: [
-                .unsafeFlags(["-std=c++17"]),
                 .headerSearchPath("src"),
             ]
         ),
@@ -31,5 +30,6 @@ let package = Package(
             dependencies: ["XMarkup"],
             path: "platforms/ios/Tests/XMarkupTests"
         ),
-    ]
+    ],
+    cxxLanguageStandard: .cxx17
 )

@@ -15,6 +15,9 @@ import Foundation
 ///
 /// - Note: 线程安全保证与 C 核心引擎一致：不同实例可跨线程并发使用，
 ///         同一实例不可并发调用。
+/// - Warning: 此类标记为 `@unchecked Sendable` 仅因设计上每个 Task 应持有独立实例。
+///   **同一实例不可并发调用 `parse(_:)`**，否则产生未定义行为。
+///   推荐用法：每个并发 Task 创建自己的 `XMarkupParser` 实例。
 public final class XMarkupParser: @unchecked Sendable {
     // MARK: - Public Properties
 

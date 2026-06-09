@@ -45,6 +45,20 @@ public enum XMarkupTag: Sendable, Equatable, Hashable {
     case lineBreak
     case division
     case span
+    // 语义化块级容器
+    case article
+    case section
+    case header
+    case footer
+    case nav
+    case aside
+    case figure
+    case figcaption
+    case main
+    case address
+    case definitionList
+    case definitionTerm
+    case definitionDescription
     /// 未知标签，保留原始 C 值
     case unknown(tagValue: UInt32)
 
@@ -85,6 +99,19 @@ public enum XMarkupTag: Sendable, Equatable, Hashable {
         case XM_TAG_LINE_BREAK: self = .lineBreak
         case XM_TAG_DIVISION: self = .division
         case XM_TAG_SPAN: self = .span
+        case XM_TAG_ARTICLE: self = .article
+        case XM_TAG_SECTION: self = .section
+        case XM_TAG_HEADER: self = .header
+        case XM_TAG_FOOTER: self = .footer
+        case XM_TAG_NAV: self = .nav
+        case XM_TAG_ASIDE: self = .aside
+        case XM_TAG_FIGURE: self = .figure
+        case XM_TAG_FIGCAPTION: self = .figcaption
+        case XM_TAG_MAIN: self = .main
+        case XM_TAG_ADDRESS: self = .address
+        case XM_TAG_DL: self = .definitionList
+        case XM_TAG_DT: self = .definitionTerm
+        case XM_TAG_DD: self = .definitionDescription
         default: self = .unknown(tagValue: cValue.rawValue)
         }
     }

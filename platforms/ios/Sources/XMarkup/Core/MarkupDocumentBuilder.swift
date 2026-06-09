@@ -24,6 +24,9 @@ extension MarkupDocument {
             .listItem,
             .table, .tableRow, .tableCell, .tableHeader,
             .image, .video, .audio,
+            .article, .section, .header, .footer, .nav, .aside,
+            .figure, .figcaption, .main, .address,
+            .definitionList, .definitionTerm, .definitionDescription,
         ]
 
         // 媒体 tag 集合
@@ -105,12 +108,13 @@ extension MarkupDocument {
         case .preformatted:
             return .preformatted
         case .listItem:
-            // 查找外层 list 容器 span 来决定 isOrdered：只匹配 listOrdered
-            let isOrdered = allSpans.contains { parent in
-                parent.tag == .listOrdered
+            let listContainers = allSpans.filter { parent in
+                (parent.tag == .listOrdered || parent.tag == .listUnordered)
                 && parent.range.location <= span.range.location
                 && parent.range.location + parent.range.length >= span.range.location + span.range.length
             }
+            let nearest = listContainers.min(by: { $0.range.length < $1.range.length })
+            let isOrdered = nearest?.tag == .listOrdered
             return .listItem(isOrdered: isOrdered, indentLevel: 0)
         case .horizontalRule:
             return .horizontalRule
@@ -118,6 +122,10 @@ extension MarkupDocument {
             return .division
         case .image, .video, .audio:
             return .paragraph
+        case .article, .section, .header, .footer, .nav, .aside,
+             .figure, .figcaption, .main, .address,
+             .definitionList, .definitionTerm, .definitionDescription:
+            return .division
         default:
             return .paragraph
         }
@@ -257,6 +265,12 @@ extension MarkupDocument {
             if let value = span.value, let f = Float(value) {
                 return [.letterSpacing(f)]
             }
+        case .textAlign:
+            if let value = span.value {
+                return [.textAlign(value)]
+            }
+        case .mediaType, .mediaQuery:
+            break
         default:
             break
         }
@@ -305,6 +319,8 @@ extension MarkupDocument {
 extension String {
     /// 修剪尾部换行符
     var trimmingTrailingNewlines: String {
-        trimmingCharacters(in: .newlines)
+        var s = self[...]
+        while s.last?.isNewline == true { s = s.dropLast() }
+        return String(s)
     }
 }

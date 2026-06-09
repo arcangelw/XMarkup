@@ -49,8 +49,15 @@ final class MarkupInlineTests: XCTestCase {
             .textDecoration("underline"),
             .lineHeight(1.5),
             .letterSpacing(0.5),
+            .textAlign("center"),
         ]
-        XCTAssertEqual(styles.count, 8)
+        XCTAssertEqual(styles.count, 9)
+    }
+
+    func testInlineStyleTextAlign() {
+        let align = InlineStyle.textAlign("center")
+        XCTAssertEqual(align, InlineStyle.textAlign("center"))
+        XCTAssertNotEqual(align, InlineStyle.textAlign("left"))
     }
 
     // MARK: - MarkupInline

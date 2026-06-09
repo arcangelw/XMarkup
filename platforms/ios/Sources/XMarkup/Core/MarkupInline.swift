@@ -45,4 +45,5 @@ public enum InlineStyle: Sendable, Equatable {
     case textDecoration(String)     // text-decoration（underline/line-through）
     case lineHeight(Float)          // line-height（P2 保留）
     case letterSpacing(Float)       // letter-spacing（P2 保留）
+    case textAlign(String)          // text-align（center/left/right/justify）
 }
