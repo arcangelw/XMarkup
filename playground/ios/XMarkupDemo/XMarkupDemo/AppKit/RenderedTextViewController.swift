@@ -2,6 +2,8 @@ import AppKit
 import XMarkup
 
 /// NSAttributedString 渲染视图（AppKit）
+///
+/// 支持 customTheme 和 secondHTML 拼接渲染。
 final class RenderedTextViewController: NSViewController {
     private let example: DemoExample
     private let scrollView = NSScrollView()
@@ -29,7 +31,6 @@ final class RenderedTextViewController: NSViewController {
 
     override func viewDidLayout() {
         super.viewDidLayout()
-        // 每次布局都更新 textView 的 frame 以填满可见区域
         let visibleRect = scrollView.documentVisibleRect
         if visibleRect.width > 0 {
             let contentHeight = textView.layoutManager?.usedRect(for: textView.textContainer!).height ?? 0
@@ -55,7 +56,6 @@ final class RenderedTextViewController: NSViewController {
         // 清空 linkTextAttributes 让 NSAttributedString 自身的 .foregroundColor 生效
         textView.linkTextAttributes = [:]
 
-        // scrollView 填满 view（Auto Layout）
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
@@ -68,21 +68,34 @@ final class RenderedTextViewController: NSViewController {
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
 
-        // 不设 textView.frame，在 viewDidLayout 中动态设置
         scrollView.documentView = textView
     }
 
     private func parseAndRender() {
         do {
-            let parser = try XMarkupParser()
-            let result = try parser.parse(example.html)
-            let document = MarkupDocument.from(result)
+            let theme: MarkupTheme = example.customTheme ?? .default
+            let document = try parseDocument()
             let renderer = NSAttributedStringRenderer()
-            let attributed = renderer.render(document.render())
+            let attributed = renderer.render(document.render(theme: theme))
             textView.textStorage?.setAttributedString(attributed)
         } catch {
             textView.string = "解析错误：\(error.localizedDescription)"
             textView.textColor = .systemRed
         }
+    }
+
+    /// 解析文档，支持 secondHTML 拼接
+    private func parseDocument() throws -> MarkupDocument {
+        let parser = try XMarkupParser()
+        let result1 = try parser.parse(example.html)
+        let doc1 = MarkupDocument.from(result1)
+
+        if let secondHTML = example.secondHTML {
+            let result2 = try parser.parse(secondHTML)
+            let doc2 = MarkupDocument.from(result2)
+            return doc1.appending(doc2)
+        }
+
+        return doc1
     }
 }

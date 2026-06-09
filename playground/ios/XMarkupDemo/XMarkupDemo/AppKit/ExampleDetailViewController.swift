@@ -1,10 +1,10 @@
 import AppKit
 
-/// 详情页：三段 Tab 切换（HTML 源码 / 渲染效果 / Span 数据）
+/// 详情页：四段 Tab 切换（HTML 源码 / 渲染效果 / WebView / Span 数据）
 final class ExampleDetailViewController: NSViewController {
     private let containerView = NSView()
     private let segmentedControl = NSSegmentedControl(
-        labels: ["HTML 源码", "渲染效果", "Span 数据"],
+        labels: ["HTML 源码", "渲染效果", "WebView", "Span 数据"],
         trackingMode: .selectOne,
         target: nil,
         action: nil
@@ -12,6 +12,7 @@ final class ExampleDetailViewController: NSViewController {
 
     private var htmlVC: HTMLSourceViewController?
     private var renderedVC: RenderedTextViewController?
+    private var webViewVC: WebViewViewController?
     private var spanVC: SpanDataViewController?
 
     override func loadView() {
@@ -24,18 +25,15 @@ final class ExampleDetailViewController: NSViewController {
     }
 
     private func setupLayout() {
-        // 分段控制
         segmentedControl.selectedSegment = 0
         segmentedControl.target = self
         segmentedControl.action = #selector(switchTab)
         segmentedControl.translatesAutoresizingMaskIntoConstraints = false
         segmentedControl.setContentHuggingPriority(.required, for: .vertical)
 
-        // 内容容器
         containerView.translatesAutoresizingMaskIntoConstraints = false
         containerView.setContentHuggingPriority(.defaultLow, for: .vertical)
 
-        // 用 NSStackView 组织
         let stackView = NSStackView()
         stackView.orientation = .vertical
         stackView.spacing = 8
@@ -76,6 +74,8 @@ final class ExampleDetailViewController: NSViewController {
         htmlVC?.removeFromParent()
         renderedVC?.view.removeFromSuperview()
         renderedVC?.removeFromParent()
+        webViewVC?.view.removeFromSuperview()
+        webViewVC?.removeFromParent()
         spanVC?.view.removeFromSuperview()
         spanVC?.removeFromParent()
         containerView.subviews.forEach { $0.removeFromSuperview() }
@@ -83,10 +83,10 @@ final class ExampleDetailViewController: NSViewController {
         // 创建新的子控制器
         htmlVC = HTMLSourceViewController(html: example.html)
         renderedVC = RenderedTextViewController(example: example)
+        webViewVC = WebViewViewController(html: example.html)
         spanVC = SpanDataViewController(example: example)
 
-        // 一次性添加所有子控制器
-        let children: [NSViewController] = [htmlVC!, renderedVC!, spanVC!]
+        let children: [NSViewController] = [htmlVC!, renderedVC!, webViewVC!, spanVC!]
         for child in children {
             addChild(child)
             child.view.translatesAutoresizingMaskIntoConstraints = false
@@ -100,7 +100,6 @@ final class ExampleDetailViewController: NSViewController {
             child.view.isHidden = true
         }
 
-        // 默认显示 HTML 源码
         htmlVC?.view.isHidden = false
         segmentedControl.selectedSegment = 0
     }
@@ -110,8 +109,8 @@ final class ExampleDetailViewController: NSViewController {
     @objc private func switchTab() {
         htmlVC?.view.isHidden = segmentedControl.selectedSegment != 0
         renderedVC?.view.isHidden = segmentedControl.selectedSegment != 1
-        spanVC?.view.isHidden = segmentedControl.selectedSegment != 2
-        // 强制刷新可见子视图的布局（hidden 时 documentVisibleRect 可能为零）
+        webViewVC?.view.isHidden = segmentedControl.selectedSegment != 2
+        spanVC?.view.isHidden = segmentedControl.selectedSegment != 3
         containerView.layoutSubtreeIfNeeded()
     }
 }
