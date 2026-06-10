@@ -292,6 +292,7 @@ void TreeBuilder::handle_start_tag(const Token& tok) {
 
     // 深度限制检查（+1 因为栈底有 ROOT）
     if (stack_.size() >= static_cast<size_t>(max_depth_) + 1) {
+        pending_adoption_.clear();  // 清空，防止泄漏到下一个元素
         return;
     }
 
