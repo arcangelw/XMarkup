@@ -604,3 +604,34 @@ TEST_F(StyleResolverTest, AttributeNameCaseInsensitiveMixed) {
     }
     EXPECT_TRUE(found) << "a Href=\"...\" 应匹配 href 属性";
 }
+
+// ============================================================
+// Code Review 修复：CSS !important 剥离
+// ============================================================
+
+TEST_F(StyleResolverTest, CSSColorImportant) {
+    auto r = resolve(R"(<span style="color:red !important">text</span>)");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_FOREGROUND_COLOR && s.value == "#FF0000") found = true;
+    }
+    EXPECT_TRUE(found) << "color:red !important 应提取颜色 #FF0000";
+}
+
+TEST_F(StyleResolverTest, CSSFontSizeImportant) {
+    auto r = resolve(R"(<span style="font-size:14px !important">text</span>)");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_FONT_SIZE && s.value == "14") found = true;
+    }
+    EXPECT_TRUE(found) << "font-size:14px !important 应提取字号 14";
+}
+
+TEST_F(StyleResolverTest, CSSBackgroundColorImportant) {
+    auto r = resolve(R"(<span style="background-color:#00FF00 !important">text</span>)");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_BACKGROUND_COLOR && s.value == "#00FF00") found = true;
+    }
+    EXPECT_TRUE(found) << "background-color:#00FF00 !important 应提取颜色";
+}

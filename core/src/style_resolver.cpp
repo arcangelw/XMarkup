@@ -276,6 +276,20 @@ void StyleResolver::add_style_spans(const std::string& style_str, uint32_t start
         std::string val = style_str.substr(val_start, pos - val_start);
         // 去尾部空白
         while (!val.empty() && isspace(static_cast<unsigned char>(val.back()))) val.pop_back();
+        // 剥离 !important（大小写不敏感，CSS 标准行为）
+        {
+            auto imp = val.rfind("!important");
+            if (imp != std::string::npos) {
+                std::string suffix = val.substr(imp);
+                for (auto& c : suffix) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+                size_t start = 0;
+                while (start < suffix.size() && (suffix[start] == ' ' || suffix[start] == '\t')) start++;
+                if (suffix.substr(start) == "!important") {
+                    val = val.substr(0, imp);
+                    while (!val.empty() && isspace(static_cast<unsigned char>(val.back()))) val.pop_back();
+                }
+            }
+        }
         if (pos < style_str.size()) pos++; // 跳过 ';'
 
         // 映射属性名 → XMStyleType
