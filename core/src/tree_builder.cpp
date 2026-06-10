@@ -133,14 +133,17 @@ bool TreeBuilder::should_auto_close(const std::string& parent, const std::string
  * @param new_tag 新遇到的开标签名
  */
 void TreeBuilder::perform_implicit_close(const std::string& new_tag) {
+    // 从栈顶向下扫描（排除 ROOT），先收集 pop_count 再统一 resize，
+    // 避免在迭代体内部 resize 导致 reverse_iterator 失效。
     size_t pop_count = 0;
+    bool found = false;
     for (auto it = stack_.rbegin(); it != stack_.rend() - 1; ++it) {
         const auto& parent_tag = (*it)->tag_name;
 
         if (should_auto_close(parent_tag, new_tag)) {
             Logger::warn("implicit close: <%s> closed by <%s>", parent_tag.c_str(), new_tag.c_str());
-            stack_.resize(stack_.size() - pop_count - 1);
-            return;
+            found = true;
+            break;
         }
 
         // 作用域边界：停止扫描，不跨容器隐式关闭
@@ -150,6 +153,10 @@ void TreeBuilder::perform_implicit_close(const std::string& new_tag) {
         }
 
         pop_count++;
+    }
+
+    if (found) {
+        stack_.resize(stack_.size() - pop_count - 1);
     }
 }
 
