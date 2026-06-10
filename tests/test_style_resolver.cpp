@@ -635,3 +635,40 @@ TEST_F(StyleResolverTest, CSSBackgroundColorImportant) {
     }
     EXPECT_TRUE(found) << "background-color:#00FF00 !important 应提取颜色";
 }
+
+// ============================================================
+// Code Review 修复：rgba/hsl/hsla 颜色格式
+// ============================================================
+
+TEST_F(StyleResolverTest, CSSColorRgba) {
+    auto r = resolve(R"html(<span style="color:rgba(255,0,0,0.5)">text</span>)html");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_FOREGROUND_COLOR && s.value == "#FF0000") found = true;
+    }
+    EXPECT_TRUE(found) << "rgba(255,0,0,0.5) 应提取颜色 #FF0000";
+}
+
+TEST_F(StyleResolverTest, CSSColorHsl) {
+    auto r = resolve(R"html(<span style="color:hsl(0,100%,50%)">text</span>)html");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_FOREGROUND_COLOR) {
+            EXPECT_EQ(s.value, "#FF0000") << "hsl(0,100%,50%) = #FF0000";
+            found = true;
+        }
+    }
+    EXPECT_TRUE(found) << "hsl() 应被识别";
+}
+
+TEST_F(StyleResolverTest, CSSColorHsla) {
+    auto r = resolve(R"html(<span style="color:hsla(240,100%,50%,0.5)">text</span>)html");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_FOREGROUND_COLOR) {
+            EXPECT_EQ(s.value, "#0000FF") << "hsla(240,100%,50%) = #0000FF";
+            found = true;
+        }
+    }
+    EXPECT_TRUE(found) << "hsla() 应被识别";
+}

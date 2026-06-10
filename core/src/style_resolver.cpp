@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include <cctype>
 #include <cstring>
+#include <cmath>
 
 namespace xmarkup {
 
@@ -475,6 +476,90 @@ std::string StyleResolver::normalize_color(std::string_view value) const {
 
         char buf[8];
         snprintf(buf, sizeof(buf), "#%02X%02X%02X", r, g, b);
+        return buf;
+    }
+
+    // rgba(r, g, b, a) 格式
+    if (value.size() > 5 && value.substr(0, 5) == "rgba(") {
+        size_t start = 5;
+        int r = 0, g = 0, b = 0;
+        auto parse_int = [&](size_t& p) -> int {
+            while (p < value.size() && (value[p] == ' ' || value[p] == '\t')) p++;
+            if (p < value.size() && value[p] == '-') {
+                while (p < value.size() && value[p] != ',') p++;
+                return 0;
+            }
+            int v = 0;
+            bool overflow = false;
+            while (p < value.size() && value[p] >= '0' && value[p] <= '9') {
+                if (!overflow) {
+                    int digit = value[p] - '0';
+                    if (v > (255 - digit) / 10) { overflow = true; v = 255; }
+                    else { v = v * 10 + digit; }
+                }
+                p++;
+            }
+            return std::min(v, 255);
+        };
+        r = parse_int(start);
+        while (start < value.size() && (value[start] == ',' || value[start] == ' ')) start++;
+        g = parse_int(start);
+        while (start < value.size() && (value[start] == ',' || value[start] == ' ')) start++;
+        b = parse_int(start);
+        // 忽略 alpha 通道
+
+        char buf[8];
+        snprintf(buf, sizeof(buf), "#%02X%02X%02X", r, g, b);
+        return buf;
+    }
+
+    // hsl() / hsla() 格式
+    if ((value.size() > 4 && value.substr(0, 4) == "hsl(") ||
+        (value.size() > 5 && value.substr(0, 5) == "hsla(")) {
+        // hsl( → 起始 4, hsla( → 起始 5
+        bool is_hsl = (value.substr(0, 4) == "hsl(");
+        size_t start = is_hsl ? 4 : 5;
+        double h = 0, s = 0, l = 0;
+        auto parse_double = [&](size_t& p) -> double {
+            while (p < value.size() && (value[p] == ' ' || value[p] == '\t')) p++;
+            double n = 0;
+            while (p < value.size() && value[p] >= '0' && value[p] <= '9') {
+                n = n * 10 + (value[p] - '0'); p++;
+            }
+            if (p < value.size() && value[p] == '.') {
+                p++; double frac = 0.1;
+                while (p < value.size() && value[p] >= '0' && value[p] <= '9') {
+                    n += (value[p] - '0') * frac;
+                    frac *= 0.1; p++;
+                }
+            }
+            while (p < value.size() && (value[p] == '%' || value[p] == ' ')) p++;
+            return n;
+        };
+        h = fmod(parse_double(start), 360.0);
+        while (start < value.size() && (value[start] == ',' || value[start] == ' ')) start++;
+        s = parse_double(start) / 100.0;
+        while (start < value.size() && (value[start] == ',' || value[start] == ' ')) start++;
+        l = parse_double(start) / 100.0;
+
+        // HSL → RGB 换算
+        auto hue_to_rgb = [](double p, double q, double t) -> int {
+            if (t < 0) t += 1;
+            if (t > 1) t -= 1;
+            if (t < 1.0/6) return static_cast<int>(round((p + (q - p) * 6 * t) * 255));
+            if (t < 1.0/2) return static_cast<int>(round(q * 255));
+            if (t < 2.0/3) return static_cast<int>(round((p + (q - p) * (2.0/3 - t) * 6) * 255));
+            return static_cast<int>(round(p * 255));
+        };
+
+        double qq = (l < 0.5) ? l * (1 + s) : l + s - l * s;
+        double pp = 2 * l - qq;
+        int r = hue_to_rgb(pp, qq, h / 360 + 1.0/3);
+        int g = hue_to_rgb(pp, qq, h / 360);
+        int b = hue_to_rgb(pp, qq, h / 360 - 1.0/3);
+
+        char buf[8];
+        snprintf(buf, sizeof(buf), "#%02X%02X%02X", std::min(r, 255), std::min(g, 255), std::min(b, 255));
         return buf;
     }
 
