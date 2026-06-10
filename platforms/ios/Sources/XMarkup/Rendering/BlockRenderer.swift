@@ -8,7 +8,14 @@ import AppKit
 
 // MARK: - Block Rendering
 
+/// 渲染单个 block（无共享列表，用于非列表块）
 func renderBlock(_ block: MarkupBlock, theme: MarkupTheme) -> AttributedString {
+    let lists: [NSTextList]? = nil
+    return renderBlock(block, sharedLists: lists, theme: theme)
+}
+
+/// 渲染单个 block（可指定共享 NSTextList 实例）
+func renderBlock(_ block: MarkupBlock, sharedLists: [NSTextList]?, theme: MarkupTheme) -> AttributedString {
     // 1. 构建块级基础属性
     var baseAttributes = AttributeContainer()
     #if canImport(UIKit)
@@ -42,13 +49,18 @@ func renderBlock(_ block: MarkupBlock, theme: MarkupTheme) -> AttributedString {
         paragraphStyle.headIndent = 24
         paragraphStyle.firstLineHeadIndent = 24
     case .listItem(let isOrdered, let indentLevel):
-        let format: NSTextList.MarkerFormat = isOrdered ? .decimal : .disc
-        var lists: [NSTextList] = []
-        for level in 0...indentLevel {
-            let fmt: NSTextList.MarkerFormat = (level == 0) ? format : (isOrdered ? .decimal : .circle)
-            lists.append(NSTextList(markerFormat: fmt, options: 0))
+        // 优先使用共享的 NSTextList 实例（同一组列表项自动编号）
+        if let shared = sharedLists {
+            paragraphStyle.textLists = shared
+        } else {
+            let format: NSTextList.MarkerFormat = isOrdered ? .decimal : .disc
+            var lists: [NSTextList] = []
+            for level in 0...indentLevel {
+                let fmt: NSTextList.MarkerFormat = (level == 0) ? format : (isOrdered ? .decimal : .circle)
+                lists.append(NSTextList(markerFormat: fmt, options: 0))
+            }
+            paragraphStyle.textLists = lists
         }
-        paragraphStyle.textLists = lists
         paragraphStyle.headIndent = CGFloat(indentLevel + 1) * 24
         paragraphStyle.firstLineHeadIndent = CGFloat(indentLevel + 1) * 24
         paragraphStyle.tabStops = [NSTextTab(textAlignment: .left, location: CGFloat(indentLevel + 1) * 24, options: [:])]

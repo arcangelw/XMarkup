@@ -94,8 +94,7 @@ extension DocumentRenderer {
         var result = AttributedString("")
         for (i, block) in blocks.enumerated() {
             if i > 0 { result.append(AttributedString("\n")) }
-            // TODO(P0-任务2): 传递 sharedLists
-            let attr = renderBlock(block, theme: theme)
+            let attr = renderBlock(block, sharedLists: groups.listTextLists[i], theme: theme)
             result.append(attr)
         }
         return result
