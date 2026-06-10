@@ -124,21 +124,4 @@ extension DocumentRenderer {
     }
 }
 
-// MARK: - renderTable 占位（P2 实现）
-
-extension DocumentRenderer {
-    func renderTable(_ structure: TableStructure, theme: MarkupTheme) -> NSAttributedString {
-        // P2 实现：NSTextTable + NSTextTableBlock
-        // 当前 placeholder：按行拼接文本
-        let result = NSMutableAttributedString()
-        for (rowIdx, row) in structure.rows.enumerated() {
-            if rowIdx > 0 { result.append(NSAttributedString(string: "\n")) }
-            var rowTexts: [String] = []
-            for cell in row {
-                rowTexts.append(cell.text)
-            }
-            result.append(NSAttributedString(string: rowTexts.joined(separator: " | ")))
-        }
-        return result
-    }
-}
+// MARK: - renderTable 由 TableRenderer.swift 提供（自由函数）
