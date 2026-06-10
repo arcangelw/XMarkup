@@ -50,7 +50,8 @@ static const std::unordered_set<std::string>& formatting_tag_set() {
 static const std::unordered_set<std::string>& formatting_semantic_set() {
     static const std::unordered_set<std::string> s = {
         "b", "strong", "i", "em", "u", "s", "strike", "del",
-        "a", "code", "mark"
+        "a", "code", "mark",
+        "span", "sub", "sup",  // 保留包装层样式
     };
     return s;
 }

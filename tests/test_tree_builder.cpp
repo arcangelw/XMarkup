@@ -222,15 +222,17 @@ TEST_F(TreeBuilderTest, Adoption_MultiLayer) {
     EXPECT_EQ(b_clone.children[0].tag_name, "i");
 }
 
-TEST_F(TreeBuilderTest, Adoption_SkipSpan) {
-    // <span><b>text<p>para → 只重建 <b>，不重建 <span>
+TEST_F(TreeBuilderTest, Adoption_PreservesSpan) {
+    // <span><b>text<p>para → 重建 <span><b>，保留包装层
     auto root = parse("<div><span><b>text<p>para</p></b></span></div>");
     auto& div = root.children[0];
     auto& p = div.children[1];
     EXPECT_EQ(p.tag_name, "p");
-    // 只重建 <b>，不重建 <span>
+    // span 和 b 都被重建（span 包装层保留，外到内：p → span → b）
     ASSERT_GE(p.children.size(), 1u);
-    EXPECT_EQ(p.children[0].tag_name, "b");
+    EXPECT_EQ(p.children[0].tag_name, "span");
+    ASSERT_GE(p.children[0].children.size(), 1u);
+    EXPECT_EQ(p.children[0].children[0].tag_name, "b");
 }
 
 TEST_F(TreeBuilderTest, Adoption_Disabled) {
