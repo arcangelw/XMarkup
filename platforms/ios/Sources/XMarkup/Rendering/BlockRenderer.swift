@@ -103,13 +103,27 @@ func renderBlock(_ block: MarkupBlock, sharedLists: [NSTextList]?, theme: Markup
         return renderAttachmentBlock(block, attachment: attachment, theme: theme, baseAttributes: baseAttributes)
     }
 
-    // 5. 构建段落 AttributedString
-    let blockText: String
+    // 5. 处理 hr 分隔线（NSTextAttachment 而非文本）
     if case .horizontalRule = block.kind {
-        blockText = "\u{2003}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2003}"
-    } else {
-        blockText = block.text
+        #if canImport(UIKit)
+        let attachment = NSTextAttachment()
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 1, height: 1))
+        attachment.image = renderer.image { ctx in
+            UIColor.separator.setFill()
+            ctx.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
+        }
+        attachment.bounds = CGRect(x: 0, y: 0, width: 300, height: 1)
+        let nsAttr = NSMutableAttributedString(attachment: attachment)
+        nsAttr.addAttribute(.paragraphStyle, value: paragraphStyle,
+                             range: NSRange(location: 0, length: nsAttr.length))
+        return AttributedString(nsAttr)
+        #else
+        return AttributedString("---")
+        #endif
     }
+
+    // 6. 构建段落 AttributedString
+    let blockText = block.text
     var attr = AttributedString(blockText, attributes: baseAttributes)
 
     // 6. 应用内联样式
