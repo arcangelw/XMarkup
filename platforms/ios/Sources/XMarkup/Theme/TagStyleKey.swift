@@ -37,3 +37,6 @@ public enum TagStyleKey: String, Sendable, Equatable, Hashable, CaseIterable {
     case video             // <video>
     case audio             // <audio>
 }
+
+/// TagStyleKey 的简别名
+public typealias TagKey = TagStyleKey
