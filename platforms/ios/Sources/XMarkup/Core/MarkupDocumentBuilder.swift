@@ -131,37 +131,46 @@ extension MarkupDocument {
         if let inherited = inheritedKind {
             switch node.resolvedKind {
             case .paragraph, .division:
-                effectiveKind = inherited  // 纯容器/段落继承父类型
+                effectiveKind = inherited
             default:
-                effectiveKind = node.resolvedKind  // 自身有语义，不继承
+                effectiveKind = node.resolvedKind
             }
         } else {
             effectiveKind = node.resolvedKind
+        }
+
+        // 对 listItem 注入实际缩进深度：从原始 allSpans 计算
+        // 统计包含此 span 的 ul/ol 容器数量，自身范围不计
+        let resolvedKind: BlockKind
+        if case .listItem(let isOrdered, _) = effectiveKind {
+            let indent = computeListItemIndent(for: node.span, in: allSpans)
+            resolvedKind = .listItem(isOrdered: isOrdered, indentLevel: indent)
+        } else {
+            resolvedKind = effectiveKind
         }
 
         let nodeRange = node.span.range
 
         if node.children.isEmpty {
             // 叶子节点：产出一个块
-            let (blockText, blockInlines) = buildBlock(
-                for: node, text: text, range: nodeRange,
-                inlineSpans: inlineSpans, mediaTags: mediaTags,
-                blocks: &blocks  // 用于计算列表序号
-            )
-            if let detachedText = blockText {
-                let attachment: MarkupAttachment?
-                if mediaTags.contains(node.span.tag) {
-                    let src = resolveMediaSrc(node.span, allSpans: allSpans)
-                    attachment = MarkupAttachment(
-                        content: attachmentContent(for: node.span.tag, src: src),
-                        suggestedSize: CGSize(width: 200, height: 150),
-                        alignment: .default
-                    )
-                } else {
-                    attachment = nil
-                }
-                blocks.append(MarkupBlock(kind: effectiveKind, text: detachedText, inlines: blockInlines, attachment: attachment))
+            let isPre = node.span.tag == .preformatted
+            let blockText = extractText(text: text, nsRange: nodeRange, preserveTrailingNewlines: isPre)
+            guard !blockText.isEmpty else { return }
+            let inlines = convertToInlines(inlineSpans, in: text, parentRange: nodeRange,
+                                            preserveTrailingNewlines: isPre)
+
+            let attachment: MarkupAttachment?
+            if mediaTags.contains(node.span.tag) {
+                let src = resolveMediaSrc(node.span, allSpans: allSpans)
+                attachment = MarkupAttachment(
+                    content: attachmentContent(for: node.span.tag, src: src),
+                    suggestedSize: CGSize(width: 200, height: 150),
+                    alignment: .default
+                )
+            } else {
+                attachment = nil
             }
+            blocks.append(MarkupBlock(kind: resolvedKind, text: blockText, inlines: inlines, attachment: attachment))
             return
         }
 
@@ -178,25 +187,24 @@ extension MarkupDocument {
         for occ in occupied {
             if occ.start > cursor {
                 let gap = NSRange(location: cursor, length: occ.start - cursor)
-                emitBlock(text: text, range: gap, kind: effectiveKind, inlineSpans: inlineSpans, blocks: &blocks)
+                emitBlock(text: text, range: gap, kind: resolvedKind, inlineSpans: inlineSpans, blocks: &blocks)
             }
             cursor = max(cursor, occ.end)
         }
         if cursor < nodeEnd {
             let gap = NSRange(location: cursor, length: nodeEnd - cursor)
-            emitBlock(text: text, range: gap, kind: effectiveKind, inlineSpans: inlineSpans, blocks: &blocks)
+            emitBlock(text: text, range: gap, kind: resolvedKind, inlineSpans: inlineSpans, blocks: &blocks)
         }
 
         // 递归子节点
         for child in node.children {
             let childInherited: BlockKind?
             if child.span.range.location == nodeRange.location && child.span.range.length == nodeRange.length {
-                // 范围相同时：纯容器（division）的子节点不继承，语义容器（blockquote 等）的子节点继承
-                switch effectiveKind {
+                switch resolvedKind {
                 case .division:
                     childInherited = nil
                 default:
-                    childInherited = effectiveKind
+                    childInherited = resolvedKind
                 }
             } else {
                 childInherited = nil
@@ -206,53 +214,25 @@ extension MarkupDocument {
         }
     }
 
-    /// 快速产出一个孤立文本块
+    /// 计算 listItem 的嵌套深度：统计包含此 span 的 ul/ol 容器数量
+    private static func computeListItemIndent(for span: XMarkupSpan, in allSpans: [XMarkupSpan]) -> Int {
+        var depth = 0
+        for parent in allSpans {
+            guard parent.tag == .listOrdered || parent.tag == .listUnordered else { continue }
+            if parent.range != span.range && rangeContains(parent.range, span.range) {
+                depth += 1
+            }
+        }
+        return depth
+    }
+
+    /// 快速产出一个孤立文本块（无列表符号拼接）
     private static func emitBlock(text: String, range: NSRange, kind: BlockKind,
                                   inlineSpans: [XMarkupSpan], blocks: inout [MarkupBlock]) {
         let blockText = extractText(text: text, nsRange: range)
         guard !blockText.isEmpty else { return }
         let inlines = convertToInlines(inlineSpans, in: text, parentRange: range)
-        let (finalText, finalInlines) = applyListMarker(blockText, inlines, kind: kind, precedingBlocks: blocks)
-        blocks.append(MarkupBlock(kind: kind, text: finalText, inlines: finalInlines, attachment: nil))
-    }
-
-    /// 构建单个叶子块的文本和内联，处理列表符号
-    private static func buildBlock(
-        for node: SpanNode, text: String, range: NSRange,
-        inlineSpans: [XMarkupSpan], mediaTags: Set<XMarkupTag>,
-        blocks: inout [MarkupBlock]
-    ) -> (String?, [MarkupInline]) {
-        let isPre = node.span.tag == .preformatted
-        let blockText = extractText(text: text, nsRange: range, preserveTrailingNewlines: isPre)
-        guard !blockText.isEmpty else { return (nil, []) }
-        let inlines = convertToInlines(inlineSpans, in: text, parentRange: range,
-                                        preserveTrailingNewlines: isPre)
-        return applyListMarker(blockText, inlines, kind: node.resolvedKind, precedingBlocks: blocks)
-    }
-
-    /// 为列表项添加符号/编号前缀，调整 inline range
-    private static func applyListMarker(
-        _ blockText: String, _ inlines: [MarkupInline],
-        kind: BlockKind, precedingBlocks: [MarkupBlock]
-    ) -> (String, [MarkupInline]) {
-        guard case .listItem(let isOrdered, _) = kind else {
-            return (blockText, inlines)
-        }
-        let marker: String
-        if isOrdered {
-            let preceding = precedingBlocks.filter { b in
-                if case .listItem(true, _) = b.kind { return true }
-                return false
-            }.count
-            marker = "\(preceding + 1).\t"
-        } else {
-            marker = "•\t"
-        }
-        let markerLen = (marker as NSString).length
-        let shiftedInlines = inlines.map { inline in
-            MarkupInline(range: NSRange(location: inline.range.location + markerLen, length: inline.range.length), kind: inline.kind)
-        }
-        return (marker + blockText, shiftedInlines)
+        blocks.append(MarkupBlock(kind: kind, text: blockText, inlines: inlines, attachment: nil))
     }
 }
 

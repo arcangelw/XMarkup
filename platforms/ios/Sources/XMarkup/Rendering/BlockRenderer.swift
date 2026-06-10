@@ -41,6 +41,17 @@ func renderBlock(_ block: MarkupBlock, theme: MarkupTheme) -> AttributedString {
     case .blockquote:
         paragraphStyle.headIndent = 24
         paragraphStyle.firstLineHeadIndent = 24
+    case .listItem(let isOrdered, let indentLevel):
+        let format: NSTextList.MarkerFormat = isOrdered ? .decimal : .disc
+        var lists: [NSTextList] = []
+        for level in 0...indentLevel {
+            let fmt: NSTextList.MarkerFormat = (level == 0) ? format : (isOrdered ? .decimal : .circle)
+            lists.append(NSTextList(markerFormat: fmt, options: 0))
+        }
+        paragraphStyle.textLists = lists
+        paragraphStyle.headIndent = CGFloat(indentLevel + 1) * 24
+        paragraphStyle.firstLineHeadIndent = CGFloat(indentLevel + 1) * 24
+        paragraphStyle.tabStops = [NSTextTab(textAlignment: .left, location: CGFloat(indentLevel + 1) * 24, options: [:])]
     case .preformatted:
         #if canImport(UIKit)
         paragraphStyle.lineBreakMode = .byCharWrapping
