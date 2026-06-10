@@ -73,4 +73,28 @@ final class MarkupInlineTests: XCTestCase {
         let b = MarkupInline(range: NSRange(location: 0, length: 4), kind: .bold)
         XCTAssertEqual(a, b)
     }
+
+    // MARK: - Subscript / Superscript
+
+    func testInlineKindSubscript() {
+        let sub = InlineKind.subscriptText
+        XCTAssertEqual(sub, InlineKind.subscriptText)
+        XCTAssertNotEqual(sub, InlineKind.superscript)
+    }
+
+    func testInlineKindSuperscript() {
+        let sup = InlineKind.superscript
+        XCTAssertEqual(sup, InlineKind.superscript)
+        XCTAssertNotEqual(sup, InlineKind.subscriptText)
+    }
+
+    func testInlineKindAllCasesUpdated() {
+        let kinds: [InlineKind] = [
+            .bold, .italic, .underline, .strikethrough,
+            .code, .mark, .link(url: ""),
+            .subscriptText, .superscript,
+            .span(styles: []),
+        ]
+        XCTAssertEqual(kinds.count, 10, "新增 sub/sup 后总数应为 10")
+    }
 }

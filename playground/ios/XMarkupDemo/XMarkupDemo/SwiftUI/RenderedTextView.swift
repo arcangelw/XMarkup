@@ -1,5 +1,6 @@
 import SwiftUI
 import XMarkup
+import XMarkupUI
 
 #if canImport(UIKit)
 import UIKit
@@ -9,8 +10,8 @@ import AppKit
 
 /// AttributedString 渲染视图（SwiftUI）
 ///
-/// 使用 UIViewRepresentable（iOS）/ NSViewRepresentable（macOS）包装原生文本视图，
-/// 以支持完整的富文本特性（段落间距、行间距、图片附件等）。
+/// 使用 UIViewRepresentable（iOS）/ NSViewRepresentable（macOS）包装 XMarkupTextView，
+/// 自动支持 hr 自适应、blockquote 左侧竖线和异步媒体加载。
 /// 支持 customTheme、secondHTML 拼接、多主题对比。
 struct RenderedTextView: View {
     let example: DemoExample
@@ -37,7 +38,8 @@ struct RenderedTextView: View {
         if result.isMultiTheme {
             multiThemeContent(result)
         } else {
-            NativeRichTextView(attributedString: result.nsAttributedStrings[0])
+            XMarkupTextViewRepresentable(theme: example.customTheme ?? .default,
+                                         document: result.documents[0])
         }
     }
 
@@ -47,15 +49,18 @@ struct RenderedTextView: View {
         let themeNames = ["默认主题", "聊天主题", "文章主题"]
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                ForEach(0..<result.nsAttributedStrings.count, id: \.self) { index in
+                ForEach(0..<result.documents.count, id: \.self) { index in
                     VStack(alignment: .leading, spacing: 4) {
                         Text(themeNames[index])
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .padding(.horizontal, 16)
                             .padding(.bottom, 2)
-                        NativeRichTextView(attributedString: result.nsAttributedStrings[index])
-                            .frame(height: estimatedHeight(for: result.nsAttributedStrings[index]))
+                        XMarkupTextViewRepresentable(
+                            theme: result.themes[index],
+                            document: result.documents[index]
+                        )
+                        .frame(height: estimatedHeight(for: result.documents[index], theme: result.themes[index]))
                     }
                 }
             }
@@ -64,16 +69,18 @@ struct RenderedTextView: View {
     }
 
     /// 根据内容估算高度（多主题视图需要固定高度）
-    private func estimatedHeight(for attrStr: NSAttributedString) -> CGFloat {
-        let width = UIScreen.main.bounds.width - 32 // 减去左右 padding
+    private func estimatedHeight(for doc: MarkupDocument, theme: MarkupTheme) -> CGFloat {
+        let width = UIScreen.main.bounds.width - 32
+        let nsRenderer = NSAttributedStringRenderer()
+        let nsAttr = nsRenderer.render(doc.render(theme: theme))
         #if canImport(UIKit)
-        let size = attrStr.boundingRect(
+        let size = nsAttr.boundingRect(
             with: CGSize(width: width, height: .greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             context: nil
         )
         #elseif canImport(AppKit)
-        let size = attrStr.boundingRect(
+        let size = nsAttr.boundingRect(
             with: CGSize(width: width, height: .greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading]
         )
@@ -99,28 +106,34 @@ struct RenderedTextView: View {
 
     /// 渲染结果
     private struct RenderResult {
-        let nsAttributedStrings: [NSAttributedString]
+        let documents: [MarkupDocument]
+        let themes: [MarkupTheme]
         let isMultiTheme: Bool
     }
 
     private func parseHTML() {
         do {
             let parser = try XMarkupParser()
-            let nsRenderer = NSAttributedStringRenderer()
 
             if example.id == "api-themes" {
                 // 多主题对比
                 let result = try parser.parse(example.html)
                 let document = MarkupDocument.from(result)
                 let themes: [MarkupTheme] = [.default, .chat, .article]
-                let strings = themes.map { nsRenderer.render(document.render(theme: $0)) }
-                renderResult = RenderResult(nsAttributedStrings: strings, isMultiTheme: true)
+                renderResult = RenderResult(
+                    documents: [document, document, document],
+                    themes: themes,
+                    isMultiTheme: true
+                )
             } else {
                 // 单主题（含 customTheme 和 secondHTML 拼接）
                 let document = try parseDocument(parser: parser)
                 let theme: MarkupTheme = example.customTheme ?? .default
-                let nsAttr = nsRenderer.render(document.render(theme: theme))
-                renderResult = RenderResult(nsAttributedStrings: [nsAttr], isMultiTheme: false)
+                renderResult = RenderResult(
+                    documents: [document],
+                    themes: [theme],
+                    isMultiTheme: false
+                )
             }
             errorMessage = nil
         } catch {
@@ -144,40 +157,42 @@ struct RenderedTextView: View {
     }
 }
 
-// MARK: - Native Rich Text View
+// MARK: - XMarkupTextView Representable
 
 #if canImport(UIKit)
-/// iOS：UIViewRepresentable 包装 UITextView
-struct NativeRichTextView: UIViewRepresentable {
-    let attributedString: NSAttributedString
+/// iOS：UIViewRepresentable 包装 XMarkupTextView
+struct XMarkupTextViewRepresentable: UIViewRepresentable {
+    let theme: MarkupTheme
+    let document: MarkupDocument
 
-    func makeUIView(context: Context) -> UITextView {
-        let textView = UITextView()
+    func makeUIView(context: Context) -> XMarkupTextView {
+        let textView = XMarkupTextView()
         textView.isEditable = false
         textView.isScrollEnabled = true
         textView.alwaysBounceVertical = true
         textView.backgroundColor = .clear
         textView.textContainerInset = UIEdgeInsets(top: 8, left: 16, bottom: 8, right: 16)
-        // 清空 linkTextAttributes 让 NSAttributedString 自身的 .foregroundColor 生效
         textView.linkTextAttributes = [:]
+        textView.load(document, theme: theme)
         return textView
     }
 
-    func updateUIView(_ textView: UITextView, context: Context) {
-        textView.attributedText = attributedString
+    func updateUIView(_ textView: XMarkupTextView, context: Context) {
+        // XMarkupTextView 在 make 时已加载，无需重复
     }
 }
 #elseif canImport(AppKit)
-/// macOS：NSViewRepresentable 包装 NSTextView
-struct NativeRichTextView: NSViewRepresentable {
-    let attributedString: NSAttributedString
+/// macOS：NSViewRepresentable 包装 XMarkupTextView
+struct XMarkupTextViewRepresentable: NSViewRepresentable {
+    let theme: MarkupTheme
+    let document: MarkupDocument
 
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSScrollView()
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
 
-        let textView = NSTextView()
+        let textView = XMarkupTextView()
         textView.isEditable = false
         textView.isRichText = true
         textView.backgroundColor = .clear
@@ -189,14 +204,14 @@ struct NativeRichTextView: NSViewRepresentable {
         textView.isAutomaticTextReplacementEnabled = false
         textView.linkTextAttributes = [:]
         textView.textContainerInset = NSSize(width: 16, height: 8)
+        textView.load(document, theme: theme)
 
         scrollView.documentView = textView
         return scrollView
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
-        guard let textView = scrollView.documentView as? NSTextView else { return }
-        textView.textStorage?.setAttributedString(attributedString)
+        guard let textView = scrollView.documentView as? XMarkupTextView else { return }
         // 更新 frame 以适应内容
         if let container = textView.textContainer,
            let layoutManager = textView.layoutManager {

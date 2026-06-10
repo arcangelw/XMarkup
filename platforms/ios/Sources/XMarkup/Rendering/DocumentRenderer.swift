@@ -107,16 +107,12 @@ extension DocumentRenderer {
     func renderWithNSA(_ blocks: [MarkupBlock], groups: BlockGroups) -> AttributedString {
         let nsResult = NSMutableAttributedString()
         for (i, block) in blocks.enumerated() {
-            if i > 0 {
-                if case .table = block.kind { continue }
-                nsResult.append(NSAttributedString(string: "\n"))
-            }
+            if i > 0 { nsResult.append(NSAttributedString(string: "\n")) }
             if case .table(let structure) = block.kind {
                 let tableAttr = renderTable(structure, theme: theme)
                 nsResult.append(tableAttr)
             } else {
-                // TODO(P0-任务2): 传递 sharedLists
-                let attr = renderBlock(block, theme: theme)
+                let attr = renderBlock(block, sharedLists: groups.listTextLists[i], theme: theme)
                 nsResult.append(NSAttributedString(attr))
             }
         }

@@ -58,20 +58,24 @@ public final class AsyncMediaLoader: @unchecked Sendable {
         let actor = CallbackActor(update: update, completion: completion)
 
         nsAttr.enumerateAttribute(.attachment, in: fullRange) { value, range, _ in
-            guard value is NSTextAttachment else { return }
+            guard let attachment = value as? NSTextAttachment else { return }
             group.enter()
 
             let src = self.srcForRange(nsAttr, range: range)
             guard !src.isEmpty, let url = URL(string: src) else {
-                Task { await actor.dispatch(.failed(range: range, error: URLError(.badURL))) }
-                group.leave()
+                Task {
+                    await actor.dispatch(.failed(range: range, error: URLError(.badURL)))
+                    group.leave()
+                }
                 return
             }
 
             if let cached = self.imageCache.object(forKey: src as NSString) {
                 self.updateAttachmentImage(nsAttr: nsAttr, range: range, image: cached)
-                Task { await actor.dispatch(.updated(range: range)) }
-                group.leave()
+                Task {
+                    await actor.dispatch(.updated(range: range))
+                    group.leave()
+                }
                 return
             }
 
@@ -79,20 +83,26 @@ public final class AsyncMediaLoader: @unchecked Sendable {
                 guard let self = self else { group.leave(); return }
 
                 if let error = error {
-                    Task { await actor.dispatch(.failed(range: range, error: error)) }
-                    group.leave()
+                    Task {
+                        await actor.dispatch(.failed(range: range, error: error))
+                        group.leave()
+                    }
                     return
                 }
                 guard let imageData = data,
                       let decodedImage = Self.decodeImageData(imageData) else {
-                    Task { await actor.dispatch(.failed(range: range, error: URLError(.cannotDecodeContentData))) }
-                    group.leave()
+                    Task {
+                        await actor.dispatch(.failed(range: range, error: URLError(.cannotDecodeContentData)))
+                        group.leave()
+                    }
                     return
                 }
                 self.imageCache.setObject(decodedImage, forKey: src as NSString)
                 self.updateAttachmentImage(nsAttr: nsAttr, range: range, image: decodedImage)
-                Task { await actor.dispatch(.updated(range: range)) }
-                group.leave()
+                Task {
+                    await actor.dispatch(.updated(range: range))
+                    group.leave()
+                }
             }.resume()
         }
 
@@ -106,18 +116,14 @@ public final class AsyncMediaLoader: @unchecked Sendable {
 
     private func srcForRange(_ nsAttr: NSMutableAttributedString, range: NSRange) -> String {
         nsAttr.attribute(
-            NSAttributedString.Key("XMarkup.AttachmentRef"),
+            NSAttributedString.Key(XMarkupAttachmentRefKey.name),
             at: range.location,
             effectiveRange: nil
         ) as? String ?? ""
     }
 
     private static func decodeImageData(_ data: Data) -> XMImage? {
-        #if canImport(UIKit)
         return XMImage(data: data)
-        #else
-        return XMImage(data: data)
-        #endif
     }
 
     private func updateAttachmentImage(

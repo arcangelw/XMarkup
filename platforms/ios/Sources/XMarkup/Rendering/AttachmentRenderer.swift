@@ -49,17 +49,16 @@ func renderAttachmentBlock(
         }
     }
 
-    // 通过 NSAttributedString 中间步骤嵌入 NSTextAttachment
+	// 创建附件富文本：AttributedString 上设自定义 key → NS 层加 `.attachment` 属性
     var attr = AttributedString("\u{FFFC}", attributes: baseAttributes)
     attr[XMarkupAttachmentRefKey.self] = srcIdentifier(from: attachment.content)
     attr[XMarkupTagKey.self] = blockKindName(for: block.kind)
 
     let nsAttr = NSMutableAttributedString(attributedString: NSAttributedString(attr))
-    let attachmentAttr = NSAttributedString(attachment: nsAttachment)
-    let nsRange = (nsAttr.string as NSString).range(of: "\u{FFFC}")
-    if nsRange.location != NSNotFound {
-        nsAttr.replaceCharacters(in: nsRange, with: attachmentAttr)
-    }
+    // 直接添加 .attachment 属性到 \u{FFFC} 字符范围，无需 replaceCharacters
+    // 这样自定义 key 不会被丢弃，NSAttributedStringRenderer.transferCustomKeys 能正常读取
+    nsAttr.addAttribute(.attachment, value: nsAttachment,
+                         range: NSRange(location: 0, length: nsAttr.length))
 
     return AttributedString(nsAttr)
 }

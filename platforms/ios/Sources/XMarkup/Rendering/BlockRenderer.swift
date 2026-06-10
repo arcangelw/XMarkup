@@ -46,8 +46,8 @@ func renderBlock(_ block: MarkupBlock, sharedLists: [NSTextList]?, theme: Markup
         paragraphStyle.paragraphSpacingBefore = headingSpacing
         paragraphStyle.paragraphSpacing = headingSpacing * 0.5
     case .blockquote:
-        paragraphStyle.headIndent = 24
-        paragraphStyle.firstLineHeadIndent = 24
+        paragraphStyle.headIndent = theme.blockquoteIndent
+        paragraphStyle.firstLineHeadIndent = theme.blockquoteIndent
     case .listItem(let isOrdered, let indentLevel):
         // 优先使用共享的 NSTextList 实例（同一组列表项自动编号）
         if let shared = sharedLists {
@@ -72,6 +72,26 @@ func renderBlock(_ block: MarkupBlock, sharedLists: [NSTextList]?, theme: Markup
         break
     }
 
+    // 2.4 应用 BlockStyle 配置（NSTextBlock 边框/背景，仅 macOS）
+    #if canImport(AppKit) && !canImport(UIKit)
+    if let key = blockStyleKey(for: block.kind),
+       let config = theme.blockStyles[key] {
+        let hasBlockProps = config.backgroundColor != nil || config.borderLeading != nil
+        if hasBlockProps {
+            let textBlock = NSTextBlock()
+            if let bg = config.backgroundColor, let color = ColorParser.parse(bg) {
+                textBlock.backgroundColor = color
+            }
+            // macOS 支持 per-edge border（blockquote 左边框竖线效果）
+            if let border = config.borderLeading, let color = ColorParser.parse(border.color) {
+                textBlock.setBorderColor(color, for: .minX)
+                textBlock.setWidth(border.width, type: .absoluteValueType, for: .border, edge: .minX)
+            }
+            paragraphStyle.textBlocks = [textBlock]
+        }
+    }
+    #endif
+
     #if canImport(UIKit)
     baseAttributes.uiKit.paragraphStyle = paragraphStyle
     #elseif canImport(AppKit)
@@ -80,9 +100,6 @@ func renderBlock(_ block: MarkupBlock, sharedLists: [NSTextList]?, theme: Markup
 
     // 2. 根据 block.kind 调整属性
     applyBlockKindAttributes(kind: block.kind, theme: theme, to: &baseAttributes)
-
-    // 2.5 应用 BlockStyle 配置（NSTextBlock 边框/背景）
-    applyBlockStyle(kind: block.kind, theme: theme, to: &baseAttributes)
 
     // 3. 设置自定义 XMarkupScope 属性
     let blockKindName = blockKindName(for: block.kind)
@@ -103,23 +120,30 @@ func renderBlock(_ block: MarkupBlock, sharedLists: [NSTextList]?, theme: Markup
         return renderAttachmentBlock(block, attachment: attachment, theme: theme, baseAttributes: baseAttributes)
     }
 
-    // 5. 处理 hr 分隔线（NSTextAttachment 而非文本）
+    // 5. 处理 hr 分隔线（NSTextAttachment 矢量线条，双平台统一）
     if case .horizontalRule = block.kind {
-        #if canImport(UIKit)
         let attachment = NSTextAttachment()
-        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 1, height: 1))
+        let lineWidth: CGFloat = 300
+        let lineHeight: CGFloat = 1
+        #if canImport(UIKit)
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: lineWidth, height: lineHeight))
         attachment.image = renderer.image { ctx in
             UIColor.separator.setFill()
-            ctx.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
+            ctx.fill(CGRect(x: 0, y: 0, width: lineWidth, height: lineHeight))
         }
-        attachment.bounds = CGRect(x: 0, y: 0, width: 300, height: 1)
+        #elseif canImport(AppKit)
+        let image = NSImage(size: NSSize(width: lineWidth, height: lineHeight))
+        image.lockFocus()
+        NSColor.separatorColor.setFill()
+        NSRect(x: 0, y: 0, width: lineWidth, height: lineHeight).fill()
+        image.unlockFocus()
+        attachment.image = image
+        #endif
+        attachment.bounds = CGRect(x: 0, y: 0, width: lineWidth, height: lineHeight)
         let nsAttr = NSMutableAttributedString(attachment: attachment)
         nsAttr.addAttribute(.paragraphStyle, value: paragraphStyle,
                              range: NSRange(location: 0, length: nsAttr.length))
         return AttributedString(nsAttr)
-        #else
-        return AttributedString("---")
-        #endif
     }
 
     // 6. 构建段落 AttributedString

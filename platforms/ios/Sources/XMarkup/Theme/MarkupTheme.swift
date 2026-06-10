@@ -22,6 +22,8 @@ public struct MarkupTheme: @unchecked Sendable, Equatable {
     public var tagStyles: [TagStyleKey: AttributeContainer]
     /// 块级排版配置（NSTextBlock / NSTextTable / NSTextList）
     public var blockStyles: [TagStyleKey: BlockStyleConfiguration]
+    /// blockquote 缩进量（pt）
+    public var blockquoteIndent: CGFloat
     /// 媒体渲染策略（不参与 Equatable 比较，因包含闭包）
     public var mediaStrategy: MediaRenderingStrategy
 
@@ -31,6 +33,7 @@ public struct MarkupTheme: @unchecked Sendable, Equatable {
         paragraphSpacing: ParagraphSpacing = .default,
         tagStyles: [TagStyleKey: AttributeContainer] = [:],
         blockStyles: [TagStyleKey: BlockStyleConfiguration] = [:],
+        blockquoteIndent: CGFloat = 12,
         mediaStrategy: MediaRenderingStrategy = .placeholder
     ) {
         self.baseFont = baseFont
@@ -38,6 +41,7 @@ public struct MarkupTheme: @unchecked Sendable, Equatable {
         self.paragraphSpacing = paragraphSpacing
         self.tagStyles = tagStyles
         self.blockStyles = blockStyles
+        self.blockquoteIndent = blockquoteIndent
         self.mediaStrategy = mediaStrategy
     }
 
@@ -48,5 +52,6 @@ public struct MarkupTheme: @unchecked Sendable, Equatable {
             && lhs.paragraphSpacing == rhs.paragraphSpacing
             && lhs.tagStyles == rhs.tagStyles
             && lhs.blockStyles == rhs.blockStyles
+            && lhs.blockquoteIndent == rhs.blockquoteIndent
     }
 }

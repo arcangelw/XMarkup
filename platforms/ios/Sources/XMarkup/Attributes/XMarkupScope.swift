@@ -10,9 +10,9 @@ struct XMarkupTagKey: AttributedStringKey {
 }
 
 /// 块类型名称（如 "paragraph", "heading", "blockquote"）
-struct XMarkupBlockKindKey: AttributedStringKey {
-    typealias Value = String
-    static let name = "XMarkup.BlockKind"
+public struct XMarkupBlockKindKey: AttributedStringKey {
+    public typealias Value = String
+    public static let name = "XMarkup.BlockKind"
 }
 
 /// 链接 URL
@@ -39,16 +39,6 @@ struct XMarkupAttachmentRefKey: AttributedStringKey {
     static let name = "XMarkup.AttachmentRef"
 }
 
-/// NSTextBlock 实例引用（用于 BlockStyle 传递）
-struct BlockStyleNSTextBlockKey: AttributedStringKey {
-    #if canImport(AppKit) && !canImport(UIKit)
-    typealias Value = NSObject  // macOS NSTextBlock
-    #else
-    typealias Value = NSTextBlock
-    #endif
-    static let name = "XMarkup.BlockStyleNSTextBlock"
-}
-
 // MARK: - AttributeScope 注册
 // 注册到 AttributeScopes 使自定义 key 参与 AttributedString ↔ NSAttributedString 桥接
 
@@ -62,7 +52,6 @@ extension AttributeScopes {
         var xmarkupHeadingLevel: XMarkupHeadingLevelKey.Type { XMarkupHeadingLevelKey.self }
         var xmarkupListItemInfo: XMarkupListItemInfoKey.Type { XMarkupListItemInfoKey.self }
         var xmarkupAttachmentRef: XMarkupAttachmentRefKey.Type { XMarkupAttachmentRefKey.self }
-        var blockStyleNSTextBlock: BlockStyleNSTextBlockKey.Type { BlockStyleNSTextBlockKey.self }
     }
 }
 

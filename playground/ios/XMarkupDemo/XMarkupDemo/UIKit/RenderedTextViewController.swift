@@ -1,12 +1,14 @@
 import UIKit
 import XMarkup
+import XMarkupUI
 
-/// NSAttributedString 渲染视图（UIKit）
+/// XMarkupTextView 渲染视图（UIKit）
 ///
-/// 支持 customTheme 和 secondHTML 拼接渲染。
+/// 使用 XMarkupTextView 替代原生 UITextView，自动处理 hr 自适应、
+/// blockquote 左侧竖线和异步媒体加载。
 final class RenderedTextViewController: UIViewController {
     private let example: DemoExample
-    private let textView = UITextView()
+    private let textView = XMarkupTextView()
 
     init(example: DemoExample) {
         self.example = example
@@ -21,7 +23,7 @@ final class RenderedTextViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         setupTextView()
-        parseAndRender()
+        parseAndLoad()
     }
 
     // MARK: - Setup
@@ -31,7 +33,6 @@ final class RenderedTextViewController: UIViewController {
         textView.isScrollEnabled = true
         textView.alwaysBounceVertical = true
         textView.backgroundColor = .clear
-        // 清空 linkTextAttributes 让 NSAttributedString 自身的 .foregroundColor 生效
         textView.linkTextAttributes = [:]
         textView.translatesAutoresizingMaskIntoConstraints = false
 
@@ -44,14 +45,13 @@ final class RenderedTextViewController: UIViewController {
         ])
     }
 
-    // MARK: - Parse
+    // MARK: - Parse & Load
 
-    private func parseAndRender() {
+    private func parseAndLoad() {
         do {
-            let theme: MarkupTheme = example.customTheme ?? .default
             let document = try parseDocument()
-            let renderer = NSAttributedStringRenderer()
-            textView.attributedText = renderer.render(document.render(theme: theme))
+            let theme: MarkupTheme = example.customTheme ?? .default
+            textView.load(document, theme: theme)
         } catch {
             textView.text = "解析错误：\(error.localizedDescription)"
             textView.textColor = .systemRed

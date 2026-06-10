@@ -96,6 +96,26 @@ public struct ParagraphSpacingComponent: ThemeComponent {
     }
 }
 
+// MARK: - blockquote 缩进组件
+
+/// blockquote 缩进量组件
+public struct BlockquoteIndentComponent: ThemeComponent {
+    public let indent: CGFloat
+
+    public init(_ indent: CGFloat) {
+        self.indent = indent
+    }
+
+    public func apply(to theme: inout MarkupTheme) {
+        theme.blockquoteIndent = indent
+    }
+}
+
+/// 便利函数：创建 BlockquoteIndentComponent
+public func BlockquoteIndent(_ indent: CGFloat) -> BlockquoteIndentComponent {
+    BlockquoteIndentComponent(indent)
+}
+
 // MARK: - BlockStyle 组件
 
 /// 块级排版配置组件

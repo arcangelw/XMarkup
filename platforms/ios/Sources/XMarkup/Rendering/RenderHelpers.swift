@@ -39,7 +39,7 @@ func inlineKindName(for kind: InlineKind) -> String {
     }
 }
 
-func blockStyleKey(for kind: BlockKind) -> TagStyleKey? {
+public func blockStyleKey(for kind: BlockKind) -> TagStyleKey? {
     switch kind {
     case .paragraph: return .paragraph
     case .heading: return .heading

@@ -7,12 +7,12 @@ import Foundation
 /// 支持的格式：`#RRGGBB`（7 字符，含 # 前缀）
 /// 不支持的格式：`#RGB`（三位缩写）、`rgb(r,g,b)` 函数、CSS 命名颜色（如 `red`）
 /// 这些格式由 C++ 核心引擎的 `normalize_color()` 预处理为 `#RRGGBB`。
-enum ColorParser {
+public enum ColorParser {
     /// 解析 #RRGGBB 格式的颜色字符串
     ///
     /// - Parameter hex: 颜色字符串，格式 "#RRGGBB"
     /// - Returns: XMColor，无效格式返回 nil
-    static func parse(_ hex: String?) -> XMColor? {
+    public static func parse(_ hex: String?) -> XMColor? {
         guard let hex, hex.count == 7, hex.first == "#" else { return nil }
 
         let start = hex.index(hex.startIndex, offsetBy: 1)

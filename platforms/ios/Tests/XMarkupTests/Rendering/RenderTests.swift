@@ -411,4 +411,121 @@ final class RenderTests: XCTestCase {
         }
         XCTAssertTrue(foundAttachment)
     }
+
+    // MARK: - Ordered List Numbering
+
+    func testRenderOrderedListItems() throws {
+        let attr = try parseAndRender("<ol><li>First</li><li>Second</li></ol>")
+        let nsAttr = NSAttributedStringRenderer().render(attr)
+        // 验证每个 listItem 的 paragraphStyle.textLists 包含 NSTextList
+        nsAttr.enumerateAttribute(.paragraphStyle, in: NSRange(location: 0, length: nsAttr.length)) { value, _, _ in
+            guard let paraStyle = value as? NSParagraphStyle else { return }
+            XCTAssertFalse(paraStyle.textLists.isEmpty, "listItem 应有 textLists")
+            if let firstList = paraStyle.textLists.first {
+                XCTAssertEqual(firstList.markerFormat, .decimal)
+            }
+        }
+    }
+
+    // MARK: - Subscript / Superscript
+
+    func testRenderSubscript() throws {
+        let attr = try parseAndRender("<p>H<sub>2</sub>O</p>")
+        let nsAttr = NSAttributedStringRenderer().render(attr)
+        // 查找下标字符的 baselineOffset
+        let subRange = (nsAttr.string as NSString).range(of: "2")
+        guard subRange.location != NSNotFound else { XCTFail("应包含 '2'"); return }
+        let offset = nsAttr.attribute(.baselineOffset, at: subRange.location, effectiveRange: nil) as? Double
+        XCTAssertNotNil(offset)
+        XCTAssertLessThan(offset ?? 0, 0, "subscript baselineOffset 应为负值")
+    }
+
+    func testRenderSuperscript() throws {
+        let attr = try parseAndRender("<p>10<sup>th</sup></p>")
+        let nsAttr = NSAttributedStringRenderer().render(attr)
+        let supRange = (nsAttr.string as NSString).range(of: "th")
+        guard supRange.location != NSNotFound else { XCTFail("应包含 'th'"); return }
+        let offset = nsAttr.attribute(.baselineOffset, at: supRange.location, effectiveRange: nil) as? Double
+        XCTAssertNotNil(offset)
+        XCTAssertGreaterThan(offset ?? 0, 0, "superscript baselineOffset 应为正值")
+    }
+
+    // MARK: - CSS 行内样式渲染
+
+    func testRenderCSSTextAlign() throws {
+        let attr = try parseAndRender("<p style=\"text-align:center\">Centered</p>")
+        let nsAttr = NSAttributedStringRenderer().render(attr)
+        let paraStyle = nsAttr.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle
+        XCTAssertNotNil(paraStyle)
+        XCTAssertEqual(paraStyle?.alignment, .center)
+    }
+
+    func testRenderCSSLineHeight() throws {
+        let attr = try parseAndRender("<span style=\"line-height:2.0\">text</span>")
+        let nsAttr = NSAttributedStringRenderer().render(attr)
+        let paraStyle = nsAttr.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle
+        XCTAssertNotNil(paraStyle)
+        XCTAssertGreaterThan(paraStyle?.minimumLineHeight ?? 0, 1.0)
+    }
+
+    func testRenderCSSLetterSpacing() throws {
+        let attr = try parseAndRender("<span style=\"letter-spacing:2px\">spaced</span>")
+        let nsAttr = NSAttributedStringRenderer().render(attr)
+        let kern = nsAttr.attribute(.kern, at: 0, effectiveRange: nil) as? Double
+        XCTAssertEqual(kern ?? 0, 2.0, accuracy: 0.1)
+    }
+
+    // MARK: - Inline Presentation Intent
+
+    func testRenderInlinePresentationIntent() throws {
+        let attr = try parseAndRender("<b>Bold</b> <i>Italic</i> <code>Code</code> <s>Strike</s>")
+        // 通过 AttributedString run 检测 inlinePresentationIntent
+        var foundStrong = false
+        var foundEmphasized = false
+        var foundCode = false
+        var foundStrikethrough = false
+        for run in attr.runs {
+            let intent = run.inlinePresentationIntent
+            if intent == .stronglyEmphasized { foundStrong = true }
+            if intent == .emphasized { foundEmphasized = true }
+            if intent == .code { foundCode = true }
+            if intent == .strikethrough { foundStrikethrough = true }
+        }
+        XCTAssertTrue(foundStrong, "<b> 应有 stronglyEmphasized intent")
+        XCTAssertTrue(foundEmphasized, "<i> 应有 emphasized intent")
+        XCTAssertTrue(foundCode, "<code> 应有 code intent")
+        XCTAssertTrue(foundStrikethrough, "<s> 应有 strikethrough intent")
+    }
+
+    // MARK: - 表格渲染（纯文本近似）
+
+    func testRenderTableAsText() throws {
+        let attr = try parseAndRender("<table><tr><td>A</td><td>B</td></tr></table>")
+        let text = String(attr.characters)
+        XCTAssertTrue(text.contains("A"))
+        XCTAssertTrue(text.contains("B"))
+        XCTAssertTrue(text.contains("|"), "表格应以纯文本近似渲染（含 | 分隔）")
+    }
+
+    func testRenderMultipleOrderedLists() throws {
+        let attr = try parseAndRender("<ol><li>X</li></ol><p>mid</p><ol><li>Y</li></ol>")
+        let text = String(attr.characters)
+        XCTAssertTrue(text.contains("X"))
+        XCTAssertTrue(text.contains("mid"))
+        XCTAssertTrue(text.contains("Y"))
+        // 两个列表之间应有换行
+        XCTAssertTrue(text.contains("mid\n"), "列表与段落间应有换行")
+    }
+
+    // MARK: - hr 分隔线
+
+    func testRenderHorizontalRuleIsAttachment() throws {
+        let attr = try parseAndRender("<hr>")
+        let nsAttr = NSAttributedStringRenderer().render(attr)
+        var foundAttachment = false
+        nsAttr.enumerateAttribute(.attachment, in: NSRange(location: 0, length: nsAttr.length)) { value, _, _ in
+            if value is NSTextAttachment { foundAttachment = true }
+        }
+        XCTAssertTrue(foundAttachment, "hr 应渲染为 NSTextAttachment")
+    }
 }

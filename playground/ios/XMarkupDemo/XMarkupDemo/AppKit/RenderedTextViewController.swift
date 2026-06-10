@@ -1,13 +1,15 @@
 import AppKit
 import XMarkup
+import XMarkupUI
 
-/// NSAttributedString 渲染视图（AppKit）
+/// XMarkupTextView 渲染视图（AppKit）
 ///
-/// 支持 customTheme 和 secondHTML 拼接渲染。
+/// 使用 XMarkupTextView 替代原生 NSTextView，自动处理 hr 自适应、
+/// blockquote per-edge 边框（macOS NSTextBlock）和异步媒体加载。
 final class RenderedTextViewController: NSViewController {
     private let example: DemoExample
     private let scrollView = NSScrollView()
-    private let textView = NSTextView()
+    private let textView = XMarkupTextView()
 
     init(example: DemoExample) {
         self.example = example
@@ -26,7 +28,7 @@ final class RenderedTextViewController: NSViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         setupTextView()
-        parseAndRender()
+        parseAndLoad()
     }
 
     override func viewDidLayout() {
@@ -71,13 +73,11 @@ final class RenderedTextViewController: NSViewController {
         scrollView.documentView = textView
     }
 
-    private func parseAndRender() {
+    private func parseAndLoad() {
         do {
-            let theme: MarkupTheme = example.customTheme ?? .default
             let document = try parseDocument()
-            let renderer = NSAttributedStringRenderer()
-            let attributed = renderer.render(document.render(theme: theme))
-            textView.textStorage?.setAttributedString(attributed)
+            let theme: MarkupTheme = example.customTheme ?? .default
+            textView.load(document, theme: theme)
         } catch {
             textView.string = "解析错误：\(error.localizedDescription)"
             textView.textColor = .systemRed

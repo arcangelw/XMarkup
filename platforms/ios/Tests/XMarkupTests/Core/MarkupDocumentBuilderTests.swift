@@ -471,4 +471,65 @@ final class MarkupDocumentBuilderTests: XCTestCase {
             XCTAssertEqual(structure.rows[0][1].text, "B")
         }
     }
+
+    // MARK: - Subscript / Superscript 标签解析
+
+    func testSubscriptTag() throws {
+        let result = try parse("<p>H<sub>2</sub>O</p>")
+        let doc = MarkupDocument.from(result)
+        let subInline = doc.blocks[0].inlines.first { $0.kind == .subscriptText }
+        XCTAssertNotNil(subInline, "<sub> 应解析为 .subscriptText")
+    }
+
+    func testSuperscriptTag() throws {
+        let result = try parse("<p>10<sup>th</sup></p>")
+        let doc = MarkupDocument.from(result)
+        let supInline = doc.blocks[0].inlines.first { $0.kind == .superscript }
+        XCTAssertNotNil(supInline, "<sup> 应解析为 .superscript")
+    }
+
+    // MARK: - 表格更多场景
+
+    func testTableWithHeaders() throws {
+        let result = try parse("<table><tr><th>H1</th><th>H2</th></tr><tr><td>A</td><td>B</td></tr></table>")
+        let doc = MarkupDocument.from(result)
+        let tableBlock = doc.blocks.first { if case .table = $0.kind { return true }; return false }
+        XCTAssertNotNil(tableBlock)
+        if case .table(let structure) = tableBlock!.kind {
+            XCTAssertEqual(structure.rows.count, 2, "应为 2 行")
+            XCTAssertEqual(structure.headerRowCount, 1, "第一行为表头")
+            XCTAssertEqual(structure.rows[0][0].kind, .tableHeader)
+            XCTAssertEqual(structure.rows[1][0].kind, .tableCell)
+        }
+    }
+
+    func testEmptyTableRow() throws {
+        let result = try parse("<table><tr></tr><tr><td>A</td></tr></table>")
+        let doc = MarkupDocument.from(result)
+        let tableBlock = doc.blocks.first { if case .table = $0.kind { return true }; return false }
+        XCTAssertNotNil(tableBlock, "空行不应导致崩溃")
+        if case .table(let structure) = tableBlock!.kind {
+            XCTAssertEqual(structure.rows.count, 1, "空行应被跳过")
+            XCTAssertEqual(structure.rows[0][0].text, "A")
+        }
+    }
+
+    func testMultipleTables() throws {
+        let html = "<table><tr><td>A</td></tr></table><p>sep</p><table><tr><td>B</td></tr></table>"
+        let result = try parse(html)
+        let doc = MarkupDocument.from(result)
+        let tableBlocks = doc.blocks.filter { if case .table = $0.kind { return true }; return false }
+        XCTAssertEqual(tableBlocks.count, 2, "两个 <table> 应产出两个 table 块")
+    }
+
+    func testTableRowAndCellKinds() throws {
+        let result = try parse("<table><tr><td>Cell</td></tr></table>")
+        let doc = MarkupDocument.from(result)
+        guard case .table(let structure) = doc.blocks.first?.kind else {
+            XCTFail("应产出 table 块"); return
+        }
+        // 验证 table 内子节点的 resolvedKind
+        // 当前 direct: TableStructure.rows 中的 cell kind 已由 builder 设置
+        XCTAssertEqual(structure.rows[0][0].kind, .tableCell)
+    }
 }
