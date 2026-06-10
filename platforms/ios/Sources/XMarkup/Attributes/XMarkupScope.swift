@@ -2,11 +2,12 @@ import Foundation
 
 // MARK: - 自定义 AttributedStringKey
 // 通过 raw key name 保留在 AttributedString 中，桥接到 NSAttributedString 后可读回
+// 全部 public 以供 XMarkupUI 层读取
 
 /// 标签名称（如 "bold", "heading1", "link"）
-struct XMarkupTagKey: AttributedStringKey {
-    typealias Value = String
-    static let name = "XMarkup.Tag"
+public struct XMarkupTagKey: AttributedStringKey {
+    public typealias Value = String
+    public static let name = "XMarkup.Tag"
 }
 
 /// 块类型名称（如 "paragraph", "heading", "blockquote"）
@@ -16,27 +17,27 @@ public struct XMarkupBlockKindKey: AttributedStringKey {
 }
 
 /// 链接 URL
-struct XMarkupLinkURLKey: AttributedStringKey {
-    typealias Value = String
-    static let name = "XMarkup.LinkURL"
+public struct XMarkupLinkURLKey: AttributedStringKey {
+    public typealias Value = String
+    public static let name = "XMarkup.LinkURL"
 }
 
 /// 标题级别（1-6）
-struct XMarkupHeadingLevelKey: AttributedStringKey {
-    typealias Value = Int
-    static let name = "XMarkup.HeadingLevel"
+public struct XMarkupHeadingLevelKey: AttributedStringKey {
+    public typealias Value = Int
+    public static let name = "XMarkup.HeadingLevel"
 }
 
 /// 列表项信息（如 "ordered:0", "unordered:1"）
-struct XMarkupListItemInfoKey: AttributedStringKey {
-    typealias Value = String
-    static let name = "XMarkup.ListItemInfo"
+public struct XMarkupListItemInfoKey: AttributedStringKey {
+    public typealias Value = String
+    public static let name = "XMarkup.ListItemInfo"
 }
 
 /// 附件引用标识符
-struct XMarkupAttachmentRefKey: AttributedStringKey {
-    typealias Value = String
-    static let name = "XMarkup.AttachmentRef"
+public struct XMarkupAttachmentRefKey: AttributedStringKey {
+    public typealias Value = String
+    public static let name = "XMarkup.AttachmentRef"
 }
 
 // MARK: - AttributeScope 注册

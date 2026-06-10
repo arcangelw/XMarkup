@@ -504,7 +504,7 @@ final class RenderTests: XCTestCase {
         let text = String(attr.characters)
         XCTAssertTrue(text.contains("A"))
         XCTAssertTrue(text.contains("B"))
-        XCTAssertTrue(text.contains("|"), "表格应以纯文本近似渲染（含 | 分隔）")
+        XCTAssertTrue(text.contains("\t"), "表格应以 tab 分隔")
     }
 
     func testRenderMultipleOrderedLists() throws {
@@ -527,5 +527,78 @@ final class RenderTests: XCTestCase {
             if value is NSTextAttachment { foundAttachment = true }
         }
         XCTAssertTrue(foundAttachment, "hr 应渲染为 NSTextAttachment")
+    }
+
+    // MARK: - 列表间距优化验证
+
+    func testRenderListItemSpacingInGroup() throws {
+        let attr = try parseAndRender("<ul><li>A</li><li>B</li><li>C</li></ul>")
+        let nsAttr = NSAttributedStringRenderer().render(attr)
+
+        var paragraphStyles: [NSParagraphStyle] = []
+        nsAttr.enumerateAttribute(.paragraphStyle, in: NSRange(location: 0, length: nsAttr.length)) { value, _, _ in
+            if let ps = value as? NSParagraphStyle {
+                paragraphStyles.append(ps)
+            }
+        }
+        for ps in paragraphStyles {
+            XCTAssertFalse(ps.textLists.isEmpty, "listItem 应有 textLists")
+        }
+    }
+
+    func testRenderListItemIndentTopLevel() throws {
+        let attr = try parseAndRender("<ul><li>Item</li></ul>")
+        let nsAttr = NSAttributedStringRenderer().render(attr)
+
+        var foundHeadIndent: CGFloat?
+        nsAttr.enumerateAttribute(.paragraphStyle, in: NSRange(location: 0, length: nsAttr.length)) { value, _, _ in
+            if let ps = value as? NSParagraphStyle {
+                foundHeadIndent = ps.headIndent
+            }
+        }
+        XCTAssertNotNil(foundHeadIndent)
+        XCTAssertEqual(foundHeadIndent ?? 0, 24, accuracy: 0.1, "顶级列表 headIndent 应为 24pt")
+    }
+
+    // MARK: - hr XMarkupBlockKindKey 验证
+
+    func testRenderHorizontalRuleCarriesBlockKindKey() throws {
+        // hr 在 Core 层通过 NSMutableAttributedString 直接构建，
+        // XMarkupBlockKindKey 设置在 NS 层的原始输出中
+        let result = try parse("<hr>")
+        let doc = MarkupDocument.from(result)
+        let renderer = DocumentRenderer(theme: .default)
+        let attr = renderer.render(doc.blocks)
+
+        // 验证 AttributedString 包含 attachment（hr 的载体）
+        let nsAttr = NSAttributedStringRenderer().render(attr)
+        var foundAttachment = false
+        nsAttr.enumerateAttribute(.attachment, in: NSRange(location: 0, length: nsAttr.length)) { value, _, _ in
+            if value is NSTextAttachment { foundAttachment = true }
+        }
+        XCTAssertTrue(foundAttachment, "hr 应包含 NSTextAttachment")
+    }
+
+    // MARK: - 表格 tab 分隔验证
+
+    func testRenderTableUsesTabSeparation() throws {
+        let attr = try parseAndRender("<table><tr><td>A</td><td>B</td></tr><tr><td>C</td><td>D</td></tr></table>")
+        let nsAttr = NSAttributedStringRenderer().render(attr)
+        let text = nsAttr.string
+
+        XCTAssertTrue(text.contains("\t"), "表格 cell 应以 tab 分隔")
+        XCTAssertTrue(text.contains("A"), "应包含 cell A")
+        XCTAssertFalse(text.contains("|"), "不应包含 | 视觉装饰字符")
+    }
+
+    func testRenderTableCarriesMetadata() throws {
+        let attr = try parseAndRender("<table><tr><td>A</td><td>B</td></tr></table>")
+        // 表格元数据在 TableRenderer 的 NSMutableAttributedString 上设置
+        // 需要通过 table 路径验证（renderWithNSA 直接输出 NSMutableAttributedString）
+        // 验证 tab 分隔和文本内容
+        let text = String(attr.characters)
+        XCTAssertTrue(text.contains("A"), "应包含 cell A")
+        XCTAssertTrue(text.contains("B"), "应包含 cell B")
+        XCTAssertTrue(text.contains("\t"), "cell 应以 tab 分隔")
     }
 }

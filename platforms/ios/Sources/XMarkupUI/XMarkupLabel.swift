@@ -6,11 +6,16 @@ import UIKit
 
 /// XMarkup 标记文档的标签视图
 ///
-/// 支持 hr 自适应宽度。
-/// 媒体加载后通过 setNeedsDisplay 整体刷新。
+/// 支持 hr 自适应宽度 + 异步媒体加载后刷新显示。
+///
+/// - Note: UILabel 不使用 NSLayoutManager，无法渲染 NSTextList 标记。
+///         如需完整列表/交互支持，请使用 XMarkupTextView。
 open class XMarkupLabel: UILabel {
 
     public var mediaLoader: AsyncMediaLoader?
+
+    /// 持有可变引用，hr 更新和媒体加载修改同一份数据
+    private var currentMutableAttr: NSMutableAttributedString?
 
     public func load(_ document: MarkupDocument, theme: MarkupTheme = .default) {
         let attr = document.render(theme: theme)
@@ -21,6 +26,7 @@ open class XMarkupLabel: UILabel {
     public func load(nsAttr: NSAttributedString) {
         guard let mutable = nsAttr.mutableCopy() as? NSMutableAttributedString
         else { return }
+        currentMutableAttr = mutable
         attributedText = mutable
         loadMedia(mutable)
     }
@@ -28,13 +34,13 @@ open class XMarkupLabel: UILabel {
     override open func layoutSubviews() {
         super.layoutSubviews()
         // 更新 hr 宽度匹配当前 label 尺寸
-        guard let storage = attributedText.flatMap({ NSTextStorage(attributedString: $0) })
-        else { return }
+        guard let storage = currentMutableAttr else { return }
         HorizontalRuleUpdater.update(
             in: storage,
             containerWidth: bounds.width,
             minWidth: XMarkupUI.shared.config.hrMinWidth
         )
+        attributedText = storage  // 刷新显示
     }
 
     private func loadMedia(_ nsAttr: NSMutableAttributedString) {
@@ -43,7 +49,8 @@ open class XMarkupLabel: UILabel {
         loader.loadAttachments(in: nsAttr,
             update: { [weak self] _ in
                 DispatchQueue.main.async {
-                    self?.setNeedsDisplay()
+                    guard let self, let attr = self.currentMutableAttr else { return }
+                    self.attributedText = attr
                 }
             },
             completion: {}

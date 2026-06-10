@@ -1,4 +1,5 @@
 import Foundation
+import XMarkup
 
 #if canImport(UIKit)
 import UIKit
@@ -8,27 +9,18 @@ import AppKit
 
 // MARK: - 异步媒体加载器
 
-/// 渲染后异步加载媒体附件的独立组件。
+/// 渲染后异步加载媒体附件的 UI 层组件。
 ///
-/// 渲染器（DocumentRenderer）保持同步，只产出带占位图的 AttributedString。
-/// AsyncMediaLoader 在渲染后扫描 NSAttributedString 中的 NSTextAttachment，
-/// 异步下载图片并更新。所有回调在主线程执行。
+/// Core 层（DocumentRenderer）保持同步，只产出带占位图的 AttributedString
+/// 和 `XMarkupAttachmentRefKey` 元数据。AsyncMediaLoader 在 UI 层扫描
+/// NSAttributedString 中的 NSTextAttachment，异步下载图片并更新视图。
+///
+/// 所有 UI 刷新回调保证在主线程执行。
 ///
 /// 用法：
 /// ```swift
-/// let attr = document.render(theme: theme)
-/// let nsAttr = NSAttributedStringRenderer().render(attr)
-/// textView.attributedText = nsAttr
-///
 /// let loader = AsyncMediaLoader()
-/// loader.loadAttachments(in: nsAttr) { update in
-///     switch update {
-///     case .updated(let range):
-///         textView.layoutManager.invalidateDisplay(for: range)
-///     case .completed: break
-///     case .failed(_, _): break
-///     }
-/// }
+/// loader.loadAttachments(in: nsAttr, layoutManager: textView.layoutManager)
 /// ```
 public final class AsyncMediaLoader: @unchecked Sendable {
     private let session: URLSession
@@ -45,7 +37,43 @@ public final class AsyncMediaLoader: @unchecked Sendable {
         case completed
     }
 
-    /// 扫描并异步加载所有附件（回调在主线程执行）
+    // MARK: - 高级 API（带 layoutManager 自动刷新）
+
+    /// 加载附件并自动刷新 NSLayoutManager（主线程安全）
+    public func loadAttachments(
+        in nsAttr: NSMutableAttributedString,
+        layoutManager: NSLayoutManager?,
+        hrMinWidth: CGFloat = 100,
+        completion: (@Sendable () -> Void)? = nil
+    ) {
+        let lmRef = LayoutManagerRef(layoutManager)
+        let fullLength = nsAttr.length
+
+        loadAttachments(
+            in: nsAttr,
+            update: { event in
+                guard case .updated(let range) = event else { return }
+                DispatchQueue.main.async {
+                    lmRef.lm?.invalidateDisplay(forCharacterRange: range)
+                }
+            },
+            completion: {
+                guard let lm = lmRef.lm else { return }
+                DispatchQueue.main.async {
+                    lm.invalidateLayout(
+                        forCharacterRange: NSRange(location: 0, length: fullLength),
+                        actualCharacterRange: nil
+                    )
+                    completion?()
+                }
+            }
+        )
+    }
+
+    // MARK: - 底层 API（自定义回调）
+
+    /// 扫描并异步加载所有附件
+    /// - Note: update/ completion 回调不保证在主线程，如需 UI 操作请自行 DispatchQueue.main.async
     public func loadAttachments(
         in nsAttr: NSMutableAttributedString,
         update: @escaping @Sendable (Update) -> Void,
@@ -54,17 +82,16 @@ public final class AsyncMediaLoader: @unchecked Sendable {
         let group = DispatchGroup()
         let fullRange = NSRange(location: 0, length: nsAttr.length)
 
-        // 使用 actor 隔离确保线程安全
-        let actor = CallbackActor(update: update, completion: completion)
+        let callbackActor = CallbackActor(update: update, completion: completion)
 
         nsAttr.enumerateAttribute(.attachment, in: fullRange) { value, range, _ in
-            guard let attachment = value as? NSTextAttachment else { return }
+            guard let _ = value as? NSTextAttachment else { return }
             group.enter()
 
             let src = self.srcForRange(nsAttr, range: range)
             guard !src.isEmpty, let url = URL(string: src) else {
                 Task {
-                    await actor.dispatch(.failed(range: range, error: URLError(.badURL)))
+                    await callbackActor.dispatch(.failed(range: range, error: URLError(.badURL)))
                     group.leave()
                 }
                 return
@@ -73,7 +100,7 @@ public final class AsyncMediaLoader: @unchecked Sendable {
             if let cached = self.imageCache.object(forKey: src as NSString) {
                 self.updateAttachmentImage(nsAttr: nsAttr, range: range, image: cached)
                 Task {
-                    await actor.dispatch(.updated(range: range))
+                    await callbackActor.dispatch(.updated(range: range))
                     group.leave()
                 }
                 return
@@ -84,7 +111,7 @@ public final class AsyncMediaLoader: @unchecked Sendable {
 
                 if let error = error {
                     Task {
-                        await actor.dispatch(.failed(range: range, error: error))
+                        await callbackActor.dispatch(.failed(range: range, error: error))
                         group.leave()
                     }
                     return
@@ -92,7 +119,7 @@ public final class AsyncMediaLoader: @unchecked Sendable {
                 guard let imageData = data,
                       let decodedImage = Self.decodeImageData(imageData) else {
                     Task {
-                        await actor.dispatch(.failed(range: range, error: URLError(.cannotDecodeContentData)))
+                        await callbackActor.dispatch(.failed(range: range, error: URLError(.cannotDecodeContentData)))
                         group.leave()
                     }
                     return
@@ -100,7 +127,7 @@ public final class AsyncMediaLoader: @unchecked Sendable {
                 self.imageCache.setObject(decodedImage, forKey: src as NSString)
                 self.updateAttachmentImage(nsAttr: nsAttr, range: range, image: decodedImage)
                 Task {
-                    await actor.dispatch(.updated(range: range))
+                    await callbackActor.dispatch(.updated(range: range))
                     group.leave()
                 }
             }.resume()
@@ -144,7 +171,15 @@ public final class AsyncMediaLoader: @unchecked Sendable {
     }
 }
 
-/// 使用 MainActor 隔离回调调用
+// MARK: - 辅助类型
+
+/// Sendable 包装器，持有 NSLayoutManager 的弱引用
+private final class LayoutManagerRef: @unchecked Sendable {
+    weak var lm: NSLayoutManager?
+    init(_ lm: NSLayoutManager?) { self.lm = lm }
+}
+
+/// 使用 actor 隔离回调调用
 private actor CallbackActor {
     private let update: (AsyncMediaLoader.Update) -> Void
     private let completion: (() -> Void)?

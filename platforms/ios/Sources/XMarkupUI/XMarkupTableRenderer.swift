@@ -4,7 +4,7 @@ import XMarkup
 #if os(macOS)
 import AppKit
 
-/// macOS 专用：使用 NSTextTable 原生渲染表格
+/// macOS 专用：使用 NSTextTable 原生渲染表格（P2 未集成）
 ///
 /// 替换 Core 的纯文本 fallback（A | B），提供带列宽控制、边框和背景的原生表格。
 struct XMarkupTableRenderer {

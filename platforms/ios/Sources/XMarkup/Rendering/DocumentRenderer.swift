@@ -16,6 +16,10 @@ typealias PlatformMarkerView = NSTextList.MarkerFormat
 struct BlockGroups {
     /// block 索引 → 共享的 NSTextList 实例数组
     var listTextLists: [Int: [PlatformTextList]] = [:]
+    /// 列表组内首项的 block 索引集合
+    var listGroupFirst: Set<Int> = []
+    /// 列表组内末项的 block 索引集合
+    var listGroupLast: Set<Int> = []
 }
 
 #if canImport(UIKit) || canImport(AppKit)
@@ -71,6 +75,8 @@ extension DocumentRenderer {
                                 ordered: Bool?, indent: Int?) {
         guard !idx.isEmpty, let ord = ordered, let ind = indent else { return }
         let lists = buildTextLists(isOrdered: ord, indentLevel: ind)
+        groups.listGroupFirst.insert(idx.first!)
+        groups.listGroupLast.insert(idx.last!)
         for i in idx { groups.listTextLists[i] = lists }
         idx = []
     }
@@ -94,7 +100,11 @@ extension DocumentRenderer {
         var result = AttributedString("")
         for (i, block) in blocks.enumerated() {
             if i > 0 { result.append(AttributedString("\n")) }
-            let attr = renderBlock(block, sharedLists: groups.listTextLists[i], theme: theme)
+            let isFirst = groups.listGroupFirst.contains(i)
+            let isLast = groups.listGroupLast.contains(i)
+            let attr = renderBlock(block, sharedLists: groups.listTextLists[i],
+                                   isFirstInListGroup: isFirst, isLastInListGroup: isLast,
+                                   theme: theme)
             result.append(attr)
         }
         return result
@@ -112,7 +122,11 @@ extension DocumentRenderer {
                 let tableAttr = renderTable(structure, theme: theme)
                 nsResult.append(tableAttr)
             } else {
-                let attr = renderBlock(block, sharedLists: groups.listTextLists[i], theme: theme)
+                let isFirst = groups.listGroupFirst.contains(i)
+                let isLast = groups.listGroupLast.contains(i)
+                let attr = renderBlock(block, sharedLists: groups.listTextLists[i],
+                                       isFirstInListGroup: isFirst, isLastInListGroup: isLast,
+                                       theme: theme)
                 nsResult.append(NSAttributedString(attr))
             }
         }

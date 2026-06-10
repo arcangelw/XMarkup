@@ -11,11 +11,13 @@ import AppKit
 /// 渲染单个 block（无共享列表，用于非列表块）
 func renderBlock(_ block: MarkupBlock, theme: MarkupTheme) -> AttributedString {
     let lists: [NSTextList]? = nil
-    return renderBlock(block, sharedLists: lists, theme: theme)
+    return renderBlock(block, sharedLists: lists, isFirstInListGroup: false, isLastInListGroup: false, theme: theme)
 }
 
 /// 渲染单个 block（可指定共享 NSTextList 实例）
-func renderBlock(_ block: MarkupBlock, sharedLists: [NSTextList]?, theme: MarkupTheme) -> AttributedString {
+func renderBlock(_ block: MarkupBlock, sharedLists: [NSTextList]?,
+                 isFirstInListGroup: Bool, isLastInListGroup: Bool,
+                 theme: MarkupTheme) -> AttributedString {
     // 1. 构建块级基础属性
     var baseAttributes = AttributeContainer()
     #if canImport(UIKit)
@@ -61,9 +63,30 @@ func renderBlock(_ block: MarkupBlock, sharedLists: [NSTextList]?, theme: Markup
             }
             paragraphStyle.textLists = lists
         }
-        paragraphStyle.headIndent = CGFloat(indentLevel + 1) * 24
-        paragraphStyle.firstLineHeadIndent = CGFloat(indentLevel + 1) * 24
-        paragraphStyle.tabStops = [NSTextTab(textAlignment: .left, location: CGFloat(indentLevel + 1) * 24, options: [:])]
+
+        // 缩进：indentLevel 从 1 开始（包含列表容器的数量），
+        // 视觉层级 = indentLevel - 1（0-based）
+        let visualLevel = max(0, indentLevel - 1)
+        let indentUnit: CGFloat = 24
+
+        // 标记区域：firstLineHeadIndent < headIndent，留出标记空间
+        paragraphStyle.firstLineHeadIndent = CGFloat(visualLevel) * indentUnit
+        paragraphStyle.headIndent = CGFloat(visualLevel + 1) * indentUnit
+        paragraphStyle.tabStops = [
+            NSTextTab(textAlignment: .left, location: CGFloat(visualLevel + 1) * indentUnit, options: [:])
+        ]
+
+        // 列表组内间距优化：组内项间微间距，首末项保留正常间距
+        if isFirstInListGroup {
+            paragraphStyle.paragraphSpacingBefore = theme.paragraphSpacing.spacingBefore
+        } else {
+            paragraphStyle.paragraphSpacingBefore = 0
+        }
+        if isLastInListGroup {
+            paragraphStyle.paragraphSpacing = theme.paragraphSpacing.spacingAfter
+        } else {
+            paragraphStyle.paragraphSpacing = 2
+        }
     case .preformatted:
         #if canImport(UIKit)
         paragraphStyle.lineBreakMode = .byCharWrapping
@@ -71,26 +94,6 @@ func renderBlock(_ block: MarkupBlock, sharedLists: [NSTextList]?, theme: Markup
     default:
         break
     }
-
-    // 2.4 应用 BlockStyle 配置（NSTextBlock 边框/背景，仅 macOS）
-    #if canImport(AppKit) && !canImport(UIKit)
-    if let key = blockStyleKey(for: block.kind),
-       let config = theme.blockStyles[key] {
-        let hasBlockProps = config.backgroundColor != nil || config.borderLeading != nil
-        if hasBlockProps {
-            let textBlock = NSTextBlock()
-            if let bg = config.backgroundColor, let color = ColorParser.parse(bg) {
-                textBlock.backgroundColor = color
-            }
-            // macOS 支持 per-edge border（blockquote 左边框竖线效果）
-            if let border = config.borderLeading, let color = ColorParser.parse(border.color) {
-                textBlock.setBorderColor(color, for: .minX)
-                textBlock.setWidth(border.width, type: .absoluteValueType, for: .border, edge: .minX)
-            }
-            paragraphStyle.textBlocks = [textBlock]
-        }
-    }
-    #endif
 
     #if canImport(UIKit)
     baseAttributes.uiKit.paragraphStyle = paragraphStyle
@@ -142,6 +145,10 @@ func renderBlock(_ block: MarkupBlock, sharedLists: [NSTextList]?, theme: Markup
         attachment.bounds = CGRect(x: 0, y: 0, width: lineWidth, height: lineHeight)
         let nsAttr = NSMutableAttributedString(attachment: attachment)
         nsAttr.addAttribute(.paragraphStyle, value: paragraphStyle,
+                             range: NSRange(location: 0, length: nsAttr.length))
+        // 添加语义 key，供 XMarkupUI 层识别（HorizontalRuleUpdater 等）
+        nsAttr.addAttribute(NSAttributedString.Key(XMarkupBlockKindKey.name),
+                             value: "horizontalRule",
                              range: NSRange(location: 0, length: nsAttr.length))
         return AttributedString(nsAttr)
     }
@@ -228,8 +235,6 @@ func applyThemeOverrides(
     for inline in block.inlines {
         if let inlineKey = inlineStyleKey(for: inline.kind),
            let container = theme.tagStyles[inlineKey] {
-            // inline.range 是 UTF-16 NSRange（相对于块文本起始位置）
-            // 通过 String.Index 中转，确保 emoji 场景不出现边界错位
             guard let stringRange = Range(inline.range, in: block.text) else { continue }
             let charOffset = block.text.distance(from: block.text.startIndex, to: stringRange.lowerBound)
             let charLength = block.text.distance(from: stringRange.lowerBound, to: stringRange.upperBound)

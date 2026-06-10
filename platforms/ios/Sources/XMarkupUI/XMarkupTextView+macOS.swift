@@ -6,16 +6,19 @@ import AppKit
 
 /// XMarkup 标记文档的文本视图（macOS）
 ///
-/// macOS 上 XMarkupTextView 是 NSTextView 的纯 UI 子类，
+/// macOS 上 XMarkupTextView 是 NSTextView 的子类，
+/// 使用 XMarkupEnhancedRenderer 应用 NSTextBlock 视觉增强。
 /// 主要用于 hr 自适应和 AsyncMediaLoader 集成。
-/// blockquote 左侧竖线由 Core 层 NSTextBlock 处理。
 open class XMarkupTextView: NSTextView {
 
     public var mediaLoader: AsyncMediaLoader?
 
+    /// 渲染器（可通过注入自定义渲染器替换默认行为）
+    public var renderer: any MarkupRenderer<NSAttributedString> = XMarkupEnhancedRenderer()
+
     public func load(_ document: MarkupDocument, theme: MarkupTheme = .default) {
         let attr = document.render(theme: theme)
-        let nsAttr = NSAttributedStringRenderer().render(attr)
+        let nsAttr = renderer.render(attr)
         textStorage?.setAttributedString(nsAttr)
         loadMedia(nsAttr)
     }
