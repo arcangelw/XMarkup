@@ -128,6 +128,20 @@ func applyInlineAttributes(
     // 为所有内联元素设置自定义 tag
     let tagName = inlineKindName(for: inline.kind)
     attr[attrRange][XMarkupTagKey.self] = tagName
+
+    // 设置 inlinePresentationIntent 语义标注
+    switch inline.kind {
+    case .bold:
+        attr[attrRange].inlinePresentationIntent = .stronglyEmphasized
+    case .italic:
+        attr[attrRange].inlinePresentationIntent = .emphasized
+    case .code:
+        attr[attrRange].inlinePresentationIntent = .code
+    case .strikethrough:
+        attr[attrRange].inlinePresentationIntent = .strikethrough
+    default:
+        break
+    }
 }
 
 func applyFontTrait(
