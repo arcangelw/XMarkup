@@ -42,10 +42,39 @@ func applyBlockStyle(kind: BlockKind, theme: MarkupTheme, to attributes: inout A
 #elseif canImport(AppKit)
 import AppKit
 
-/// macOS stub — NSTextBlock API 在 macOS 上使用 NSRectEdge
-/// (iOS 为主平台，macOS 适配后续完善)
+/// 将 BlockStyleConfiguration 应用为 NSTextBlock（macOS 路径）
 func applyBlockStyle(kind: BlockKind, theme: MarkupTheme, to attributes: inout AttributeContainer) {
-    // macOS NSTextBlock API 与 iOS 不同，暂不实现
-    // 使用 iosOnly 条件编译确保 iOS 上有完整功能
+    guard let key = blockStyleKey(for: kind),
+          let config = theme.blockStyles[key] else { return }
+
+    let hasBlockProps = config.backgroundColor != nil
+        || config.borderLeading != nil || config.borderTrailing != nil
+        || config.borderTop != nil || config.borderBottom != nil
+    guard hasBlockProps else { return }
+
+    let block = NSTextBlock()
+    if let bg = config.backgroundColor, let color = ColorParser.parse(bg) {
+        block.backgroundColor = color
+    }
+
+    // macOS 使用 setWidth(_:type:for:edge:) 和 NSRectEdge
+    if let border = config.borderLeading, let color = ColorParser.parse(border.color) {
+        block.setBorderColor(color, for: .minX)
+        block.setWidth(border.width, type: .absoluteValueType, for: .border, edge: .minX)
+    }
+    if let border = config.borderTrailing, let color = ColorParser.parse(border.color) {
+        block.setBorderColor(color, for: .maxX)
+        block.setWidth(border.width, type: .absoluteValueType, for: .border, edge: .maxX)
+    }
+    if let border = config.borderTop, let color = ColorParser.parse(border.color) {
+        block.setBorderColor(color, for: .minY)
+        block.setWidth(border.width, type: .absoluteValueType, for: .border, edge: .minY)
+    }
+    if let border = config.borderBottom, let color = ColorParser.parse(border.color) {
+        block.setBorderColor(color, for: .maxY)
+        block.setWidth(border.width, type: .absoluteValueType, for: .border, edge: .maxY)
+    }
+
+    attributes[BlockStyleNSTextBlockKey.self] = block
 }
 #endif
