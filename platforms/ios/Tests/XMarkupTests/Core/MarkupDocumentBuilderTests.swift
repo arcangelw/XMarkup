@@ -460,10 +460,15 @@ final class MarkupDocumentBuilderTests: XCTestCase {
     func testTableCellBlocks() throws {
         let result = try parse("<table><tr><td>A</td><td>B</td></tr></table>")
         let doc = MarkupDocument.from(result)
-        XCTAssertFalse(doc.blocks.isEmpty)
-        let hasA = doc.blocks.contains { $0.text.contains("A") }
-        let hasB = doc.blocks.contains { $0.text.contains("B") }
-        XCTAssertTrue(hasA)
-        XCTAssertTrue(hasB)
+        // 现在表格作为一个块产出，内容在 TableStructure 中
+        let tableBlock = doc.blocks.first { if case .table = $0.kind { return true }; return false }
+        XCTAssertNotNil(tableBlock, "应产出 table 块")
+
+        if case .table(let structure) = tableBlock!.kind {
+            XCTAssertEqual(structure.rows.count, 1, "应为 1 行")
+            XCTAssertEqual(structure.columnCount, 2, "应为 2 列")
+            XCTAssertEqual(structure.rows[0][0].text, "A")
+            XCTAssertEqual(structure.rows[0][1].text, "B")
+        }
     }
 }

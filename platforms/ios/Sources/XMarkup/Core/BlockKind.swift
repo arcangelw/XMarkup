@@ -26,6 +26,9 @@ public enum BlockKind: Sendable, Equatable {
     case division                                            // <div>
     case horizontalRule                                      // <hr>
     case table(TableStructure)                               // <table>
+    case tableRow                                            // <tr>
+    case tableCell                                           // <td>
+    case tableHeader                                         // <th>
 }
 
 /// 表格结构

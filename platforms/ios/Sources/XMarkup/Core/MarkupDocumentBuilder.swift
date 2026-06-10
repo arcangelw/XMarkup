@@ -149,6 +149,14 @@ extension MarkupDocument {
             resolvedKind = effectiveKind
         }
 
+        // 表格节点特殊处理：组装 TableStructure
+        if case .table = resolvedKind {
+            let structure = buildTableStructure(node: node, text: text,
+                                                 inlineSpans: inlineSpans, mediaTags: mediaTags)
+            blocks.append(MarkupBlock(kind: .table(structure), text: "", inlines: [], attachment: nil))
+            return
+        }
+
         let nodeRange = node.span.range
 
         if node.children.isEmpty {
@@ -234,6 +242,55 @@ extension MarkupDocument {
         let inlines = convertToInlines(inlineSpans, in: text, parentRange: range)
         blocks.append(MarkupBlock(kind: kind, text: blockText, inlines: inlines, attachment: nil))
     }
+
+    // MARK: - 表格结构构建
+
+    /// 从 table 节点构建 TableStructure
+    private static func buildTableStructure(
+        node: SpanNode, text: String,
+        inlineSpans: [XMarkupSpan], mediaTags: Set<XMarkupTag>
+    ) -> TableStructure {
+        var rows: [[MarkupBlock]] = []
+        var maxColumns = 0
+
+        for child in node.children {
+            guard child.resolvedKind == .tableRow else { continue }
+
+            var rowCells: [MarkupBlock] = []
+            for cell in child.children {
+                guard cell.resolvedKind == .tableCell || cell.resolvedKind == .tableHeader else { continue }
+
+                let cellRange = cell.span.range
+                let cellText = extractText(text: text, nsRange: cellRange)
+                let inlines = convertToInlines(inlineSpans, in: text, parentRange: cellRange)
+
+                rowCells.append(MarkupBlock(
+                    kind: cell.resolvedKind,
+                    text: cellText,
+                    inlines: inlines,
+                    attachment: nil
+                ))
+            }
+            if !rowCells.isEmpty {
+                maxColumns = max(maxColumns, rowCells.count)
+                rows.append(rowCells)
+            }
+        }
+
+        // 补齐空单元格使每行列数一致
+        for i in 0..<rows.count {
+            while rows[i].count < maxColumns {
+                rows[i].append(MarkupBlock(kind: .tableCell, text: "", inlines: [], attachment: nil))
+            }
+        }
+
+        // 统计表头行数
+        let headerCount = rows.prefix(while: { row in
+            row.contains { $0.kind == .tableHeader }
+        }).count
+
+        return TableStructure(rows: rows, headerRowCount: headerCount, columnCount: maxColumns)
+    }
 }
 
 // MARK: - Private Helpers
@@ -279,11 +336,11 @@ extension MarkupDocument {
         case .table:
             return .table(TableStructure(rows: [], headerRowCount: 0, columnCount: 0))
         case .tableRow:
-            return .division
+            return .tableRow
         case .tableCell:
-            return .division
+            return .tableCell
         case .tableHeader:
-            return .division
+            return .tableHeader
         case .article, .section, .header, .footer, .nav, .aside,
              .figure, .figcaption, .main, .address,
              .definitionList, .definitionTerm, .definitionDescription:

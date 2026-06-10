@@ -18,6 +18,9 @@ func blockKindName(for kind: BlockKind) -> String {
     case .division: return "division"
     case .horizontalRule: return "horizontalRule"
     case .table: return "table"
+    case .tableRow: return "tableRow"
+    case .tableCell: return "tableCell"
+    case .tableHeader: return "tableHeader"
     }
 }
 
@@ -46,6 +49,9 @@ func blockStyleKey(for kind: BlockKind) -> TagStyleKey? {
     case .division: return .division
     case .horizontalRule: return .horizontalRule
     case .table: return .table
+    case .tableRow: return .tableRow
+    case .tableCell: return .tableCell
+    case .tableHeader: return .tableHeader
     }
 }
 
