@@ -95,3 +95,32 @@ public struct ParagraphSpacingComponent: ThemeComponent {
         theme.paragraphSpacing = spacing
     }
 }
+
+// MARK: - BlockStyle 组件
+
+/// 块级排版配置组件
+public struct BlockStyleComponent: ThemeComponent {
+    public let key: TagStyleKey
+    public let configure: @Sendable (inout BlockStyleConfiguration) -> Void
+
+    public init(key: TagStyleKey, configure: @Sendable @escaping (inout BlockStyleConfiguration) -> Void) {
+        self.key = key
+        self.configure = configure
+    }
+
+    public func apply(to theme: inout MarkupTheme) {
+        var config = theme.blockStyles[key] ?? BlockStyleConfiguration()
+        configure(&config)
+        theme.blockStyles[key] = config
+    }
+}
+
+// MARK: - 便利函数
+
+/// 构建块级排版样式
+public func BlockStyle(
+    _ key: TagStyleKey,
+    configure: @Sendable @escaping (inout BlockStyleConfiguration) -> Void
+) -> BlockStyleComponent {
+    BlockStyleComponent(key: key, configure: configure)
+}
