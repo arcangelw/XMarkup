@@ -17,6 +17,23 @@ public struct MarkupDocument: Sendable, Equatable {
         self.blocks = blocks
     }
 
+    /// 将文档渲染为 AttributedString
+    ///
+    /// 通过 DocumentRenderer 执行两阶段渲染：
+    /// Phase 1: 组分析（列表项共享 NSTextList 实例）
+    /// Phase 2: 渲染（含 NSTextTable / NSTextBlock 支持）
+    ///
+    /// ```swift
+    /// let parser = try XMarkupParser()
+    /// let result = try parser.parse("<h1>Title</h1><p>Hello <b>world</b></p>")
+    /// let doc = MarkupDocument.from(result)
+    /// let attr = doc.render(theme: .default)
+    /// ```
+    public func render(theme: MarkupTheme = .default) -> AttributedString {
+        let renderer = DocumentRenderer(theme: theme)
+        return renderer.render(blocks)
+    }
+
     /// 追加内容（聊天场景）
     ///
     /// ```swift
