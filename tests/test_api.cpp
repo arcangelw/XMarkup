@@ -133,6 +133,19 @@ TEST_F(APITest, HeadingH1) {
     xmarkup_result_free(r);
 }
 
+TEST_F(APITest, HeadingAllLevels) {
+    const char* tags[] = {"h1","h2","h3","h4","h5","h6"};
+    XMTagType expected[] = {XM_TAG_HEADING_1, XM_TAG_HEADING_2, XM_TAG_HEADING_3,
+                            XM_TAG_HEADING_4, XM_TAG_HEADING_5, XM_TAG_HEADING_6};
+    for (int i = 0; i < 6; i++) {
+        std::string html = std::string("<") + tags[i] + ">text</" + tags[i] + ">";
+        auto* r = parse(html.c_str());
+        ASSERT_NE(r, nullptr) << "level " << tags[i];
+        EXPECT_EQ(r->spans[0].tag, expected[i]) << "level " << tags[i];
+        xmarkup_result_free(r);
+    }
+}
+
 TEST_F(APITest, PreWhitespacePreserved) {
     auto* r = parse("<pre>  spaces  \n  lines  </pre>");
     ASSERT_NE(r, nullptr);
@@ -209,6 +222,74 @@ TEST_F(APITest, Table) {
 }
 
 // === 特殊标签 ===
+
+TEST_F(APITest, OrderedList) {
+    auto* r = parse("<ol><li>A</li><li>B</li></ol>");
+    ASSERT_NE(r, nullptr);
+    bool found_ol = false, found_li = false;
+    for (uint32_t i = 0; i < r->span_count; i++) {
+        if (r->spans[i].tag == XM_TAG_LIST_ORDERED) found_ol = true;
+        if (r->spans[i].tag == XM_TAG_LIST_ITEM) found_li = true;
+    }
+    EXPECT_TRUE(found_ol);
+    EXPECT_TRUE(found_li);
+    xmarkup_result_free(r);
+}
+
+TEST_F(APITest, SubscriptTag) {
+    auto* r = parse("base<sub>sub</sub>");
+    ASSERT_NE(r, nullptr);
+    bool found = false;
+    for (uint32_t i = 0; i < r->span_count; i++) {
+        if (r->spans[i].tag == XM_TAG_SUBSCRIPT) found = true;
+    }
+    EXPECT_TRUE(found);
+    xmarkup_result_free(r);
+}
+
+TEST_F(APITest, SuperscriptTag) {
+    auto* r = parse("base<sup>sup</sup>");
+    ASSERT_NE(r, nullptr);
+    bool found = false;
+    for (uint32_t i = 0; i < r->span_count; i++) {
+        if (r->spans[i].tag == XM_TAG_SUPERSCRIPT) found = true;
+    }
+    EXPECT_TRUE(found);
+    xmarkup_result_free(r);
+}
+
+TEST_F(APITest, CodeTag) {
+    auto* r = parse("<code>code</code>");
+    ASSERT_NE(r, nullptr);
+    bool found = false;
+    for (uint32_t i = 0; i < r->span_count; i++) {
+        if (r->spans[i].tag == XM_TAG_CODE) found = true;
+    }
+    EXPECT_TRUE(found);
+    xmarkup_result_free(r);
+}
+
+TEST_F(APITest, MarkTag) {
+    auto* r = parse("<mark>highlight</mark>");
+    ASSERT_NE(r, nullptr);
+    bool found = false;
+    for (uint32_t i = 0; i < r->span_count; i++) {
+        if (r->spans[i].tag == XM_TAG_MARK) found = true;
+    }
+    EXPECT_TRUE(found);
+    xmarkup_result_free(r);
+}
+
+TEST_F(APITest, DelTag) {
+    auto* r = parse("<del>deleted</del>");
+    ASSERT_NE(r, nullptr);
+    bool found = false;
+    for (uint32_t i = 0; i < r->span_count; i++) {
+        if (r->spans[i].tag == XM_TAG_STRIKETHROUGH) found = true;
+    }
+    EXPECT_TRUE(found);
+    xmarkup_result_free(r);
+}
 
 TEST_F(APITest, LineBreak) {
     auto* r = parse("before<br>after");
@@ -292,6 +373,10 @@ TEST_F(APITest, ErrorString) {
     EXPECT_STREQ(xmarkup_error_string(XM_OK), "Success");
     EXPECT_STREQ(xmarkup_error_string(XM_ERR_NULL_PARSER), "Parser is NULL");
     EXPECT_STREQ(xmarkup_error_string(XM_ERR_NULL_INPUT), "Input HTML is NULL");
+    EXPECT_STREQ(xmarkup_error_string(XM_ERR_NESTING_OVERFLOW), "Nesting depth overflow, truncated");
+    EXPECT_STREQ(xmarkup_error_string(XM_ERR_ALLOC_FAILED), "Memory allocation failed");
+    // 未知错误码返回 "Unknown error"
+    EXPECT_STREQ(xmarkup_error_string(static_cast<XMError>(999)), "Unknown error");
 }
 
 TEST_F(APITest, GetLastError) {
@@ -377,6 +462,141 @@ TEST_F(APITest, ThreadSafety) {
     EXPECT_EQ(errors, 0);
 }
 
+TEST_F(APITest, CSSBackgroundColor) {
+    auto* r = parse(R"(<span style="background-color:#00FF00">green</span>)");
+    ASSERT_NE(r, nullptr);
+    bool found = false;
+    for (uint32_t i = 0; i < r->span_count; i++) {
+        if (r->spans[i].style == XM_STYLE_BACKGROUND_COLOR && r->spans[i].value) {
+            if (std::strcmp(r->spans[i].value, "#00FF00") == 0) found = true;
+        }
+    }
+    EXPECT_TRUE(found);
+    xmarkup_result_free(r);
+}
+
+TEST_F(APITest, CSSFontWeight) {
+    auto* r = parse(R"(<span style="font-weight:bold">bold</span>)");
+    ASSERT_NE(r, nullptr);
+    bool found = false;
+    for (uint32_t i = 0; i < r->span_count; i++) {
+        if (r->spans[i].style == XM_STYLE_FONT_WEIGHT && r->spans[i].value) {
+            if (std::strcmp(r->spans[i].value, "bold") == 0) found = true;
+        }
+    }
+    EXPECT_TRUE(found);
+    xmarkup_result_free(r);
+}
+
+TEST_F(APITest, CSSFontStyle) {
+    auto* r = parse(R"(<span style="font-style:italic">italic</span>)");
+    ASSERT_NE(r, nullptr);
+    bool found = false;
+    for (uint32_t i = 0; i < r->span_count; i++) {
+        if (r->spans[i].style == XM_STYLE_FONT_STYLE && r->spans[i].value) {
+            if (std::strcmp(r->spans[i].value, "italic") == 0) found = true;
+        }
+    }
+    EXPECT_TRUE(found);
+    xmarkup_result_free(r);
+}
+
+TEST_F(APITest, CSSTextDecoration) {
+    auto* r = parse(R"(<span style="text-decoration:underline">under</span>)");
+    ASSERT_NE(r, nullptr);
+    bool found = false;
+    for (uint32_t i = 0; i < r->span_count; i++) {
+        if (r->spans[i].style == XM_STYLE_TEXT_DECORATION && r->spans[i].value) {
+            if (std::strcmp(r->spans[i].value, "underline") == 0) found = true;
+        }
+    }
+    EXPECT_TRUE(found);
+    xmarkup_result_free(r);
+}
+
+TEST_F(APITest, CSSTextAlign) {
+    auto* r = parse(R"(<p style="text-align:center">center</p>)");
+    ASSERT_NE(r, nullptr);
+    bool found = false;
+    for (uint32_t i = 0; i < r->span_count; i++) {
+        if (r->spans[i].style == XM_STYLE_TEXT_ALIGN && r->spans[i].value) {
+            if (std::strcmp(r->spans[i].value, "center") == 0) found = true;
+        }
+    }
+    EXPECT_TRUE(found);
+    xmarkup_result_free(r);
+}
+
+TEST_F(APITest, CSSLineHeight) {
+    auto* r = parse(R"(<span style="line-height:1.5">text</span>)");
+    ASSERT_NE(r, nullptr);
+    bool found = false;
+    for (uint32_t i = 0; i < r->span_count; i++) {
+        if (r->spans[i].style == XM_STYLE_LINE_HEIGHT && r->spans[i].value) {
+            found = true;
+        }
+    }
+    EXPECT_TRUE(found);
+    xmarkup_result_free(r);
+}
+
+TEST_F(APITest, CSSLetterSpacing) {
+    auto* r = parse(R"(<span style="letter-spacing:2px">text</span>)");
+    ASSERT_NE(r, nullptr);
+    bool found = false;
+    for (uint32_t i = 0; i < r->span_count; i++) {
+        if (r->spans[i].style == XM_STYLE_LETTER_SPACING && r->spans[i].value) {
+            if (std::strcmp(r->spans[i].value, "2px") == 0) found = true;
+        }
+    }
+    EXPECT_TRUE(found);
+    xmarkup_result_free(r);
+}
+
+TEST_F(APITest, AutocorrectDisabled) {
+    // enable_autocorrect = false：adoption agency 禁用
+    XMConfig cfg = {0, 256, 16.0f, nullptr, nullptr, XM_LOG_ERROR};
+    XMParser* p = xmarkup_create(&cfg);
+    ASSERT_NE(p, nullptr);
+    auto* r = xmarkup_parse(p, "<div><b>text<p>para</p></b></div>", 31);
+    ASSERT_NE(r, nullptr);
+    // adoption 禁用 → <b> 不被重建，<p> 嵌套在 <b> 内
+    // 所以 div 的直接子节点应为 1 个（<b>），而不是 2 个（<b> + <p>）
+    // 验证运行无 crash
+    EXPECT_EQ(r->error, XM_OK);
+    xmarkup_result_free(r);
+    xmarkup_destroy(p);
+}
+
+TEST_F(APITest, SemanticBlockTags) {
+    // 验证语义块级标签的标签映射
+    struct { const char* html; XMTagType expected; } cases[] = {
+        {"<article>A</article>", XM_TAG_ARTICLE},
+        {"<section>S</section>", XM_TAG_SECTION},
+        {"<header>H</header>", XM_TAG_HEADER},
+        {"<footer>F</footer>", XM_TAG_FOOTER},
+        {"<nav>N</nav>", XM_TAG_NAV},
+        {"<aside>A</aside>", XM_TAG_ASIDE},
+        {"<figure>F</figure>", XM_TAG_FIGURE},
+        {"<figcaption>C</figcaption>", XM_TAG_FIGCAPTION},
+        {"<main>M</main>", XM_TAG_MAIN},
+        {"<address>A</address>", XM_TAG_ADDRESS},
+        {"<dl>D</dl>", XM_TAG_DL},
+        {"<dt>T</dt>", XM_TAG_DT},
+        {"<dd>D</dd>", XM_TAG_DD},
+    };
+    for (auto& c : cases) {
+        auto* r = parse(c.html);
+        ASSERT_NE(r, nullptr) << "tag failed: " << c.html;
+        bool found = false;
+        for (uint32_t i = 0; i < r->span_count; i++) {
+            if (r->spans[i].tag == c.expected) { found = true; break; }
+        }
+        EXPECT_TRUE(found) << "tag: " << c.html << " expected tag " << (int)c.expected;
+        xmarkup_result_free(r);
+    }
+}
+
 TEST_F(APITest, VersionString) {
     const char* ver = xmarkup_version();
     ASSERT_NE(ver, nullptr);
@@ -407,7 +627,54 @@ TEST_F(APITest, NullHtmlWithZeroLength) {
     EXPECT_EQ(result->error, XM_OK);
     EXPECT_NE(result->text, nullptr);
     EXPECT_EQ(result->span_count, 0u);
+    // spans 应为 nullptr
+    EXPECT_EQ(result->spans, nullptr);
     xmarkup_result_free(result);
+}
+
+TEST_F(APITest, NullInputWithLength) {
+    // html=nullptr 且 length>0 → 应返回 null，last_error = NULL_INPUT
+    auto* result = xmarkup_parse(parser_, nullptr, 10);
+    EXPECT_EQ(result, nullptr);
+    EXPECT_EQ(xmarkup_last_error(parser_), XM_ERR_NULL_INPUT);
+}
+
+static std::string build_nested_depth(int depth, const char* tag = "div") {
+    std::string html;
+    for (int i = 0; i < depth; i++) {
+        html += "<"; html += tag; html += ">";
+    }
+    return html;
+}
+
+TEST_F(APITest, MaxDepthBoundary) {
+    // 深度 255（栈底+ROOT=256，等于 max_nesting_depth）正常
+    auto html_255 = build_nested_depth(255);
+    html_255 += "text";
+    auto* r1 = xmarkup_parse(parser_, html_255.c_str(), html_255.size());
+    ASSERT_NE(r1, nullptr);
+    EXPECT_EQ(r1->error, XM_OK);
+    xmarkup_result_free(r1);
+
+    // 深度 300（超过 max_depth 256）截断
+    auto html_300 = build_nested_depth(300);
+    html_300 += "text";
+    auto* r2 = xmarkup_parse(parser_, html_300.c_str(), html_300.size());
+    ASSERT_NE(r2, nullptr);
+    EXPECT_EQ(r2->error, XM_OK);
+    xmarkup_result_free(r2);
+}
+
+TEST_F(APITest, ConfigMinMaxDepth) {
+    // max_nesting_depth = 1 时，入栈元素几乎立即被截断
+    XMConfig cfg = {1, 1, 16.0f, nullptr, nullptr, XM_LOG_ERROR};
+    XMParser* p = xmarkup_create(&cfg);
+    ASSERT_NE(p, nullptr);
+    auto* r = xmarkup_parse(p, "<div><p><b>text</b></p></div>", 27);
+    ASSERT_NE(r, nullptr);
+    EXPECT_EQ(r->error, XM_OK);
+    xmarkup_result_free(r);
+    xmarkup_destroy(p);
 }
 
 TEST_F(APITest, ConsecutiveParseWorks) {

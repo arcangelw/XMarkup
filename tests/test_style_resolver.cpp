@@ -717,6 +717,178 @@ TEST_F(StyleResolverTest, CSSFontSizeKeywordMedium) {
 // Code Review 修复：布尔属性不阻塞后续扫描
 // ============================================================
 
+// ============================================================
+// CSS 字体/文本样式属性测试
+// ============================================================
+
+TEST_F(StyleResolverTest, CSSFontWeightBold) {
+    auto r = resolve(R"(<span style="font-weight:bold">text</span>)");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_FONT_WEIGHT && s.value == "bold") found = true;
+    }
+    EXPECT_TRUE(found) << "font-weight:bold 应映射为 FONT_WEIGHT";
+}
+
+TEST_F(StyleResolverTest, CSSFontWeightNumeric) {
+    auto r = resolve(R"(<span style="font-weight:700">text</span>)");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_FONT_WEIGHT && s.value == "700") found = true;
+    }
+    EXPECT_TRUE(found) << "font-weight:700 应保留数值";
+}
+
+TEST_F(StyleResolverTest, CSSFontStyleItalic) {
+    auto r = resolve(R"(<span style="font-style:italic">text</span>)");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_FONT_STYLE && s.value == "italic") found = true;
+    }
+    EXPECT_TRUE(found) << "font-style:italic 应映射为 FONT_STYLE";
+}
+
+TEST_F(StyleResolverTest, CSSTextDecorationUnderline) {
+    auto r = resolve(R"(<span style="text-decoration:underline">text</span>)");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_TEXT_DECORATION && s.value == "underline") found = true;
+    }
+    EXPECT_TRUE(found) << "text-decoration:underline 应映射为 TEXT_DECORATION";
+}
+
+TEST_F(StyleResolverTest, CSSTextAlignCenter) {
+    auto r = resolve(R"(<p style="text-align:center">text</p>)");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_TEXT_ALIGN && s.value == "center") found = true;
+    }
+    EXPECT_TRUE(found) << "text-align:center 应映射为 TEXT_ALIGN";
+}
+
+TEST_F(StyleResolverTest, CSSLineHeight) {
+    auto r = resolve(R"(<span style="line-height:1.5">text</span>)");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_LINE_HEIGHT && s.value == "1.5") found = true;
+    }
+    EXPECT_TRUE(found) << "line-height:1.5 应映射为 LINE_HEIGHT";
+}
+
+TEST_F(StyleResolverTest, CSSLetterSpacing) {
+    auto r = resolve(R"(<span style="letter-spacing:2px">text</span>)");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_LETTER_SPACING && s.value == "2px") found = true;
+    }
+    EXPECT_TRUE(found) << "letter-spacing:2px 应映射为 LETTER_SPACING";
+}
+
+TEST_F(StyleResolverTest, CSSFontSizeRem) {
+    // rem = 同 em, 基于 base_font_size
+    auto r = resolve(R"(<span style="font-size:2rem">text</span>)", 16.0f);
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_FONT_SIZE && s.value == "32") found = true;
+    }
+    EXPECT_TRUE(found) << "font-size:2rem (16px base) = 32px";
+}
+
+// ============================================================
+// sub/sup 标签映射测试
+// ============================================================
+
+TEST_F(StyleResolverTest, SubscriptTag) {
+    auto r = resolve("before<sub>sub</sub>after");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.tag == XM_TAG_SUBSCRIPT) found = true;
+    }
+    EXPECT_TRUE(found) << "<sub> 应映射为 XM_TAG_SUBSCRIPT";
+}
+
+TEST_F(StyleResolverTest, SuperscriptTag) {
+    auto r = resolve("before<sup>sup</sup>after");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.tag == XM_TAG_SUPERSCRIPT) found = true;
+    }
+    EXPECT_TRUE(found) << "<sup> 应映射为 XM_TAG_SUPERSCRIPT";
+}
+
+TEST_F(StyleResolverTest, CodeTag) {
+    auto r = resolve("before<code>code</code>after");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.tag == XM_TAG_CODE) found = true;
+    }
+    EXPECT_TRUE(found) << "<code> 应映射为 XM_TAG_CODE";
+}
+
+TEST_F(StyleResolverTest, MarkTag) {
+    auto r = resolve("before<mark>mark</mark>after");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.tag == XM_TAG_MARK) found = true;
+    }
+    EXPECT_TRUE(found) << "<mark> 应映射为 XM_TAG_MARK";
+}
+
+TEST_F(StyleResolverTest, DelTagMapsToStrikethrough) {
+    auto r = resolve("before<del>deleted</del>after");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.tag == XM_TAG_STRIKETHROUGH) found = true;
+    }
+    EXPECT_TRUE(found) << "<del> 应映射为 XM_TAG_STRIKETHROUGH";
+}
+
+// ============================================================
+// 语义块级标签换行补全（nav/aside/main/figure/dl 等）
+// ============================================================
+
+TEST_F(StyleResolverTest, BlockNewline_NavAside) {
+    auto r = resolve("<nav>N</nav><aside>A</aside>");
+    EXPECT_EQ(r.text, "N\nA\n");
+    bool found_nav = false, found_aside = false;
+    for (auto& s : r.spans) {
+        if (s.tag == XM_TAG_NAV) found_nav = true;
+        if (s.tag == XM_TAG_ASIDE) found_aside = true;
+    }
+    EXPECT_TRUE(found_nav);
+    EXPECT_TRUE(found_aside);
+}
+
+TEST_F(StyleResolverTest, BlockNewline_MainAddress) {
+    auto r = resolve("<main>M</main><address>addr</address>");
+    EXPECT_EQ(r.text, "M\naddr\n");
+}
+
+TEST_F(StyleResolverTest, BlockNewline_FigureFigcaption) {
+    auto r = resolve("<figure><figcaption>cap</figcaption></figure>");
+    bool found_figure = false, found_figcap = false;
+    for (auto& s : r.spans) {
+        if (s.tag == XM_TAG_FIGURE) found_figure = true;
+        if (s.tag == XM_TAG_FIGCAPTION) found_figcap = true;
+    }
+    EXPECT_TRUE(found_figure);
+    EXPECT_TRUE(found_figcap);
+}
+
+TEST_F(StyleResolverTest, BlockNewline_DefinitionList) {
+    auto r = resolve("<dl><dt>term</dt><dd>def</dd></dl>");
+    EXPECT_EQ(r.text, "term\ndef\n");
+    bool found_dl = false, found_dt = false, found_dd = false;
+    for (auto& s : r.spans) {
+        if (s.tag == XM_TAG_DL) found_dl = true;
+        if (s.tag == XM_TAG_DT) found_dt = true;
+        if (s.tag == XM_TAG_DD) found_dd = true;
+    }
+    EXPECT_TRUE(found_dl);
+    EXPECT_TRUE(found_dt);
+    EXPECT_TRUE(found_dd);
+}
+
 TEST_F(StyleResolverTest, VideoBooleanAttributes) {
     auto r = resolve("<video autoplay controls src=\"movie.mp4\"></video>");
     bool found = false;

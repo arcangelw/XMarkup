@@ -239,3 +239,77 @@ TEST(Tokenizer, TitleContentNotParsed) {
     EXPECT_EQ(tok2.raw, "after");
     EXPECT_FALSE(t.has_next());
 }
+
+TEST(Tokenizer, BooleanAttributes) {
+    Tokenizer t(R"(<video autoplay controls src="video.mp4">)");
+    ASSERT_TRUE(t.has_next());
+    Token tok = t.next();
+    EXPECT_EQ(tok.type, TokenType::START_TAG);
+    EXPECT_EQ(tok.tag_name, "video");
+    // 布尔属性后仍能正确解析 src 属性
+    EXPECT_NE(tok.attributes.find("src"), std::string_view::npos);
+    EXPECT_NE(tok.attributes.find("autoplay"), std::string_view::npos);
+    EXPECT_NE(tok.attributes.find("controls"), std::string_view::npos);
+}
+
+TEST(Tokenizer, EmptyAttributeValue) {
+    Tokenizer t(R"(<div class="">text</div>)");
+    ASSERT_TRUE(t.has_next());
+    Token tok = t.next();
+    EXPECT_EQ(tok.type, TokenType::START_TAG);
+    EXPECT_EQ(tok.tag_name, "div");
+    EXPECT_NE(tok.attributes.find(R"(class="")"), std::string_view::npos);
+}
+
+TEST(Tokenizer, TabNewlineBetweenAttributes) {
+    Tokenizer t("<div\tclass=\"a\"\nid=\"b\">");
+    ASSERT_TRUE(t.has_next());
+    Token tok = t.next();
+    EXPECT_EQ(tok.type, TokenType::START_TAG);
+    EXPECT_EQ(tok.tag_name, "div");
+}
+
+TEST(Tokenizer, RepeatedHasNext) {
+    // 多次调用 has_next() 不改变状态
+    Tokenizer t("text");
+    EXPECT_TRUE(t.has_next());
+    EXPECT_TRUE(t.has_next()); // 重复调用
+    Token tok = t.next();
+    EXPECT_EQ(tok.type, TokenType::TEXT);
+    EXPECT_FALSE(t.has_next());
+    EXPECT_FALSE(t.has_next()); // 重复调用
+}
+
+TEST(Tokenizer, ConsecutiveAngleBrackets) {
+    // <<div> 第一个 < 回退为文本，第二个 < 开始标签
+    Tokenizer t("<<div>text");
+    Token tok1 = t.next();
+    EXPECT_EQ(tok1.type, TokenType::TEXT);
+    EXPECT_EQ(tok1.raw, "<");
+    Token tok2 = t.next();
+    EXPECT_EQ(tok2.type, TokenType::START_TAG);
+    EXPECT_EQ(tok2.tag_name, "div");
+}
+
+TEST(Tokenizer, SlashNotAtEnd) {
+    // <div/attr> 中 '/' 不是自闭合标记，是属性的一部分
+    Tokenizer t("<div/attr>");
+    ASSERT_TRUE(t.has_next());
+    Token tok = t.next();
+    EXPECT_EQ(tok.type, TokenType::START_TAG);
+    EXPECT_EQ(tok.tag_name, "div");
+    // '/' 应出现在属性中
+    EXPECT_NE(tok.attributes.find("/attr"), std::string_view::npos);
+}
+
+TEST(Tokenizer, UnknownDeclaration) {
+    Tokenizer t("text<!foo>after");
+    std::vector<Token> tokens;
+    while (t.has_next()) tokens.push_back(t.next());
+    // <!foo> 被整体跳过（非注释声明）
+    ASSERT_EQ(tokens.size(), 2u);
+    EXPECT_EQ(tokens[0].type, TokenType::TEXT);
+    EXPECT_EQ(tokens[0].raw, "text");
+    EXPECT_EQ(tokens[1].type, TokenType::TEXT);
+    EXPECT_EQ(tokens[1].raw, "after");
+}

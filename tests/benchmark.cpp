@@ -158,4 +158,78 @@ static void BM_AdoptionAgency_1000(benchmark::State& state) {
 }
 BENCHMARK(BM_AdoptionAgency_1000);
 
+// ============================================================
+// 4.6 新增基准场景
+// ============================================================
+
+static void BM_EntityHeavy_50KB(benchmark::State& state) {
+    auto html = HtmlGenerator::heavy_entities(50 * 1024);
+    XMConfig cfg = {1, 256, 16.0f, nullptr, nullptr, XM_LOG_ERROR};
+    for (auto _ : state) {
+        XMParser* p = xmarkup_create(&cfg);
+        XMResult* r = xmarkup_parse(p, html.c_str(), html.size());
+        benchmark::DoNotOptimize(r);
+        xmarkup_result_free(r);
+        xmarkup_destroy(p);
+    }
+    state.SetBytesProcessed(state.iterations() * html.size());
+}
+BENCHMARK(BM_EntityHeavy_50KB);
+
+static void BM_SmallInput_Latency(benchmark::State& state) {
+    auto html = HtmlGenerator::tiny_paragraph();
+    XMConfig cfg = {1, 256, 16.0f, nullptr, nullptr, XM_LOG_ERROR};
+    for (auto _ : state) {
+        XMParser* p = xmarkup_create(&cfg);
+        XMResult* r = xmarkup_parse(p, html.c_str(), html.size());
+        benchmark::DoNotOptimize(r);
+        xmarkup_result_free(r);
+        xmarkup_destroy(p);
+    }
+    state.SetBytesProcessed(state.iterations() * html.size());
+}
+BENCHMARK(BM_SmallInput_Latency);
+
+static void BM_PureText_50KB(benchmark::State& state) {
+    auto html = HtmlGenerator::pure_text(50 * 1024);
+    XMConfig cfg = {1, 256, 16.0f, nullptr, nullptr, XM_LOG_ERROR};
+    for (auto _ : state) {
+        XMParser* p = xmarkup_create(&cfg);
+        XMResult* r = xmarkup_parse(p, html.c_str(), html.size());
+        benchmark::DoNotOptimize(r);
+        xmarkup_result_free(r);
+        xmarkup_destroy(p);
+    }
+    state.SetBytesProcessed(state.iterations() * html.size());
+}
+BENCHMARK(BM_PureText_50KB);
+
+static void BM_HeavyTags_50KB(benchmark::State& state) {
+    auto html = HtmlGenerator::heavy_tags(50 * 1024);
+    XMConfig cfg = {1, 256, 16.0f, nullptr, nullptr, XM_LOG_ERROR};
+    for (auto _ : state) {
+        XMParser* p = xmarkup_create(&cfg);
+        XMResult* r = xmarkup_parse(p, html.c_str(), html.size());
+        benchmark::DoNotOptimize(r);
+        xmarkup_result_free(r);
+        xmarkup_destroy(p);
+    }
+    state.SetBytesProcessed(state.iterations() * html.size());
+}
+BENCHMARK(BM_HeavyTags_50KB);
+
+static void BM_AdoptionAgency_10000(benchmark::State& state) {
+    auto html = HtmlGenerator::adoption_pattern(10000);
+    XMConfig cfg = {1, 256, 16.0f, nullptr, nullptr, XM_LOG_ERROR};
+    for (auto _ : state) {
+        XMParser* p = xmarkup_create(&cfg);
+        XMResult* r = xmarkup_parse(p, html.c_str(), html.size());
+        benchmark::DoNotOptimize(r);
+        xmarkup_result_free(r);
+        xmarkup_destroy(p);
+    }
+    state.SetBytesProcessed(state.iterations() * html.size());
+}
+BENCHMARK(BM_AdoptionAgency_10000);
+
 BENCHMARK_MAIN();

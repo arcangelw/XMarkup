@@ -53,3 +53,24 @@ TEST(EntityDecoder, SurrogateRangeEntity) {
     // surrogate 范围码点应返回原始文本
     EXPECT_EQ(EntityDecoder::decode("&#xD800;"), "&#xD800;");
 }
+
+TEST(EntityDecoder, ConsecutiveEntities) {
+    // &amp; → &, &lt; → <, &gt; → >
+    EXPECT_EQ(EntityDecoder::decode("&amp;&lt;&gt;"), "&<>");
+    EXPECT_EQ(EntityDecoder::decode("&amp;&amp;"), "&&");
+    // 连续实体解码："<b>"
+    EXPECT_EQ(EntityDecoder::decode("&lt;b&gt;"), "<b>");
+}
+
+TEST(EntityDecoder, TrailingAmpersand) {
+    // & 后在末尾没有更多字符
+    EXPECT_EQ(EntityDecoder::decode("text&amp"), "text&");
+    EXPECT_EQ(EntityDecoder::decode("text&"), "text&");
+    EXPECT_EQ(EntityDecoder::decode("&"), "&");
+}
+
+TEST(EntityDecoder, NumericEntityEmptyBody) {
+    // &#; 和 &#x; 空数字部分
+    EXPECT_EQ(EntityDecoder::decode("&#;"), "&#;");
+    EXPECT_EQ(EntityDecoder::decode("&#x;"), "&#x;");
+}

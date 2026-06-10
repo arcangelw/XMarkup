@@ -130,6 +130,26 @@ struct HtmlGenerator {
         html += "</div>";
         return html;
     }
+
+    /// 大量实体的 HTML（100 个 &amp;lt; 命名实体）
+    static std::string heavy_entities(size_t target_bytes) {
+        std::string result;
+        result.reserve(target_bytes);
+        const char* entity_block = "&amp;&lt;&gt;&quot;&apos;";
+        size_t block_len = std::char_traits<char>::length(entity_block);
+        while (result.size() + block_len <= target_bytes) {
+            result += entity_block;
+        }
+        if (result.size() < target_bytes) {
+            result.append(entity_block, target_bytes - result.size());
+        }
+        return result;
+    }
+
+    /// 极小 HTML（50 字节左右，测试固定开销）
+    static std::string tiny_paragraph() {
+        return "<p><b>Hi</b><i>!</i></p>";
+    }
 };
 
 // ============================================================

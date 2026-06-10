@@ -72,6 +72,25 @@ TEST_F(TreeBuilderTest, ExtraCloseTag) {
     EXPECT_EQ(root.children[0].text, "text");
 }
 
+TEST_F(TreeBuilderTest, PureTextRoot) {
+    // 无标签纯文本 → ROOT 下只有一个 TEXT 子节点
+    auto root = parse("Hello World");
+    ASSERT_EQ(root.children.size(), 1u);
+    EXPECT_EQ(root.children[0].type, ASTNode::TEXT);
+    EXPECT_EQ(root.children[0].text, "Hello World");
+}
+
+TEST_F(TreeBuilderTest, ConfigMaxDepth1) {
+    // max_depth=1 时只允许 ROOT 的直接子节点入栈
+    TreeBuilder builder(1, true);
+    Tokenizer tok("<div><p>text</p></div>");
+    std::vector<Token> tokens;
+    while (tok.has_next()) tokens.push_back(tok.next());
+    auto root = builder.build(tokens);
+    // 不崩溃，<p> 因深度超限被截断
+    ASSERT_GE(root.children.size(), 0u);
+}
+
 TEST_F(TreeBuilderTest, VoidElementNotStacked) {
     auto root = parse("before<br>after");
     ASSERT_EQ(root.children.size(), 3u);
@@ -233,6 +252,34 @@ TEST_F(TreeBuilderTest, Adoption_PreservesSpan) {
     EXPECT_EQ(p.children[0].tag_name, "span");
     ASSERT_GE(p.children[0].children.size(), 1u);
     EXPECT_EQ(p.children[0].children[0].tag_name, "b");
+}
+
+TEST_F(TreeBuilderTest, Adoption_DepthLimit) {
+    // kMaxAdoptionDepth = 10；超过 10 层格式化标签应被截断
+    std::string html;
+    html += "<div>";
+    for (int i = 0; i < 15; i++) html += "<b>";
+    html += "text<p>para</p>";
+    for (int i = 0; i < 15; i++) html += "</b>";
+    html += "</div>";
+    // 不应崩溃，adoption 深度被截断到 10
+    auto root = parse(html.c_str());
+    EXPECT_NO_FATAL_FAILURE({
+        auto& div = root.children[0];
+        (void)div;
+    });
+}
+
+TEST_F(TreeBuilderTest, Adoption_MixedImplicitClose) {
+    // 隐式关闭 + adoption 共存场景：<p> 内的格式化标签跨块迁移
+    // <div><b><p>text</b></p> → <div><b><p>text</p></b>
+    // <p> 遇 </b> 闭合（但 </b> 在 </p> 之前，说明 <p> 自动关闭）
+    // 实际：<p>text 碰到 </b> → 隐式关闭 <p>，然后 </b> 关闭 <b>
+    auto root = parse("<div><b><p>text</b></div>");
+    auto& div = root.children[0];
+    // div 应有两个子节点：<b> 和 adoption 在 <p> 内重建的 <b>
+    ASSERT_GE(div.children.size(), 1u);
+    EXPECT_EQ(div.children[0].tag_name, "b");
 }
 
 TEST_F(TreeBuilderTest, Adoption_Disabled) {

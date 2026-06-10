@@ -58,6 +58,24 @@ TEST(UTF16Indexer, InvalidContinuationByte) {
     EXPECT_EQ(idx.byte_to_utf16(2), 2u);
 }
 
+TEST(UTF16Indexer, ByteOffsetInMiddleOfChar) {
+    // byte_to_utf16(1) 在 3 字节序列中间 → 前回退到位置 0
+    UTF16Indexer idx;
+    idx.build("\xe4\xbd\xa0"); // "你"
+    EXPECT_EQ(idx.byte_to_utf16(1), 0u); // 3 字节序列中间，回退
+    EXPECT_EQ(idx.byte_to_utf16(2), 0u); // 3 字节序列中间，回退
+    EXPECT_EQ(idx.byte_to_utf16(3), 1u); // 序列结束，正确前进
+}
+
+TEST(UTF16Indexer, Multiple4ByteSequences) {
+    // 两个 4 字节 emoji → 共 4 个 UTF-16 单元
+    UTF16Indexer idx;
+    idx.build("\xf0\x9f\x98\x8a\xf0\x9f\x8e\x89"); // 😊🎉
+    EXPECT_EQ(idx.byte_to_utf16(0), 0u);
+    EXPECT_EQ(idx.byte_to_utf16(4), 2u);  // 第一个 surrogate pair
+    EXPECT_EQ(idx.byte_to_utf16(8), 4u);  // end
+}
+
 TEST(UTF16Indexer, TruncatedMultiByte) {
     UTF16Indexer idx;
     // 2 字节序列只有前导字节（0xC3 是 2 字节序列的前导）
