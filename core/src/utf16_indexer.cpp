@@ -35,12 +35,28 @@ void UTF16Indexer::build(std::string_view utf8_text) {
         } else if ((c & 0xE0) == 0xC0) {
             // 2 字节序列: 110xxxxx → U+0080-U+07FF, 1 UTF-16 单元
             seq_len = 2; utf16_inc = 1;
+            // 验证续字节
+            if (byte_off + 1 >= utf8_text.size() ||
+                (static_cast<uint8_t>(utf8_text[byte_off + 1]) & 0xC0) != 0x80) {
+                seq_len = 1; // 非法/缺失续字节，降级为单字节
+            }
         } else if ((c & 0xF0) == 0xE0) {
             // 3 字节序列: 1110xxxx → U+0800-U+FFFF, 1 UTF-16 单元
             seq_len = 3; utf16_inc = 1;
+            if (byte_off + 2 >= utf8_text.size() ||
+                (static_cast<uint8_t>(utf8_text[byte_off + 1]) & 0xC0) != 0x80 ||
+                (static_cast<uint8_t>(utf8_text[byte_off + 2]) & 0xC0) != 0x80) {
+                seq_len = 1;
+            }
         } else if ((c & 0xF8) == 0xF0) {
             // 4 字节序列: 11110xxx → U+10000-U+10FFFF, 2 UTF-16 单元（surrogate pair）
             seq_len = 4; utf16_inc = 2;
+            if (byte_off + 3 >= utf8_text.size() ||
+                (static_cast<uint8_t>(utf8_text[byte_off + 1]) & 0xC0) != 0x80 ||
+                (static_cast<uint8_t>(utf8_text[byte_off + 2]) & 0xC0) != 0x80 ||
+                (static_cast<uint8_t>(utf8_text[byte_off + 3]) & 0xC0) != 0x80) {
+                seq_len = 1;
+            }
         }
 
         byte_off += seq_len;

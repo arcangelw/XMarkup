@@ -43,3 +43,26 @@ TEST(UTF16Indexer, EmptyString) {
     idx.build("");
     EXPECT_EQ(idx.byte_to_utf16(0), 0u);
 }
+
+// ============================================================
+// Code Review 修复：非法 UTF-8 续字节降级处理
+// ============================================================
+
+TEST(UTF16Indexer, InvalidContinuationByte) {
+    UTF16Indexer idx;
+    // 孤立 continuation byte 0x80（= 128）
+    std::string invalid = "A\x80" "B";
+    idx.build(invalid);
+    // 0x80 被视为 1 字节 → 1 UTF-16 单元
+    // byte 2 = 'B' → byte_offset=2, utf16_index=2
+    EXPECT_EQ(idx.byte_to_utf16(2), 2u);
+}
+
+TEST(UTF16Indexer, TruncatedMultiByte) {
+    UTF16Indexer idx;
+    // 2 字节序列只有前导字节（0xC3 是 2 字节序列的前导）
+    std::string truncated = "\xC3";
+    idx.build(truncated);
+    // 0xC3 被视为 1 字节（缺失续字节）
+    EXPECT_EQ(idx.byte_to_utf16(1), 1u);
+}
