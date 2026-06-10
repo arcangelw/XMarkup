@@ -672,3 +672,43 @@ TEST_F(StyleResolverTest, CSSColorHsla) {
     }
     EXPECT_TRUE(found) << "hsla() 应被识别";
 }
+
+// ============================================================
+// Code Review 修复：font-size CSS 关键字
+// ============================================================
+
+TEST_F(StyleResolverTest, CSSFontSizeKeywordLarge) {
+    auto r = resolve(R"(<span style="font-size:large">text</span>)", 16.0f);
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_FONT_SIZE && s.value == "18") found = true;
+    }
+    EXPECT_TRUE(found) << "font-size:large (16px base) = 18px";
+}
+
+TEST_F(StyleResolverTest, CSSFontSizeKeywordXxLarge) {
+    auto r = resolve(R"(<span style="font-size:xx-large">text</span>)", 16.0f);
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_FONT_SIZE && s.value == "32") found = true;
+    }
+    EXPECT_TRUE(found) << "font-size:xx-large (16px base) = 32px";
+}
+
+TEST_F(StyleResolverTest, CSSFontSizeKeywordSmall) {
+    auto r = resolve(R"(<span style="font-size:small">text</span>)", 16.0f);
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_FONT_SIZE && s.value == "13") found = true;
+    }
+    EXPECT_TRUE(found) << "font-size:small (16px base) = 13px";
+}
+
+TEST_F(StyleResolverTest, CSSFontSizeKeywordMedium) {
+    auto r = resolve(R"(<span style="font-size:medium">text</span>)", 16.0f);
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_FONT_SIZE && s.value == "16") found = true;
+    }
+    EXPECT_TRUE(found) << "font-size:medium = 16px";
+}

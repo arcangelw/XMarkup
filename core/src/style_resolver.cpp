@@ -588,6 +588,31 @@ std::string StyleResolver::normalize_color(std::string_view value) const {
 std::string StyleResolver::normalize_font_size(std::string_view value) const {
     if (value.empty()) return {};
 
+    // CSS font-size 关键字 → px 映射（基于 16px 基准）
+    // 来源：CSS Fonts Module Level 4
+    struct FontSizeKey { std::string_view name; double px; };
+    static const FontSizeKey keywords[] = {
+        {"xx-small",  9},
+        {"x-small",  10},
+        {"small",    13},
+        {"medium",   16},
+        {"large",    18},
+        {"x-large",  24},
+        {"xx-large", 32},
+        {"xxx-large",48},
+    };
+    {
+        std::string lower(value);
+        for (auto& c : lower) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        for (const auto& kw : keywords) {
+            if (lower == kw.name) {
+                char buf[32];
+                std::snprintf(buf, sizeof(buf), "%.0f", kw.px);
+                return buf;
+            }
+        }
+    }
+
     // 提取数值部分
     double num = 0;
     size_t i = 0;
