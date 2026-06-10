@@ -411,6 +411,64 @@ func renderTable(_ structure: TableStructure, theme: MarkupTheme) -> NSAttribute
 }
 ```
 
+### 4.5 语义标记：PresentationIntent
+
+添加 `PresentationIntent` 和 `InlinePresentationIntent` 注解，使系统级功能（辅助功能、Markdown 互操作）能识别块和内联的语义：
+
+```swift
+extension MarkupDocumentRenderer {
+    func applyPresentationIntent(kind: BlockKind, to attr: inout AttributedString) {
+        let intent: PresentationIntent
+        switch kind {
+        case .paragraph, .division:
+            intent = PresentationIntent(types: [.init(kind: .paragraph)])
+        case .heading(let level):
+            intent = PresentationIntent(types: [.init(kind: .header(level: level.rawValue))])
+        case .blockquote:
+            intent = PresentationIntent(types: [.init(kind: .blockQuote)])
+        case .listItem(let isOrdered, _):
+            let listKind: PresentationIntent.Kind = isOrdered ? .orderedList : .unorderedList
+            intent = PresentationIntent(types: [.init(kind: listKind), .init(kind: .listItem)])
+        case .preformatted:
+            intent = PresentationIntent(types: [.init(kind: .codeBlock(languageHint: nil))])
+        case .horizontalRule:
+            intent = PresentationIntent(types: [.init(kind: .thematicBreak)])
+        case .table:
+            intent = PresentationIntent(types: [.init(kind: .paragraph)])
+        }
+        let fullRange = attr.startIndex..<attr.endIndex
+        attr[fullRange].presentationIntent = intent
+    }
+}
+```
+
+内联语义标记在 `applyInlineAttributes()` 中补充：
+
+```swift
+// 添加内联语义标记
+switch inline.kind {
+case .bold:           attr[attrRange].inlinePresentationIntent = .stronglyEmphasized
+case .italic:         attr[attrRange].inlinePresentationIntent = .emphasized
+case .code:           attr[inlineAttrRange].inlinePresentationIntent = .code
+case .strikethrough:  attr[inlineAttrRange].inlinePresentationIntent = .strikethrough
+default: break
+}
+```
+
+#### 与自定义 XMarkupScope key 的关系
+
+两者并存，各司其职：
+
+| | `presentationIntent` | `XMarkupScope` 自定义 key |
+|:--|:--------------------|:--------------------------|
+| **标准程度** | Apple 官方标准属性 | 应用自定义 |
+| **辅助功能** | 系统自动读 | 需手动配置 |
+| **Markdown 互操作** | 系统自动识别 | 不识别 |
+| **精准控制** | 可通过该属性定位 | 可通过该属性定位 |
+| **CSS 属性（fontSize/color）** | 不包含 | 包含 |
+
+**结论：** 渲染层通过 `presentationIntent` 标注语义，通过 `XMarkupScope` 携带 CSS 样式信息。
+
 ---
 
 ## 5. DSL 完整设计
@@ -611,16 +669,39 @@ for run in attr.runs {
 }
 ```
 
-所有自定义属性在渲染时已标记在 `AttributedString` 中，包括：
+渲染输出同时包含系统标准的语义属性和自定义属性：
 
-| 属性 Key | 类型 | 示例值 |
-|:---------|:-----|:-------|
-| `XMarkupTagKey` | String | `"bold"`, `"heading2"`, `"code"` |
-| `XMarkupBlockKindKey` | String | `"paragraph"`, `"listItem"` |
-| `XMarkupLinkURLKey` | String | `"https://..."` |
-| `XMarkupHeadingLevelKey` | Int | `1` ~ `6` |
-| `XMarkupListItemInfoKey` | String | `"ordered:0"`, `"unordered:1"` |
-| `XMarkupAttachmentRefKey` | String | `"image:photo.jpg"` |
+| 属性 | 来源 | 类型 | 示例值 |
+|:-----|:-----|:-----|:-------|
+| `presentationIntent` | 系统标准（§4.5） | `PresentationIntent` | `.header(level: 2)` |
+| `inlinePresentationIntent` | 系统标准（§4.5） | `InlinePresentationIntent` | `.stronglyEmphasized` |
+| `XMarkupTagKey` | 自定义 | String | `"bold"`, `"heading2"`, `"code"` |
+| `XMarkupBlockKindKey` | 自定义 | String | `"paragraph"`, `"listItem"` |
+| `XMarkupLinkURLKey` | 自定义 | String | `"https://..."` |
+| `XMarkupHeadingLevelKey` | 自定义 | Int | `1` ~ `6` |
+| `XMarkupListItemInfoKey` | 自定义 | String | `"ordered:0"`, `"unordered:1"` |
+| `XMarkupAttachmentRefKey` | 自定义 | String | `"image:photo.jpg"` |
+
+两种属性都可以用于后处理定位：
+
+```swift
+// 通过系统标准属性定位（推荐，与 Markdown 渲染输出一致）
+for run in attr.runs {
+    guard let intent = run.presentationIntent else { continue }
+    if intent.components.contains(where: { $0.kind == .blockQuote }) {
+        attr[run.range].uiKit.foregroundColor = .secondaryLabel
+    }
+}
+
+// 通过自定义属性定位（更细粒度，携带 CSS 信息）
+for run in attr.runs {
+    guard run[XMarkupTagKey.self] == "code" else { continue }
+    // 可以同时检查 inlinePresentationIntent
+    if run.inlinePresentationIntent == .code {
+        attr[run.range].uiKit.foregroundColor = .systemPink
+    }
+}
+```
 
 ---
 
