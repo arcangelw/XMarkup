@@ -106,28 +106,61 @@ func applyFontTrait(
     for run in attr[range].runs {
         #if canImport(UIKit)
         if let font = run.uiKit.font {
-            var traits = font.fontDescriptor.symbolicTraits
-            traits.insert(trait)
-            if let descriptor = font.fontDescriptor.withSymbolicTraits(traits) {
-                attr[run.range].uiKit.font = UIFont(descriptor: descriptor, size: font.pointSize)
-            } else if trait == traitItalic {
-                attr[run.range].uiKit.obliqueness = 0.25
-            } else if trait == traitBold {
-                attr[run.range].uiKit.font = UIFont.systemFont(ofSize: font.pointSize, weight: .bold)
+            if trait == traitItalic {
+                // 尝试获取真正的 italic 字体面
+                var traits = font.fontDescriptor.symbolicTraits
+                traits.insert(traitItalic)
+                if let descriptor = font.fontDescriptor.withSymbolicTraits(traits) {
+                    let italicFont = UIFont(descriptor: descriptor, size: font.pointSize)
+                    // 验证生成的字体确实含 italic trait 且字体族实际变化
+                    // （系统字体 SF 有 italic 面但 CJK fallback 时仍显正体）
+                    if italicFont.fontDescriptor.symbolicTraits.contains(traitItalic),
+                       italicFont.fontName != font.fontName {
+                        attr[run.range].uiKit.font = italicFont
+                    } else {
+                        attr[run.range].uiKit.obliqueness = 0.25
+                    }
+                } else {
+                    attr[run.range].uiKit.obliqueness = 0.25
+                }
+            } else {
+                // bold 等其他 trait
+                var traits = font.fontDescriptor.symbolicTraits
+                traits.insert(trait)
+                if let descriptor = font.fontDescriptor.withSymbolicTraits(traits) {
+                    attr[run.range].uiKit.font = UIFont(descriptor: descriptor, size: font.pointSize)
+                } else if trait == traitBold {
+                    attr[run.range].uiKit.font = UIFont.systemFont(ofSize: font.pointSize, weight: .bold)
+                }
             }
+        } else if trait == traitItalic {
+            attr[run.range].uiKit.obliqueness = 0.25
         }
         #elseif canImport(AppKit)
         if let font = run.appKit.font {
-            var traits = font.fontDescriptor.symbolicTraits
-            traits.insert(trait)
-            let descriptor = font.fontDescriptor.withSymbolicTraits(traits)
-            if let newFont = NSFont(descriptor: descriptor, size: font.pointSize) {
-                attr[run.range].appKit.font = newFont
-            } else if trait == traitItalic {
-                attr[run.range].appKit.obliqueness = 0.25
-            } else if trait == traitBold {
-                attr[run.range].appKit.font = NSFont.boldSystemFont(ofSize: font.pointSize)
+            if trait == traitItalic {
+                var traits = font.fontDescriptor.symbolicTraits
+                traits.insert(traitItalic)
+                let descriptor = font.fontDescriptor.withSymbolicTraits(traits)
+                if let italicFont = NSFont(descriptor: descriptor, size: font.pointSize),
+                   italicFont.fontDescriptor.symbolicTraits.contains(traitItalic),
+                   italicFont.fontName != font.fontName {
+                    attr[run.range].appKit.font = italicFont
+                } else {
+                    attr[run.range].appKit.obliqueness = 0.25
+                }
+            } else {
+                var traits = font.fontDescriptor.symbolicTraits
+                traits.insert(trait)
+                let descriptor = font.fontDescriptor.withSymbolicTraits(traits)
+                if let newFont = NSFont(descriptor: descriptor, size: font.pointSize) {
+                    attr[run.range].appKit.font = newFont
+                } else if trait == traitBold {
+                    attr[run.range].appKit.font = NSFont.boldSystemFont(ofSize: font.pointSize)
+                }
             }
+        } else if trait == traitItalic {
+            attr[run.range].appKit.obliqueness = 0.25
         }
         #endif
     }

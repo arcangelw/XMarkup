@@ -41,13 +41,47 @@ final class BugInvestigationTests: XCTestCase {
         XCTAssertEqual(text.components(separatedBy: "底部").count - 1, 1)
     }
 
-    func testItalicFallbackForCJKFont() throws {
+    func testItalicObliquenessInAttributedString() throws {
+        let parser = try XMarkupParser()
+        let result = try parser.parse("<i>斜体文字</i>")
+        let doc = MarkupDocument.from(result)
+        let attr = doc.render()
+
+        // 验证 AttributedString 层面斜体属性存在（italic font 或 obliqueness 二选一）
+        for run in attr.runs {
+            #if canImport(UIKit)
+            let obliqueness = run.uiKit.obliqueness
+            let font = run.uiKit.font
+            let hasItalicFont = font.map {
+                $0.fontDescriptor.symbolicTraits.contains(.traitItalic)
+            } ?? false
+            XCTAssertTrue(
+                hasItalicFont || obliqueness == 0.25,
+                "应含 italic font 或 obliqueness=0.25"
+            )
+            #endif
+        }
+    }
+
+    func testItalicObliquenessInNSAttributedString() throws {
         let parser = try XMarkupParser()
         let result = try parser.parse("<i>斜体文字</i>")
         let doc = MarkupDocument.from(result)
         let attr = doc.render()
         let nsAttr = NSAttributedStringRenderer().render(attr)
+
+        // 验证 NSAttributedString 层面斜体属性存在（italic font 或 obliqueness 二选一）
+        let obliqueness = nsAttr.attribute(.obliqueness, at: 0, effectiveRange: nil) as? NSNumber
         let font = nsAttr.attribute(.font, at: 0, effectiveRange: nil) as? XMFont
-        XCTAssertNotNil(font, "斜体应有字体")
+        let hasItalicFont: Bool
+        #if canImport(UIKit)
+        hasItalicFont = font?.fontDescriptor.symbolicTraits.contains(.traitItalic) ?? false
+        #elseif canImport(AppKit)
+        hasItalicFont = font?.fontDescriptor.symbolicTraits.contains(.italic) ?? false
+        #endif
+        XCTAssertTrue(
+            hasItalicFont || obliqueness?.floatValue == 0.25,
+            "NSAttributedString 应含 italic font 或 .obliqueness=0.25"
+        )
     }
 }
