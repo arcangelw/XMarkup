@@ -773,7 +773,6 @@ public enum AsyncMediaUpdate {
 |:-----|:-----|
 | `Rendering/MarkupDocumentRenderer.swift` | 两阶段渲染器（组分析 + 渲染） |
 | `Rendering/TableRenderer.swift` | NSTextTable + NSTextTableBlock 封装 |
-| `Rendering/ListRenderer.swift` | NSTextList 组管理与构建 |
 | `Rendering/BlockStyleApplicator.swift` | BlockStyleConfiguration → NSTextBlock 应用 |
 | `Rendering/AsyncMediaLoader.swift` | 异步图片加载器（独立组件） |
 | `Theme/BlockStyleConfiguration.swift` | BlockStyleConfiguration 值类型定义 |
@@ -794,13 +793,6 @@ public enum AsyncMediaUpdate {
 | `Theme/MarkupTheme.swift` | 新增 `blockStyles: [TagStyleKey: BlockStyleConfiguration]` |
 | `Theme/ThemeComponent.swift` | 新增 `HeadingScale`/`ParagraphSpacing` 便利函数 |
 | `Theme/PresetThemes.swift` | 无变更 |
-
-### 8.3 可能删除的文件
-
-| 文件 | 理由 |
-|:-----|:-----|
-| `Rendering/RenderHelpers.swift` | 部分映射函数可合并到渲染器中 |
-| `Rendering/MarkupDocument+Render.swift` | 业务迁移到 `MarkupDocumentRenderer` |
 
 ---
 
@@ -828,9 +820,169 @@ public enum AsyncMediaUpdate {
 
 ---
 
-## 10. 兼容性说明
+## 10. 命名方案（跨平台对齐）
 
-- **旧` HeadingScaleComponent` 和 `ParagraphSpacingComponent`**：保留为 typealias 保持编译兼容
+### 10.1 核心命名原则
+
+```
+共享数据模型 → 三端使用相同的语义命名
+平台 Bridge  → 各自前缀（iOS: XM-, Android: Xml-, Harmony: 无）
+平台渲染层   → 各自习惯（iOS: MarkupTheme, Android: Theme, Harmony: ThemeConfig）
+```
+
+### 10.2 完整命名对照表
+
+#### 层 1：共享数据模型（三端必须对齐）
+
+| 概念 | Canonical 名 | iOS | Android (Kotlin) | 鸿蒙 (ArkTS) | 说明 |
+|:-----|:-------------|:----|:-----------------|:-------------|:-----|
+| 文档 | Document | `MarkupDocument` | `XMDocument` | `Document` | iOS 保留 `Markup` 前缀避冲突 |
+| 块 | Block | `MarkupBlock` | `XMBlock` | `Block` | `inline` 是 Swift/Kotlin 关键字 |
+| 内联区间 | InlineItem | `MarkupInline` | `XMInlineItem` | `InlineItem` | 避免 `inline` 关键字冲突 |
+| 附件 | Attachment | `MarkupAttachment` | `XMAttachment` | `Attachment` | - |
+| 附件类型 | MediaContent | `AttachmentContent` | `AttachmentContent` | `MediaContent` | - |
+| 附件对齐 | Alignment | `AttachmentAlignment` | `AttachmentAlignment` | `Alignment` | - |
+| 块类型 | BlockKind | `BlockKind` | `BlockKind` | `BlockKind` | 三端完全一致 |
+| 内联类型 | InlineKind | `InlineKind` | `InlineKind` | `InlineKind` | 三端完全一致 |
+| 内联样式 | InlineStyle | `InlineStyle` | `InlineStyle` | `InlineStyle` | 三端完全一致 |
+| 表格结构 | TableGrid | `TableStructure` | `TableGrid` | `TableGrid` | - |
+
+#### BlockKind 枚举值（三端必须完全一致）
+
+| Canonical | iOS | Android | 鸿蒙 | 数据 |
+|:----------|:----|:--------|:-----|:-----|
+| `.paragraph` | ✅ | ✅ | ✅ | 无 |
+| `.heading(level)` | `Int` | `Int` | `number` | 1~6 |
+| `.blockquote` | ✅ | ✅ | ✅ | 无 |
+| `.preformatted` | ✅ | ✅ | ✅ | 无 |
+| `.listItem(isOrdered, indent)` | `Bool,Int` | `Boolean,Int` | `boolean,number` | - |
+| `.division` | ✅ | ✅ | ✅ | 无 |
+| `.horizontalRule` | ✅ | ✅ | ✅ | 无 |
+| `.table(TableStructure)` | 附属数据 | 附属数据 | 附属数据 | - |
+
+#### InlineKind 枚举值（三端必须完全一致）
+
+| Canonical | iOS | Android | 鸿蒙 | 数据 |
+|:----------|:----|:--------|:-----|:-----|
+| `.bold` | ✅ | ✅ | ✅ | 无 |
+| `.italic` | ✅ | ✅ | ✅ | 无 |
+| `.underline` | ✅ | ✅ | ✅ | 无 |
+| `.strikethrough` | ✅ | ✅ | ✅ | 无 |
+| `.code` | ✅ | ✅ | ✅ | 无 |
+| `.mark` | ✅ | ✅ | ✅ | 无 |
+| `.link(url)` | `String` | `String` | `string` | - |
+| `.subscript` | ✅ | ✅ | ✅ | 无 |
+| `.superscript` | ✅ | ✅ | ✅ | 无 |
+| `.span(styles)` | `[InlineStyle]` | `List<InlineStyle>` | `InlineStyle[]` | - |
+
+#### InlineStyle 枚举值（三端必须完全一致）
+
+| Canonical | iOS | Android | 鸿蒙 |
+|:----------|:----|:--------|:-----|
+| `.foregroundColor(hex)` | ✅ | ✅ | ✅ |
+| `.backgroundColor(hex)` | ✅ | ✅ | ✅ |
+| `.fontSize(pt)` | ✅ | ✅ | ✅ |
+| `.fontWeight(value)` | ✅ | ✅ | ✅ |
+| `.fontStyle(value)` | ✅ | ✅ | ✅ |
+| `.textDecoration(value)` | ✅ | ✅ | ✅ |
+| `.lineHeight(value)` | ✅ | ✅ | ✅ |
+| `.letterSpacing(px)` | ✅ | ✅ | ✅ |
+| `.textAlign(value)` | ✅ | ✅ | ✅ |
+
+---
+
+#### 层 2：iOS Bridge（平台特有，保留 `XM` 前缀）
+
+| 当前名 | 建议 | 原因 |
+|:-------|:-----|:-----|
+| `XMarkupParser` | 保留 | 用户可见，`XM` 前缀自解释 |
+| `XMarkupResult` | 保留 | 同上 |
+| `XMarkupSpan` | 保留 | 内部 bridge 类型 |
+| `XMarkupTag` | 保留 | 枚举值三端对齐（见 10.2 节） |
+| `XMarkupStyle` | → `XMarkupStyleType` | 与 `InlineStyle` 含义区分开 |
+| `XMarkupError` | 保留 | - |
+| `ColorParser` | 保留 | - |
+| `PlatformTypes` | 保留 | 跨平台类型别名 |
+
+#### 层 3：iOS Rendering / Theme（平台特有，无跨平台约束）
+
+| 分类 | 当前 | 问题 | 建议 |
+|:-----|:-----|:-----|:-----|
+| 渲染器 | `MarkupDocument+Render.swift` | "+" 文件名非标准 | → `DocumentRenderer.swift` |
+| 渲染器 | `MarkupDocumentRenderer`（新） | 长 | `DocumentRenderer` |
+| 渲染函数 | `renderBlock()` | `block` 与 `Block` 类型歧义 | `renderParagraph()` |
+| 渲染函数 | `renderWithAttributedString()` | 长 | `renderAttributed()` |
+| 渲染函数 | `renderWithNS()` | 缩写 | `renderWithNSAttributedString()` |
+| 渲染函数 | `renderSingleBlock()` | 同上 | `renderBlock()` |
+| 渲染函数 | `applyBlockKindAttributes()` | 长 | `applyBlockStyle()` |
+| 渲染函数 | `applyBlockStyle()`（新） | 与上面冲突 | `applyNSTextBlock()` |
+| 标签 key | `TagStyleKey` | "Style" 冗余 | → `TagKey` |
+| 映射函数 | `blockKindName()` | 与 `Kind` 大小写不一致 | → `BlockKind.displayName` |
+| 映射函数 | `inlineKindName()` | 同上 | → `InlineKind.displayName` |
+| 映射函数 | `blockStyleKey(for:)` | 长 | `TagKey(for:)` |
+| 映射函数 | `inlineStyleKey(for:)` | 长 | 合并到 `TagKey(for:)` |
+| 主题配置 | `HeadingScaleComponent` | 冗余 | → `HeadingScale()` 便利函数 |
+| 主题配置 | `ParagraphSpacingComponent` | 冗余 | → `ParagraphSpacing()` 便利函数 |
+| 组分析 | `BlockGroups` | 新 | 保留，清楚 |
+| 组分析 | `analyzeBlockGroups()` | 新 | 保留 |
+
+---
+
+### 10.3 文件组织
+
+```
+platforms/ios/Sources/XMarkup/
+├── Core/
+│   ├── Document.swift              ← MarkupDocument（共享）
+│   ├── Block.swift                 ← MarkupBlock（共享）
+│   ├── BlockKind.swift             ← BlockKind（共享）
+│   ├── Inline.swift                ← MarkupInline（共享）
+│   ├── InlineKind.swift            ← InlineKind（共享）
+│   ├── Attachment.swift            ← MarkupAttachment（共享）
+│   ├── DocumentBuilder.swift       ← MarkupDocumentBuilder（iOS 特有）
+│   └── TableGrid.swift             ← TableStructure（共享）
+│
+├── Bridge/
+│   ├── XMParser.swift              ← XMarkupParser
+│   ├── XMResult.swift              ← XMarkupResult
+│   ├── XMSpan.swift                ← XMarkupSpan
+│   ├── XMTag.swift                 ← XMarkupTag（枚举值对齐 Android/Harmony）
+│   ├── XMStyleType.swift           ← XMarkupStyle → XMarkupStyleType
+│   ├── XMError.swift               ← XMarkupError
+│   ├── ColorParser.swift           ← 保留
+│   └── PlatformTypes.swift         ← 保留
+│
+├── Rendering/
+│   ├── DocumentRenderer.swift      ← 新建：主渲染器
+│   ├── ParagraphRenderer.swift     ← 从 BlockRenderer.swift 拆分
+│   ├── TableRenderer.swift         ← 新建：NSTextTable
+│   ├── ListRenderer.swift          ← 新建：共享 NSTextList
+│   ├── InlineRenderer.swift        ← 保留
+│   ├── AttachmentRenderer.swift    ← 保留
+│   ├── NSTextBlockApplicator.swift ← 新建：BlockStyle → NSTextBlock
+│   ├── NSAttributedStringRenderer.swift ← 保留
+│   └── AsyncMediaLoader.swift      ← 新建
+│
+├── Theme/
+│   ├── Theme.swift                 ← MarkupTheme
+│   ├── ThemeBuilder.swift          ← MarkupThemeBuilder
+│   ├── ThemeComponent.swift        ← ThemeComponent
+│   ├── TagKey.swift                ← TagStyleKey → TagKey
+│   ├── BlockStyleConfig.swift      ← 新建
+│   ├── FontScale.swift             ← HeadingScale（更通用名）
+│   ├── ParagraphSpacing.swift      ← 保留
+│   ├── MediaStrategy.swift         ← MediaRenderingStrategy
+│   └── PresetThemes.swift          ← 保留
+│
+├── Attributes/
+│   └── XMarkupScope.swift          ← 保留
+```
+
+---
+
+## 11. 兼容性说明
+
+- **旧`HeadingScaleComponent` 和 `ParagraphSpacingComponent`**：保留为 typealias 保持编译兼容
 - **旧 `render(theme:)` 签名**: 不变，返回 `AttributedString`
 - **`MarkupBlock` 数据模型**: 不变，外部 consumer 无需修改
 - **`MarkupTheme` 新 `blockStyles` 字段**: 默认空字典，现有代码不受影响
