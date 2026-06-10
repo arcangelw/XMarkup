@@ -712,3 +712,16 @@ TEST_F(StyleResolverTest, CSSFontSizeKeywordMedium) {
     }
     EXPECT_TRUE(found) << "font-size:medium = 16px";
 }
+
+// ============================================================
+// Code Review 修复：布尔属性不阻塞后续扫描
+// ============================================================
+
+TEST_F(StyleResolverTest, VideoBooleanAttributes) {
+    auto r = resolve("<video autoplay controls src=\"movie.mp4\"></video>");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.tag == XM_TAG_VIDEO && s.value == "movie.mp4") found = true;
+    }
+    EXPECT_TRUE(found) << "布尔属性后的 src 属性应被正确提取";
+}
