@@ -136,25 +136,54 @@ TEST_F(StyleResolverTest, CSSFontSizeEm) {
 TEST_F(StyleResolverTest, SourceInVideoContext) {
     auto r = resolve("<video><source src=\"a.mp4\" type=\"video/mp4\"></video>");
     bool found_video_source = false;
+    bool found_media_type = false;
     for (auto& s : r.spans) {
         if (s.tag == XM_TAG_VIDEO_SOURCE) {
             found_video_source = true;
             EXPECT_EQ(s.value, "a.mp4");
         }
+        if (s.style == XM_STYLE_MEDIA_TYPE && s.value == "video/mp4") {
+            found_media_type = true;
+        }
     }
     EXPECT_TRUE(found_video_source);
+    EXPECT_TRUE(found_media_type) << "<source> 的 type 属性应被提取为 MEDIA_TYPE span";
 }
 
 TEST_F(StyleResolverTest, SourceInAudioContext) {
     auto r = resolve("<audio><source src=\"a.mp3\" type=\"audio/mpeg\"></audio>");
     bool found_audio_source = false;
+    bool found_media_type = false;
     for (auto& s : r.spans) {
         if (s.tag == XM_TAG_AUDIO_SOURCE) {
             found_audio_source = true;
             EXPECT_EQ(s.value, "a.mp3");
         }
+        if (s.style == XM_STYLE_MEDIA_TYPE && s.value == "audio/mpeg") {
+            found_media_type = true;
+        }
     }
     EXPECT_TRUE(found_audio_source);
+    EXPECT_TRUE(found_media_type) << "<source> 的 type 属性应被提取为 MEDIA_TYPE span";
+}
+
+TEST_F(StyleResolverTest, SourceWithMediaQuery) {
+    auto r = resolve("<video><source src=\"hd.mp4\" type=\"video/mp4\" media=\"(min-width: 800px)\"></video>");
+    bool found_media_query = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_MEDIA_QUERY && s.value == "(min-width: 800px)") {
+            found_media_query = true;
+        }
+    }
+    EXPECT_TRUE(found_media_query) << "<source> 的 media 属性应被提取为 MEDIA_QUERY span";
+}
+
+TEST_F(StyleResolverTest, SourceWithoutTypeNoSpan) {
+    // <source> 没有 type 属性时不应产出 MEDIA_TYPE span
+    auto r = resolve("<video><source src=\"a.mp4\"></video>");
+    for (auto& s : r.spans) {
+        EXPECT_NE(s.style, XM_STYLE_MEDIA_TYPE) << "无 type 属性不应产出 MEDIA_TYPE span";
+    }
 }
 
 TEST_F(StyleResolverTest, ListTags) {
@@ -775,13 +804,58 @@ TEST_F(StyleResolverTest, CSSLineHeight) {
     EXPECT_TRUE(found) << "line-height:1.5 应映射为 LINE_HEIGHT";
 }
 
-TEST_F(StyleResolverTest, CSSLetterSpacing) {
+TEST_F(StyleResolverTest, CSSLetterSpacingPx) {
     auto r = resolve(R"(<span style="letter-spacing:2px">text</span>)");
     bool found = false;
     for (auto& s : r.spans) {
-        if (s.style == XM_STYLE_LETTER_SPACING && s.value == "2px") found = true;
+        if (s.style == XM_STYLE_LETTER_SPACING && s.value == "2") found = true;
     }
-    EXPECT_TRUE(found) << "letter-spacing:2px 应映射为 LETTER_SPACING";
+    EXPECT_TRUE(found) << "letter-spacing:2px → 2px";
+}
+
+TEST_F(StyleResolverTest, CSSLetterSpacingEm) {
+    auto r = resolve(R"(<span style="letter-spacing:0.5em">text</span>)", 16.0f);
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_LETTER_SPACING && s.value == "8") found = true;
+    }
+    EXPECT_TRUE(found) << "letter-spacing:0.5em × 16 = 8px";
+}
+
+TEST_F(StyleResolverTest, CSSLetterSpacingPt) {
+    auto r = resolve(R"(<span style="letter-spacing:12pt">text</span>)", 16.0f);
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_LETTER_SPACING && s.value == "16") found = true;
+    }
+    EXPECT_TRUE(found) << "letter-spacing:12pt × 1.333 ≈ 16px";
+}
+
+TEST_F(StyleResolverTest, CSSLetterSpacingPercent) {
+    auto r = resolve(R"(<span style="letter-spacing:150%">text</span>)", 16.0f);
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_LETTER_SPACING && s.value == "24") found = true;
+    }
+    EXPECT_TRUE(found) << "letter-spacing:150% × 16/100 = 24px";
+}
+
+TEST_F(StyleResolverTest, CSSLetterSpacingUnitless) {
+    auto r = resolve(R"(<span style="letter-spacing:1.5">text</span>)", 16.0f);
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_LETTER_SPACING && s.value == "1.5") found = true;
+    }
+    EXPECT_TRUE(found) << "letter-spacing:1.5 (无单位) 保持原值";
+}
+
+TEST_F(StyleResolverTest, CSSLetterSpacingRem) {
+    auto r = resolve(R"(<span style="letter-spacing:1rem">text</span>)", 16.0f);
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_LETTER_SPACING && s.value == "16") found = true;
+    }
+    EXPECT_TRUE(found) << "letter-spacing:1rem × 16 = 16px";
 }
 
 TEST_F(StyleResolverTest, CSSFontSizeRem) {

@@ -21,17 +21,110 @@ struct HtmlGenerator {
             "<div><p>Nested paragraph with <b>bold</b> content</p></div>";
     }
 
-    /// 生成指定大小的混合 HTML
+    /// 生成指定大小的混合 HTML（旧版，单模板重复，保留兼容）
     static std::string mixed(size_t target_bytes) {
+        return mixed_realistic(target_bytes);
+    }
+
+    // ============================================================
+    // 真实场景混合生成器
+    // ============================================================
+    // 15 种不同的真实 HTML 语块，涵盖段落/列表/表格/标题/实体/
+    // 多语言/代码/链接/嵌套/多媒体占位/CSS 样式等场景
+    // ============================================================
+
+    static const char* realistic_block(int idx) {
+        static const char* blocks[] = {
+            // 0: 简单段落 + 行内格式化
+            "<p>This is a <b>simple paragraph</b> with some "
+            "<i>italic</i> and <u>underlined text</u> inside.</p>",
+
+            // 1: 多 CSS 样式的段落
+            "<p style=\"color:#333;font-size:16px;line-height:1.6\">"
+            "A styled paragraph with <span style=\"color:#FF0000\">red</span> "
+            "and <span style=\"font-weight:bold\">bold</span> inline spans.</p>",
+
+            // 2: 无序列表
+            "<ul><li>First list item with some content</li>"
+            "<li>Second item with <b>bold text</b> inside</li>"
+            "<li>Third item ending the list</li></ul>",
+
+            // 3: 小表格
+            "<table><tr><th>Name</th><th>Value</th><th>Unit</th></tr>"
+            "<tr><td>Alpha</td><td>100</td><td>kg</td></tr>"
+            "<tr><td>Beta</td><td>200</td><td>L</td></tr></table>",
+
+            // 4: 标题 + 段落组合
+            "<h2>Section Title</h2>"
+            "<p>Descriptive paragraph under a heading that explains "
+            "the topic in more detail with <b>key points</b> highlighted.</p>",
+
+            // 5: HTML 实体密集
+            "<p>Common entities: &amp; &lt; &gt; &quot; &apos; &nbsp; "
+            "&copy; &reg; &trade; &mdash; &euro; &pound; &yen; &#10003;</p>",
+
+            // 6: 多语言混合
+            "<p>English <b>中文文字</b> \xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e "
+            "<i>\xed\x95\x9c\xea\xb5\xad\xec\x96\xb4</i> "
+            "Espa" "\xc3\xb1" "ol Fran" "\xc3\xa7" "ais "
+            "\xf0\x9f\x98\x8a\xf0\x9f\x8e\x89\xf0\x9f\x9a\x80\xe2\x9d\xa4\xef\xb8\x8f</p>",
+
+            // 7: 代码块
+            "<pre><code>function hello() {\n"
+            "  const msg = \"Hello, World!\";\n"
+            "  console.log(msg);\n"
+            "  return msg;\n"
+            "}</code></pre>",
+
+            // 8: 链接段落
+            "<p>Click <a href=\"https://example.com/page\">this link</a> "
+            "to visit the <b>website</b> for more <i>information</i>.</p>",
+
+            // 9: 引用块
+            "<blockquote><p>This is a blockquote with quoted text "
+            "that stands apart from the surrounding content. "
+            "It demonstrates block-level rendering.</p></blockquote>",
+
+            // 10: 复合行内样式
+            "<p style=\"font-size:18px;color:#444;text-align:center\">"
+            "<span style=\"font-weight:bold;color:#0066CC\">Bold blue</span> "
+            "with <span style=\"font-style:italic\">italic</span> and "
+            "<span style=\"text-decoration:underline\">underlined</span> parts.</p>",
+
+            // 11: 有序列表
+            "<ol><li>Step one: <b>prepare</b> the materials</li>"
+            "<li>Step two: <i>execute</i> the plan</li>"
+            "<li>Step three: <u>review</u> the results</li></ol>",
+
+            // 12: 上下标
+            "<p>Chemical: H<sub>2</sub>SO<sub>4</sub> and "
+            "E = mc<sup>2</sup> are <b>common</b> examples.</p>",
+
+            // 13: 语义标签
+            "<article><header><h3>Article Headline</h3></header>"
+            "<p>Article body with <mark>highlighted</mark> and "
+            "<del>strikethrough</del> <code>inline code</code>.</p></article>",
+
+            // 14: 多媒体占位（img + br + hr）
+            "<p>Text with <img src=\"photo.jpg\"> an inline image, "
+            "then a line break:<br>and a horizontal rule below:</p><hr>",
+        };
+        return blocks[idx % 15];
+    }
+
+    /// 真实场景混合 HTML：轮流从 15 种语块生成直到达到目标大小
+    static std::string mixed_realistic(size_t target_bytes) {
         std::string result;
         result.reserve(target_bytes);
-        const char* tmpl = mixed_template();
-        size_t tmpl_len = std::char_traits<char>::length(tmpl);
-        while (result.size() + tmpl_len <= target_bytes) {
-            result += tmpl;
-        }
-        if (result.size() < target_bytes) {
-            result.append(tmpl, target_bytes - result.size());
+        int idx = 0;
+        while (result.size() < target_bytes) {
+            const char* block = realistic_block(idx++);
+            size_t block_len = std::char_traits<char>::length(block);
+            if (result.size() + block_len > target_bytes) {
+                result.append(block, target_bytes - result.size());
+                break;
+            }
+            result += block;
         }
         return result;
     }

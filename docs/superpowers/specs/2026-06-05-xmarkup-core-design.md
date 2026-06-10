@@ -21,7 +21,7 @@ XMarkup 是一个从零构建的高性能、线程安全的 HTML 富文本解析
 | 决策项 | 选定方案 | 理由 |
 |--------|---------|------|
 | 解析器策略 | 从零手写 | 完全掌控代码，针对富文本场景极致精简 |
-| HTML 覆盖范围 | 移动端富文本实用子集 | 覆盖 99% 场景，状态机只需 15 个状态 |
+| HTML 覆盖范围 | 移动端富文本实用子集 | 覆盖 99% 场景，状态机只需 12 个状态 |
 | 词法分析器 | 手写有限状态机 | O(N) 单趟扫描，零拷贝，性能远优于正则 |
 | 内部编码 | UTF-8 全链路 | string_view 零拷贝，状态机逐字节扫描最优 |
 | 输出编码 | TextRange 使用 UTF-16 索引 | Java/Swift/ArkTS 原生编码，无缝对接 |
@@ -45,7 +45,7 @@ XMarkup/
 │   ├── src/
 │   │   ├── tokenizer.h               # 状态机词法分析器（内部头文件）
 │   │   ├── tokenizer.cpp
-│   │   ├── tree_builder.h            # 栈式 AST 构建器（含 <pre> 追踪）
+│   │   ├── tree_builder.h            # 栈式 AST 构建器
 │   │   ├── tree_builder.cpp
 │   │   ├── style_resolver.h          # CSS 行内样式解析 + 映射（含父标签栈）
 │   │   ├── style_resolver.cpp
@@ -66,11 +66,8 @@ XMarkup/
 │   ├── test_entity_decoder.cpp
 │   ├── test_utf16_indexer.cpp
 │   ├── test_api.cpp
-│   └── test_data/                    # 测试用 HTML 文件
-│       ├── simple.html
-│       ├── nested_mismatch.html
-│       ├── stress_50kb.html
-│       └── malicious.html
+│   ├── bench_helpers.h               # Benchmark 辅助工具
+│   └── benchmark.cpp                 # Google Benchmark（可选构建）
 │
 ├── platforms/                          # 三端桥接层（子项目 B 预留）
 │   ├── ios/
@@ -142,6 +139,20 @@ typedef enum XMTagType {
     XM_TAG_LINE_BREAK    = 71,
     XM_TAG_DIVISION      = 72,
     XM_TAG_SPAN          = 73,
+    /* 语义化块级容器 */
+    XM_TAG_ARTICLE       = 74,
+    XM_TAG_SECTION       = 75,
+    XM_TAG_HEADER        = 76,
+    XM_TAG_FOOTER        = 77,
+    XM_TAG_NAV           = 78,
+    XM_TAG_ASIDE         = 79,
+    XM_TAG_FIGURE        = 80,
+    XM_TAG_FIGCAPTION    = 81,
+    XM_TAG_MAIN          = 82,
+    XM_TAG_ADDRESS       = 83,
+    XM_TAG_DL            = 84,
+    XM_TAG_DT            = 85,
+    XM_TAG_DD            = 86,
 } XMTagType;
 
 /* CSS 样式属性 */
@@ -250,7 +261,7 @@ const char* xmarkup_error_string(XMError error);
 
 ### 4.1 状态机词法分析器（Tokenizer）
 
-#### 状态定义（15 个）
+#### 状态定义（12 个）
 
 | 状态 | 描述 | 输入触发转换 |
 |------|------|-------------|
@@ -275,13 +286,12 @@ enum class TokenType {
     START_TAG,         // 开始标签
     END_TAG,           // 闭合标签
     SELF_CLOSING_TAG,  // 自闭合标签
-    COMMENT,           // 注释（内部使用，不输出）
 };
 
 struct Token {
     TokenType        type;
     std::string_view raw;        // 零拷贝，指向原始 HTML 缓冲区
-    std::string_view tag_name;   // 仅 START_TAG / END_TAG 有效
+    std::string      tag_name;   // 标签名（已小写化，owned std::string）
     std::string_view attributes; // 属性区域原始切片，延迟解析
 };
 ```
@@ -386,24 +396,23 @@ br, hr, img, input, meta, link, col, area, base, embed, source, track, wbr
 
 #### `<pre>` 空白保留
 
-TreeBuilder 在构建 AST 时追踪当前是否处于 `<pre>` 节点内部：
+StyleResolver 的 DFS 遍历通过函数参数追踪是否在 `<pre>` 节点内部：
 
 ```cpp
-// DFS 遍历时维护
-bool inside_pre_ = false;
+void dfs(const ASTNode& node, bool inside_pre);
 
-// 进入 <pre> 节点时
-if (tag_name == "pre") inside_pre_ = true;
+// 进入子节点时传递
+bool is_pre = inside_pre || (node.tag_name == "pre");
+for (const auto& child : node.children) {
+    dfs(child, is_pre);
+}
 
-// 收集文本时
-if (inside_pre_) {
+// 收集文本时：
+if (inside_pre) {
     // 原样保留所有空白、换行、连续空格
 } else {
     // 标准空白折叠：连续空白合并为单个空格
 }
-
-// 离开 <pre> 节点时
-if (tag_name == "pre") inside_pre_ = false;
 ```
 
 ---
@@ -427,7 +436,7 @@ if (tag_name == "source") {
         : "";
     if (parent == "video")  → XM_TAG_VIDEO_SOURCE
     if (parent == "audio")  → XM_TAG_AUDIO_SOURCE
-    else                    → XM_TAG_UNKNOWN  // 容错
+    // 不在 video/audio 内 → tag_type 保持 0，不产生 span
 }
 
 // 离开节点时弹栈
@@ -440,22 +449,43 @@ parent_stack_.pop_back();
 |-----------|-----------|------|
 | `<b>`, `<strong>` | `XM_TAG_BOLD` | 多对一映射 |
 | `<i>`, `<em>` | `XM_TAG_ITALIC` | 多对一映射 |
-| `<u>`, `<ins>` | `XM_TAG_UNDERLINE` | 多对一映射 |
+| `<u>` | `XM_TAG_UNDERLINE` | |
 | `<s>`, `<strike>`, `<del>` | `XM_TAG_STRIKETHROUGH` | 多对一映射 |
 | `<a href>` | `XM_TAG_LINK` | value = href 值 |
 | `<img src>` | `XM_TAG_IMAGE` | value = src 值 |
-| `<video>` | `XM_TAG_VIDEO` | value = poster（封面图），子 source 独立输出 |
+| `<video>` | `XM_TAG_VIDEO` | value = src（视频地址），子 source 独立输出 |
 | `<audio>` | `XM_TAG_AUDIO` | 与 video 对称 |
 | `<source>` (在 video 内) | `XM_TAG_VIDEO_SOURCE` | 通过父标签栈判定上下文 |
 | `<source>` (在 audio 内) | `XM_TAG_AUDIO_SOURCE` | 通过父标签栈判定上下文 |
-| `<source>` (其他位置) | `XM_TAG_UNKNOWN` | 容错处理 |
+| `<source>`（非 video/audio 内） | 不产生 span | 容错忽略 |
 | `<h1>`~`<h6>` | `XM_TAG_HEADING_1`~`6` | |
 | `<p>` | `XM_TAG_PARAGRAPH` | |
 | `<ul>`, `<ol>`, `<li>` | `XM_TAG_LIST_*` | |
 | `<table>`, `<tr>`, `<td>`, `<th>` | `XM_TAG_TABLE_*` | |
 | `<br>` | `XM_TAG_LINE_BREAK` | void 元素 |
 | `<hr>` | `XM_TAG_HORIZONTAL_RULE` | void 元素 |
-| 未知标签 | `XM_TAG_UNKNOWN` | 内部文本保留 |
+| `<sub>` | `XM_TAG_SUBSCRIPT` | |
+| `<sup>` | `XM_TAG_SUPERSCRIPT` | |
+| `<mark>` | `XM_TAG_MARK` | |
+| `<code>` | `XM_TAG_CODE` | |
+| `<div>` | `XM_TAG_DIVISION` | |
+| `<span>` | `XM_TAG_SPAN` | |
+| `<blockquote>` | `XM_TAG_BLOCKQUOTE` | |
+| `<pre>` | `XM_TAG_PREFORMATTED` | 空白保留 |
+| `<article>` | `XM_TAG_ARTICLE` | 语义块级容器 |
+| `<section>` | `XM_TAG_SECTION` | 语义块级容器 |
+| `<header>` | `XM_TAG_HEADER` | 语义块级容器 |
+| `<footer>` | `XM_TAG_FOOTER` | 语义块级容器 |
+| `<nav>` | `XM_TAG_NAV` | 语义块级容器 |
+| `<aside>` | `XM_TAG_ASIDE` | 语义块级容器 |
+| `<figure>` | `XM_TAG_FIGURE` | 语义块级容器 |
+| `<figcaption>` | `XM_TAG_FIGCAPTION` | 语义块级容器 |
+| `<main>` | `XM_TAG_MAIN` | 语义块级容器 |
+| `<address>` | `XM_TAG_ADDRESS` | 语义块级容器 |
+| `<dl>` | `XM_TAG_DL` | 语义块级容器 |
+| `<dt>` | `XM_TAG_DT` | 语义块级容器 |
+| `<dd>` | `XM_TAG_DD` | 语义块级容器 |
+| 未知标签 | 不产生 span | 标签无映射时返回 0，内部文本保留但不产生 span |
 
 #### CSS 行内样式解析
 
@@ -469,7 +499,7 @@ parent_stack_.pop_back();
 |---------|-----------|------|
 | 颜色名 | `#RRGGBB` | `red` → `#FF0000` |
 | `rgb(r,g,b)` | `#RRGGBB` | `rgb(255,0,0)` → `#FF0000` |
-| `rgba(r,g,b,a)` | `#RRGGBBAA` | `rgba(255,0,0,0.5)` → `#FF000080` |
+| `rgba(r,g,b,a)` | `#RRGGBB` | `rgba(255,0,0,0.5)` → `#FF0000`（忽略 alpha） |
 | `#RGB` | `#RRGGBB` | `#F00` → `#FF0000` |
 
 **font-size 值（统一换算为 px 数值）：**
@@ -490,11 +520,11 @@ parent_stack_.pop_back();
 
 | 输入格式 | 标准化输出 | 示例 |
 |---------|-----------|------|
-| `bold` / `700` | `bold` | font-weight 标准化 |
+| `bold` / `700` | 原值 | font-weight 直接透传，无数值→名称映射 |
 | `italic` | `italic` | font-style 直接透传 |
 | `underline` / `line-through` | 原值 | text-decoration 直接透传 |
 | `left` / `center` / `right` / `justify` | 原值 | text-align 直接透传 |
-| `1.5` / `24px` | 数值部分 | line-height / letter-spacing |
+| `1.5` / `2px` | 原值 / `2` | line-height 直接透传 / letter-spacing 换算为 px |
 
 ---
 
@@ -552,7 +582,7 @@ parent_stack_.pop_back();
 3. **容错处理**：
    - 遇到 `&` 但后续不是合法实体 → 保留原始 `&` 字符，不丢弃
    - 遇到 `&` 但没有找到 `;` → 保留原始 `&` 及后续字符
-   - 非法数字实体（如 `&#9999999;`）→ 替换为 Unicode 替换字符 U+FFFD
+   - 非法数字实体（如 `&#9999999;`）→ 保留原始文本 `&#9999999;`
 
 #### 对 Span 区间的影响
 
@@ -581,7 +611,7 @@ struct ByteToUTF16 {
 class UTF16Indexer {
 public:
     void build(std::string_view utf8_text);
-    XMRange to_utf16_range(uint32_t byte_start, uint32_t byte_end) const;
+    uint32_t byte_to_utf16(uint32_t byte_offset) const;
 private:
     std::vector<ByteToUTF16> mapping_;
 };
@@ -611,15 +641,14 @@ HTML 字符串 (UTF-8)
        │
        ↓
 ┌──────────────┐
-│  Tokenizer   │ 零拷贝状态机，15 个状态
+│  Tokenizer   │ 零拷贝状态机，12 个状态
 │  (string_view)│ 输出 Token 序列
 └──────┬───────┘
        │ Token[]
        ↓
 ┌──────────────┐
 │ TreeBuilder  │ 栈式构建，自动纠错
-│              │ 追踪 <pre> 上下文
-│              │ 输出 AST（byte offset）
+│              │ 输出 AST
 └──────┬───────┘
        │ AST
        ↓
@@ -721,7 +750,11 @@ foreach(test_name
     target_link_libraries(${test_name}
         PRIVATE xmarkup_core GTest::gtest_main
     )
-    add_test(NAME ${test_name} COMMAND ${test_name})
+    target_include_directories(${test_name}
+        PRIVATE ${CMAKE_SOURCE_DIR}/core/src
+    )
+    include(GoogleTest)
+    gtest_discover_tests(${test_name})
 endforeach()
 ```
 
@@ -742,7 +775,7 @@ cd build && ctest --output-on-failure
 | 模块 | 正常用例 | 边界防御 | 性能测试 | 线程安全 |
 |------|---------|---------|---------|---------|
 | Tokenizer | 基本分词、属性解析、零拷贝验证 | 空输入、未闭合标签、非法字符、注释 | 字符批量化验证 | — |
-| TreeBuilder | 正常嵌套、兄弟节点、`<pre>` 空白保留 | 乱序纠错、未闭合、多余闭合、深度限制 | 50KB 压力测试 < 15ms | — |
+| TreeBuilder | 正常嵌套、兄弟节点 | 乱序纠错、未闭合、多余闭合、深度限制 | 50KB 压力测试 < 30ms | — |
 | StyleResolver | 标签映射、CSS 解析、值提取、`<source>` 上下文 | 未知标签、非法 CSS、空属性 | — | — |
 | EntityDecoder | 命名实体、数字实体、十六进制实体 | 不完整实体、非法实体、未知命名实体 | — | — |
 | UTF16Indexer | ASCII、中文、Emoji、混合内容 | 空文本、非法 UTF-8 | — | — |
@@ -754,7 +787,7 @@ cd build && ctest --output-on-failure
 
 | 指标 | 目标值 | 验证方式 |
 |------|--------|---------|
-| 解析性能 | 50KB HTML < 15ms | GoogleTest Stress 用例 + 计时 |
+| 解析性能 | 50KB HTML < 30ms（含 ASAN） | GoogleTest PerfRegression 用例 |
 | 线程安全 | 多线程并发无数据竞争 | API 线程安全测试 |
 | 崩溃率 | 任意畸形输入零崩溃 | 恶意 HTML 测试 + ASAN |
 | 内存 | 无泄漏 | ASAN + Valgrind |
@@ -833,7 +866,7 @@ cd build && ctest --output-on-failure
 |-------------|---|------|
 | `tag` | `XM_TAG_VIDEO` | 标识视频容器 |
 | `style` | 0 | 无样式 |
-| `value` | poster 属性值 | 封面图 URL，无 poster 时为 NULL |
+| `value` | src 属性值 | 视频地址，无 src 时为 NULL |
 | `range` | 视频标签对应的文本区间 | 通常为空区间（视频本身不产生文本） |
 
 **`<source>` 每个子标签：**
@@ -845,15 +878,20 @@ cd build && ctest --output-on-failure
 | `value` | src 属性值 | 视频地址 |
 | `range` | 与父级 `<video>` 相同 | 关联到同一个位置 |
 
-**关键属性提取：** `<source>` 的 `type` 属性（如 `video/mp4`）通过新增的 `XM_STYLE_MEDIA_TYPE` 携带：
+**关键属性提取：** `<source>` 的 `type` 和 `media` 属性通过 `XM_STYLE_MEDIA_TYPE` / `XM_STYLE_MEDIA_QUERY` 携带：
 
 ```c
-/* 新增 CSS 样式枚举值 */
 typedef enum XMStyleType {
-    /* ... 原有值 ... */
-    XM_STYLE_MEDIA_TYPE     = 10,  // 媒体 MIME 类型，用于 <source> 标签
+    XM_STYLE_MEDIA_TYPE     = 10,  // 媒体 MIME 类型，用于 <source> 的 type 属性
     XM_STYLE_MEDIA_QUERY    = 11,  // 媒体查询条件，用于 <source> 的 media 属性
 } XMStyleType;
+```
+
+每个 `<source>` 标签如果有 `type` 或 `media` 属性，会各生成一个独立的 style span：
+
+```
+<span style=MEDIA_TYPE value="video/mp4">
+<span style=MEDIA_QUERY value="(min-width: 800px)">
 ```
 
 #### 10.3.4 完整示例
@@ -869,11 +907,12 @@ typedef enum XMStyleType {
 ```
 text: "文字更多文字"
 
-spans[0]: { range: {0, 6},  tag: XM_TAG_PARAGRAPH,      style: 0,                    value: NULL }
-spans[1]: { range: {2, 2},  tag: XM_TAG_VIDEO,           style: 0,                    value: "cover.jpg" }
-spans[2]: { range: {2, 2},  tag: XM_TAG_VIDEO,           style: XM_STYLE_MEDIA_TYPE,  value: "video/mp4" }
-spans[3]: { range: {2, 2},  tag: XM_TAG_VIDEO_SOURCE,    style: XM_STYLE_MEDIA_TYPE,  value: "hd.mp4" }
-spans[4]: { range: {2, 2},  tag: XM_TAG_VIDEO_SOURCE,    style: XM_STYLE_MEDIA_TYPE,  value: "hd.webm" }
+spans[0]: { range: {0, 6},  tag: XM_TAG_PARAGRAPH,       style: 0,                   value: NULL }
+spans[1]: { range: {2, 2},  tag: XM_TAG_VIDEO,            style: 0,                   value: "main.mp4" }
+spans[2]: { range: {2, 2},  tag: XM_TAG_VIDEO_SOURCE,     style: 0,                   value: "hd.mp4" }
+spans[3]: { range: {2, 2},  tag: 0,                       style: XM_STYLE_MEDIA_TYPE, value: "video/mp4" }
+spans[4]: { range: {2, 2},  tag: XM_TAG_VIDEO_SOURCE,     style: 0,                   value: "hd.webm" }
+spans[5]: { range: {2, 2},  tag: 0,                       style: XM_STYLE_MEDIA_TYPE, value: "video/webm" }
 ```
 
 **设计说明：**
@@ -888,7 +927,7 @@ spans[4]: { range: {2, 2},  tag: XM_TAG_VIDEO_SOURCE,    style: XM_STYLE_MEDIA_T
 核心引擎输出的 Span 结构已包含三端所需的全部信息，桥接层按以下策略消费：
 
 ```
-1. 找到 XM_TAG_VIDEO span → 获取封面图 (value)
+1. 找到 XM_TAG_VIDEO span → 获取视频地址 (value = src)
 2. 收集所有 XM_TAG_VIDEO_SOURCE span → 获取 {src, type} 列表
 3. 如果有 XM_TAG_VIDEO + src → 加入候选源列表作为兜底
 4. 根据平台能力从候选列表中选择最佳源：
@@ -953,7 +992,7 @@ spans:
   { range: {0, 2}, tag: XM_TAG_ITALIC }
 ```
 
-#### `<u>` / `<ins>` → `XM_TAG_UNDERLINE`
+#### `<u>` → `XM_TAG_UNDERLINE`
 
 ```
 输入: <u>下划线</u>
@@ -1222,19 +1261,19 @@ spans:
 
 ### 11.7 未知标签（透明透传）
 
+未知标签不产生 span，内部文本正常输出。
+
 ```
 输入: <custom>内部文字</custom>
 text: "内部文字"
-spans:
-  { range: {0, 4}, tag: XM_TAG_UNKNOWN }
+spans: (空，未知标签不产生 span)
 ```
 
 ```
 输入: <article>文章内容<span>高亮</span></article>
 text: "文章内容高亮"
 spans:
-  { range: {0, 6}, tag: XM_TAG_UNKNOWN }      ← <article> 映射为 UNKNOWN
-  { range: {4, 6}, tag: XM_TAG_SPAN }          ← <span> 正常映射
+  { range: {4, 6}, tag: XM_TAG_SPAN }          ← <span> 正常映射，<article> 不产生 span
 ```
 
 > 未知标签的**内部文本保留**，嵌套的已知标签**正常解析**。
@@ -1353,20 +1392,20 @@ spans:
 | `color: red` | `#FF0000` | `XM_STYLE_FOREGROUND_COLOR` |
 | `color: #F00` | `#FF0000` | `XM_STYLE_FOREGROUND_COLOR` |
 | `color: rgb(255,0,0)` | `#FF0000` | `XM_STYLE_FOREGROUND_COLOR` |
-| `color: rgba(255,0,0,0.5)` | `#FF000080` | `XM_STYLE_FOREGROUND_COLOR` |
+| `color: rgba(255,0,0,0.5)` | `#FF0000` | `XM_STYLE_FOREGROUND_COLOR`（忽略 alpha） |
 | `background-color: yellow` | `#FFFF00` | `XM_STYLE_BACKGROUND_COLOR` |
 | `font-size: 16px` | `16` | `XM_STYLE_FONT_SIZE` |
 | `font-size: 1.5em` | `24` | `XM_STYLE_FONT_SIZE`（假设基准 16px） |
 | `font-size: 12pt` | `16` | `XM_STYLE_FONT_SIZE`（1pt ≈ 1.333px） |
 | `font-weight: bold` | `bold` | `XM_STYLE_FONT_WEIGHT` |
-| `font-weight: 700` | `bold` | `XM_STYLE_FONT_WEIGHT` |
-| `font-weight: 400` | `normal` | `XM_STYLE_FONT_WEIGHT` |
+| `font-weight: 700` | `700` | `XM_STYLE_FONT_WEIGHT`（无数值→名称映射） |
+| `font-weight: 400` | `400` | `XM_STYLE_FONT_WEIGHT`（无数值→名称映射） |
 | `font-style: italic` | `italic` | `XM_STYLE_FONT_STYLE` |
 | `text-decoration: underline` | `underline` | `XM_STYLE_TEXT_DECORATION` |
 | `text-decoration: line-through` | `line-through` | `XM_STYLE_TEXT_DECORATION` |
 | `text-align: center` | `center` | `XM_STYLE_TEXT_ALIGN` |
 | `line-height: 1.5` | `1.5` | `XM_STYLE_LINE_HEIGHT` |
-| `letter-spacing: 2px` | `2` | `XM_STYLE_LETTER_SPACING` |
+| `letter-spacing: 2px` | `2` | `XM_STYLE_LETTER_SPACING`（同 font-size，已换算为 px） |
 | `color: unknownvalue` | `unknownvalue` | `XM_STYLE_FOREGROUND_COLOR`（无法识别时原值透传） |
 
 ---
@@ -1388,7 +1427,7 @@ spans:
 
 - [ ] C API (`xmarkup.h`) 冻结，不再有破坏性变更
 - [ ] 所有标签解析规范（第 11 章）的测试用例 100% 通过
-- [ ] 50KB HTML 解析性能测试 < 15ms 通过
+- [ ] 50KB HTML 解析性能测试 < 30ms（含 ASAN）通过
 - [ ] 恶意 HTML 输入零崩溃测试通过
 - [ ] ASAN / Valgrind 内存检查无泄漏
 - [ ] 核心静态库/动态库可成功编译（Release 模式）

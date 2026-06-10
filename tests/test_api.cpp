@@ -7,6 +7,7 @@
 #include <string>
 #include <utility>
 #include "xmarkup/xmarkup.h"
+#include "bench_helpers.h"
 
 class APITest : public ::testing::Test {
 protected:
@@ -386,13 +387,7 @@ TEST_F(APITest, GetLastError) {
 // === 性能测试 ===
 
 TEST_F(APITest, Stress50KB) {
-    std::string html;
-    html.reserve(50000);
-    for (int i = 0; html.size() < 50000; i++) {
-        html += "<p><b style=\"color:#ff0000\">Bold";
-        html += std::to_string(i);
-        html += "</b><i>Italic</i></p>";
-    }
+    auto html = HtmlGenerator::mixed_realistic(50 * 1024);
 
     auto start = std::chrono::high_resolution_clock::now();
     auto* result = xmarkup_parse(parser_, html.c_str(), html.size());
@@ -403,7 +398,7 @@ TEST_F(APITest, Stress50KB) {
     EXPECT_GT(result->span_count, 0u);
 
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-    EXPECT_LT(ms, 50) << "50KB 解析耗时 " << ms << "ms，超出 50ms 宽松目标";
+    EXPECT_LT(ms, 50) << "~50KB 真实混合 HTML 解析耗时 " << ms << "ms";
 
     xmarkup_result_free(result);
 }
@@ -546,7 +541,7 @@ TEST_F(APITest, CSSLetterSpacing) {
     bool found = false;
     for (uint32_t i = 0; i < r->span_count; i++) {
         if (r->spans[i].style == XM_STYLE_LETTER_SPACING && r->spans[i].value) {
-            if (std::strcmp(r->spans[i].value, "2px") == 0) found = true;
+            if (std::strcmp(r->spans[i].value, "2") == 0) found = true;
         }
     }
     EXPECT_TRUE(found);
@@ -754,14 +749,7 @@ TEST_F(APITest, LogCallbackNullNoop) {
 // === 性能回归测试 ===
 
 TEST_F(APITest, PerfRegression_50KB_Under15ms) {
-    // 生成 50KB 混合 HTML
-    std::string html;
-    html.reserve(50000);
-    const char* paragraph = "<p><b style=\"color:#ff0000\">Bold</b><i>Italic</i></p>";
-    size_t par_len = std::char_traits<char>::length(paragraph);
-    while (html.size() + par_len <= 50000) {
-        html += paragraph;
-    }
+    auto html = HtmlGenerator::mixed_realistic(50 * 1024);
 
     auto start = std::chrono::high_resolution_clock::now();
     auto* r = xmarkup_parse(parser_, html.c_str(), html.size());
@@ -772,22 +760,12 @@ TEST_F(APITest, PerfRegression_50KB_Under15ms) {
     xmarkup_result_free(r);
 
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-    EXPECT_LT(ms, 30) << "50KB 混合 HTML 解析耗时 " << ms << "ms，超出 30ms 基线（含 ASAN 开销）";
+    EXPECT_LT(ms, 30) << "~50KB 真实混合 HTML 解析耗时 " << ms << "ms";
 }
 
 TEST_F(APITest, PerfRegression_100KB_ScaleLinear) {
-    // 生成 50KB 和 100KB HTML，验证线性缩放
-    auto gen_50kb = [&]() {
-        std::string html;
-        html.reserve(50000);
-        const char* paragraph = "<p><b style=\"color:#ff0000\">Bold</b><i>Italic</i></p>";
-        size_t par_len = std::char_traits<char>::length(paragraph);
-        while (html.size() + par_len <= 50000) html += paragraph;
-        return html;
-    };
-
-    auto html_50 = gen_50kb();
-    auto html_100 = gen_50kb() + gen_50kb();
+    auto html_50 = HtmlGenerator::mixed_realistic(50 * 1024);
+    auto html_100 = HtmlGenerator::mixed_realistic(100 * 1024);
 
     auto time_parse = [&](const std::string& h) -> double {
         auto s = std::chrono::high_resolution_clock::now();

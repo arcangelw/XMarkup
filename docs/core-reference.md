@@ -178,6 +178,19 @@ typedef void (*XMLogCallback)(XMLogLevel level, const char* message, void* conte
 | | `XM_TAG_LINE_BREAK` | 71 | `<br>` | 不产生文本 |
 | | `XM_TAG_DIVISION` | 72 | `<div>` | |
 | | `XM_TAG_SPAN` | 73 | `<span>` | |
+| **语义块级容器** | `XM_TAG_ARTICLE` | 74 | `<article>` | |
+| | `XM_TAG_SECTION` | 75 | `<section>` | |
+| | `XM_TAG_HEADER` | 76 | `<header>` | |
+| | `XM_TAG_FOOTER` | 77 | `<footer>` | |
+| | `XM_TAG_NAV` | 78 | `<nav>` | |
+| | `XM_TAG_ASIDE` | 79 | `<aside>` | |
+| | `XM_TAG_FIGURE` | 80 | `<figure>` | |
+| | `XM_TAG_FIGCAPTION` | 81 | `<figcaption>` | |
+| | `XM_TAG_MAIN` | 82 | `<main>` | |
+| | `XM_TAG_ADDRESS` | 83 | `<address>` | |
+| | `XM_TAG_DL` | 84 | `<dl>` | |
+| | `XM_TAG_DT` | 85 | `<dt>` | |
+| | `XM_TAG_DD` | 86 | `<dd>` | |
 
 跳过标签（不产生 span）：`<script>`, `<style>`, `<noscript>`, `<!-- -->`
 
@@ -195,7 +208,7 @@ typedef void (*XMLogCallback)(XMLogLevel level, const char* message, void* conte
 | `XM_STYLE_TEXT_DECORATION` | 6 | `text-decoration` | `"underline"`, `"line-through"` |
 | `XM_STYLE_LINE_HEIGHT` | 7 | `line-height` | 原样输出 |
 | `XM_STYLE_TEXT_ALIGN` | 8 | `text-align` | `"left"`, `"center"`, `"right"` |
-| `XM_STYLE_LETTER_SPACING` | 9 | `letter-spacing` | 原样输出 |
+| `XM_STYLE_LETTER_SPACING` | 9 | `letter-spacing` | px 数字字符串（同 font-size 单位换算） |
 | `XM_STYLE_MEDIA_TYPE` | 10 | `<source>` 的 `type` | MIME 类型，如 `"video/mp4"` |
 | `XM_STYLE_MEDIA_QUERY` | 11 | `<source>` 的 `media` | 媒体查询条件 |
 
@@ -342,7 +355,7 @@ Span 顺序：outside-in（`<b><i>text</i></b>` → `[BOLD, ITALIC]`）
 | 十进制 | `&#NNN;` | `&#60;` | `<` |
 | 十六进制 | `&#xHHH;` | `&#x4e2d;` | `中` |
 
-容错：不完整实体保留原文，非法数字实体替换为 U+FFFD。
+容错：不完整实体保留原文，非法数字实体保留原文。
 
 ### 6.5 UTF16Indexer — 索引映射
 
@@ -438,11 +451,11 @@ xmarkup_destroy()   → 释放 ParserInternal 及所有 owned_* 数据
 cmake -B build-bench -DXMARKUP_BUILD_BENCHMARKS=ON
 cmake --build build-bench
 
-# 运行 18 个 benchmark case
+# 运行 23 个 benchmark case
 ./build-bench/tests/xmarkup_bench
 ```
 
-18 个 case 覆盖：吞吐量（6）+ 分阶段耗时（4）+ 内存（3）+ 并发（2）+ 特殊场景（3）
+23 个 case 覆盖：吞吐量（6）+ 分阶段耗时（4）+ 内存（3）+ 并发（2）+ 特殊场景（3）+ 新增（5：小输入延迟/纯文本/纯实体/heavy-tags/adoption 10000）
 
 ---
 
@@ -452,13 +465,14 @@ cmake --build build-bench
 
 | 模块 | 测试文件 | 测试数 | 覆盖范围 |
 |------|----------|--------|----------|
-| Tokenizer | `test_tokenizer.cpp` | 20 | 文本、标签、属性、大小写、注释、脚本跳过、非法输入 |
-| TreeBuilder | `test_tree_builder.cpp` | 21 | 嵌套、void 元素、隐式关闭 6 规则、Adoption Agency、深度限制 |
-| StyleResolver | `test_style_resolver.cpp` | 57 | 标签映射、CSS 颜色/字号/背景、块级换行、source 上下文 |
-| EntityDecoder | `test_entity_decoder.cpp` | 10 | 命名/十进制/十六进制实体、容错 |
-| UTF16Indexer | `test_utf16_indexer.cpp` | 5 | ASCII、中文、Emoji、混合、空字符串 |
-| API 集成 | `test_api.cpp` | 41 | 完整管线、纠错、实体解码、CSS 标准化、性能回归、恶意输入、线程安全、日志回调 |
-| **合计** | | **154** | |
+| Tokenizer | `test_tokenizer.cpp` | 31 | 文本、标签、属性（布尔/空/引号）、大小写、注释、script/style/textarea/title 跳过、非法输入、`
+<<`/`/` 容错 |
+| TreeBuilder | `test_tree_builder.cpp` | 25 | 嵌套、void 元素、隐式关闭 6 规则、Scope Boundary、Adoption Agency（基本/多层/深度超限/span 保留/混合隐式关闭）、深度限制 |
+| StyleResolver | `test_style_resolver.cpp` | 101 | 标签映射（含 sub/sup/code/mark/del）、CSS 全部 11 属性颜色/字号/背景/字体/文本/字间距换算、块级换行 18 类、source 上下文（含 type/media）、属性大小写不敏感、!important 剥离、rgba/hsl/hsla |
+| EntityDecoder | `test_entity_decoder.cpp` | 13 | 命名/十进制/十六进制实体、容错、连续实体、尾部位 &、空数字体 |
+| UTF16Indexer | `test_utf16_indexer.cpp` | 9 | ASCII、中文、Emoji、混合、空字符串、非法续字节、中间偏移量、多 4 字节序列 |
+| API 集成 | `test_api.cpp` | 60 | 完整管线、h2-h6 全级/有序列表/sub/sup/code/mark/del 标签、CSS 全部 11 属性、autocorrect 禁用、语义块级标签 13 种、纠错、实体解码、CSS 标准化、性能回归、深度边界、恶意输入、线程安全、日志回调 |
+| **合计** | | **239** | |
 
 ### 9.2 构建模式
 
@@ -517,13 +531,13 @@ core/
 └── CMakeLists.txt             # 静态库 xmarkup_core
 
 tests/
-├── test_tokenizer.cpp         # 20 tests
-├── test_tree_builder.cpp      # 21 tests
-├── test_style_resolver.cpp    # 57 tests
-├── test_entity_decoder.cpp    # 10 tests
-├── test_utf16_indexer.cpp     # 5 tests
-├── test_api.cpp               # 41 tests
+├── test_tokenizer.cpp         # 31 tests
+├── test_tree_builder.cpp      # 25 tests
+├── test_style_resolver.cpp    # 101 tests
+├── test_entity_decoder.cpp    # 13 tests
+├── test_utf16_indexer.cpp     # 9 tests
+├── test_api.cpp               # 60 tests
 ├── bench_helpers.h            # Benchmark 辅助工具
-├── benchmark.cpp              # 18 个 Google Benchmark case
+├── benchmark.cpp              # 23 个 Google Benchmark case
 └── CMakeLists.txt             # 测试 + 可选 Benchmark target
 ```

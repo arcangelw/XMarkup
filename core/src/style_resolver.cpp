@@ -11,6 +11,103 @@ namespace xmarkup {
 // pt → px 换算系数：1pt = 1/72 inch, 96 dpi → 96/72 ≈ 1.333
 static constexpr float kPtToPxFactor = 1.333f;
 
+// ============================================================
+// CSS 长度值公共工具函数
+// ============================================================
+
+/**
+ * @brief 解析 CSS 长度值的数值+单位部分
+ *
+ * 从输入字符串中提取数值和单位。
+ * "16px" → num=16, unit="px", 返回 true
+ * "1.5em" → num=1.5, unit="em", 返回 true
+ * "150%" → num=150, unit="%", 返回 true
+ * "bold" → 返回 false（没有可解析的数值）
+ *
+ * @param value 输入字符串
+ * @param num   [out] 解析出的数值
+ * @param unit  [out] 单位字符串（小写，无单位时为 ""）
+ * @return true 表示成功解析出数值
+ */
+static bool parse_css_numeric(std::string_view value, double& num, std::string& unit) {
+    if (value.empty()) return false;
+
+    num = 0;
+    unit.clear();
+    size_t i = 0;
+    bool has_dot = false;
+    double frac = 0.1;
+
+    while (i < value.size() && ((value[i] >= '0' && value[i] <= '9') || value[i] == '.')) {
+        if (value[i] == '.') {
+            if (has_dot) break;  // 第二个小数点，停止解析
+            has_dot = true;
+        } else if (!has_dot) {
+            num = num * 10 + (value[i] - '0');
+        } else {
+            num += (value[i] - '0') * frac;
+            frac *= 0.1;
+        }
+        i++;
+    }
+
+    if (i == 0) return false; // 没有解析到任何数字
+
+    // 检查单位
+    while (i < value.size() && isalpha(static_cast<unsigned char>(value[i]))) {
+        unit += static_cast<char>(std::tolower(static_cast<unsigned char>(value[i])));
+        i++;
+    }
+    if (i < value.size() && value[i] == '%') {
+        unit = "%";
+    }
+
+    return true;
+}
+
+/**
+ * @brief 将 CSS 长度值换算为 px
+ *
+ * 支持的单位：px（原值）、em/rem（×base_font_size）、
+ * pt（×1.333）、%（×base_font_size/100）。
+ * 无单位时直接返回数值。
+ *
+ * @param num            数值
+ * @param unit           单位字符串
+ * @param base_font_size 基准字号
+ * @return px 值
+ */
+static double css_unit_to_px(double num, const std::string& unit, float base_font_size) {
+    if (unit == "em" || unit == "rem") {
+        return num * base_font_size;
+    } else if (unit == "pt") {
+        return num * kPtToPxFactor;
+    } else if (unit == "%") {
+        return num * base_font_size / 100.0;
+    }
+    // px 或无单位 → 直接用数值
+    return num;
+}
+
+/**
+ * @brief 将 px 值格式化为字符串，去除多余的尾部零和小数点
+ *
+ * 16.00 → "16", 21.75 → "21.75", 15.996 → "15.996"
+ *
+ * @param px px 值
+ * @return 格式化后的字符串
+ */
+static std::string format_px_value(double px) {
+    char buf[32];
+    std::snprintf(buf, sizeof(buf), "%.2f", px);
+    std::string result(buf);
+    // 去除尾部 '0'
+    while (result.size() > 1 && result.back() == '0') result.pop_back();
+    // 去除尾部 '.'
+    if (result.size() > 1 && result.back() == '.') result.pop_back();
+    return result;
+}
+
 // HTML 标签 → XMTagType 映射策略：
 // - 语义等价标签映射到同一类型（如 <b> 和 <strong> → XM_TAG_BOLD）
 // - <source> 映射为 0（特殊处理，依赖父标签上下文判定 VIDEO_SOURCE/AUDIO_SOURCE）
@@ -251,6 +348,31 @@ void StyleResolver::dfs(const ASTNode& node, bool inside_pre) {
             if (!style_str.empty()) {
                 add_style_spans(style_str, span_start, byte_offset_);
             }
+
+            // 提取 <source> 的 type/media 属性
+            if (tag_type == XM_TAG_VIDEO_SOURCE || tag_type == XM_TAG_AUDIO_SOURCE) {
+                std::string attr_val;
+                extract_attribute_value(node.attributes, "type", attr_val);
+                if (!attr_val.empty()) {
+                    InternalSpan ms;
+                    ms.byte_start = span_start;
+                    ms.byte_end = byte_offset_;
+                    ms.tag = 0;
+                    ms.style = XM_STYLE_MEDIA_TYPE;
+                    ms.value = std::move(attr_val);
+                    result_.spans.push_back(std::move(ms));
+                }
+                extract_attribute_value(node.attributes, "media", attr_val);
+                if (!attr_val.empty()) {
+                    InternalSpan ms;
+                    ms.byte_start = span_start;
+                    ms.byte_end = byte_offset_;
+                    ms.tag = 0;
+                    ms.style = XM_STYLE_MEDIA_QUERY;
+                    ms.value = std::move(attr_val);
+                    result_.spans.push_back(std::move(ms));
+                }
+            }
         }
     }
 }
@@ -331,7 +453,13 @@ void StyleResolver::add_style_spans(const std::string& style_str, uint32_t start
             normalized_value = val;
         } else if (prop == "letter-spacing") {
             style_type = XM_STYLE_LETTER_SPACING;
-            normalized_value = val;
+            // 与 font-size 同样的单位换算逻辑
+            double ls_num = 0;
+            std::string ls_unit;
+            if (parse_css_numeric(val, ls_num, ls_unit)) {
+                double ls_px = css_unit_to_px(ls_num, ls_unit, base_font_size_);
+                normalized_value = format_px_value(ls_px);
+            }
         }
 
         if (style_type != 0 && !normalized_value.empty()) {
@@ -613,56 +741,12 @@ std::string StyleResolver::normalize_font_size(std::string_view value) const {
         }
     }
 
-    // 提取数值部分
+    // 使用公共工具函数解析和换算
     double num = 0;
-    size_t i = 0;
-    bool has_dot = false;
-    double frac = 0.1;
-    while (i < value.size() && ((value[i] >= '0' && value[i] <= '9') || value[i] == '.')) {
-        if (value[i] == '.') {
-            if (has_dot) break;  // 第二个小数点，停止解析
-            has_dot = true;
-        } else if (!has_dot) {
-            num = num * 10 + (value[i] - '0');
-        } else {
-            num += (value[i] - '0') * frac;
-            frac *= 0.1;
-        }
-        i++;
-    }
-
-    // 检查单位
     std::string unit;
-    while (i < value.size() && isalpha(static_cast<unsigned char>(value[i]))) {
-        unit += static_cast<char>(tolower(static_cast<unsigned char>(value[i])));
-        i++;
-    }
-    if (i < value.size() && value[i] == '%') {
-        unit = "%";
-        i++;
-    }
-
-    // 换算为 px（保留浮点精度）
-    double px = num;
-    if (unit == "em") {
-        px = num * base_font_size_;
-    } else if (unit == "rem") {
-        px = num * base_font_size_;
-    } else if (unit == "pt") {
-        px = num * kPtToPxFactor; // 1pt ≈ 1.333px
-    } else if (unit == "%") {
-        px = num * base_font_size_ / 100.0;
-    }
-    // px 或无单位 → 直接用数值
-
-    // 格式化：最多 2 位小数，去除尾部零
-    char buf[32];
-    std::snprintf(buf, sizeof(buf), "%.2f", px);
-    std::string result(buf);
-    // 去除尾部 '0'
-    while (result.size() > 1 && result.back() == '0') result.pop_back();
-    // 去除尾部 '.'
-    if (result.size() > 1 && result.back() == '.') result.pop_back();
+    if (!parse_css_numeric(value, num, unit)) return {};
+    double px = css_unit_to_px(num, unit, base_font_size_);
+    std::string result = format_px_value(px);
     Logger::trace("normalize font-size: %.*s -> %s", (int)value.size(), value.data(), result.c_str());
     return result;
 }
