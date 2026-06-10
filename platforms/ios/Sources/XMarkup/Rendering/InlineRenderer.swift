@@ -63,14 +63,20 @@ func applyInlineAttributes(
         attr[attrRange].uiKit.font = UIFont.monospacedSystemFont(
             ofSize: theme.baseFont.pointSize, weight: .regular
         )
+        attr[attrRange].uiKit.backgroundColor = UIColor.systemGray6
         #elseif canImport(AppKit)
         attr[attrRange].appKit.font = NSFont.monospacedSystemFont(
             ofSize: theme.baseFont.pointSize, weight: .regular
         )
+        attr[attrRange].appKit.backgroundColor = NSColor.systemGray.withAlphaComponent(0.2)
         #endif
 
     case .mark:
-        break  // 颜色由主题 tagStyles 覆盖
+        #if canImport(UIKit)
+        attr[attrRange].uiKit.backgroundColor = UIColor.systemYellow.withAlphaComponent(0.3)
+        #elseif canImport(AppKit)
+        attr[attrRange].appKit.backgroundColor = NSColor.systemYellow.withAlphaComponent(0.3)
+        #endif
 
     case .link(let url):
         #if canImport(UIKit)
@@ -82,10 +88,36 @@ func applyInlineAttributes(
         attr[attrRange][XMarkupLinkURLKey.self] = url
 
     case .subscriptText:
-        break  // P2
+        for run in attr[attrRange].runs {
+            #if canImport(UIKit)
+            if let font = run.uiKit.font {
+                let smallFont = UIFont(descriptor: font.fontDescriptor, size: font.pointSize * 0.65)
+                attr[run.range].uiKit.font = smallFont
+                attr[run.range].uiKit.baselineOffset = -font.pointSize * 0.2
+            }
+            #elseif canImport(AppKit)
+            let font = run.appKit.font ?? NSFont.systemFont(ofSize: 12)
+            let smallFont = NSFont(descriptor: font.fontDescriptor, size: font.pointSize * 0.65)
+            if let sf = smallFont { attr[run.range].appKit.font = sf }
+            attr[run.range].appKit.baselineOffset = -font.pointSize * 0.2
+            #endif
+        }
 
     case .superscript:
-        break  // P2
+        for run in attr[attrRange].runs {
+            #if canImport(UIKit)
+            if let font = run.uiKit.font {
+                let smallFont = UIFont(descriptor: font.fontDescriptor, size: font.pointSize * 0.65)
+                attr[run.range].uiKit.font = smallFont
+                attr[run.range].uiKit.baselineOffset = font.pointSize * 0.35
+            }
+            #elseif canImport(AppKit)
+            let font = run.appKit.font ?? NSFont.systemFont(ofSize: 12)
+            let smallFont = NSFont(descriptor: font.fontDescriptor, size: font.pointSize * 0.65)
+            if let sf = smallFont { attr[run.range].appKit.font = sf }
+            attr[run.range].appKit.baselineOffset = font.pointSize * 0.35
+            #endif
+        }
 
     case .span(let styles):
         for style in styles {
@@ -221,7 +253,91 @@ func applyInlineStyle(
             attr[range].appKit.strikethroughStyle = .single
             #endif
         }
-    case .fontWeight, .lineHeight, .letterSpacing, .textAlign:
-        break  // P2
+    case .fontWeight(let weight):
+        for run in attr[range].runs {
+            #if canImport(UIKit)
+            let currentFont = run.uiKit.font ?? UIFont.systemFont(ofSize: 16)
+            if weight == "bold" || weight == "700" {
+                attr[run.range].uiKit.font = UIFont.systemFont(ofSize: currentFont.pointSize, weight: .bold)
+            } else if weight == "normal" || weight == "400" {
+                attr[run.range].uiKit.font = UIFont.systemFont(ofSize: currentFont.pointSize, weight: .regular)
+            } else if let w = Float(weight), w >= 600 {
+                attr[run.range].uiKit.font = UIFont.systemFont(ofSize: currentFont.pointSize, weight: .bold)
+            } else if let w = Float(weight), w <= 300 {
+                attr[run.range].uiKit.font = UIFont.systemFont(ofSize: currentFont.pointSize, weight: .light)
+            }
+            #elseif canImport(AppKit)
+            let currentFont = run.appKit.font ?? NSFont.systemFont(ofSize: 16)
+            if weight == "bold" || weight == "700" {
+                attr[run.range].appKit.font = NSFont.boldSystemFont(ofSize: currentFont.pointSize)
+            } else if weight == "normal" || weight == "400" {
+                attr[run.range].appKit.font = NSFont.systemFont(ofSize: currentFont.pointSize, weight: .regular)
+            } else if let w = Float(weight), w >= 600 {
+                attr[run.range].appKit.font = NSFont.boldSystemFont(ofSize: currentFont.pointSize)
+            } else if let w = Float(weight), w <= 300 {
+                attr[run.range].appKit.font = NSFont.systemFont(ofSize: currentFont.pointSize, weight: .light)
+            }
+            #endif
+        }
+    case .lineHeight(let height):
+        for run in attr[range].runs {
+            #if canImport(UIKit)
+            let paraStyle: NSMutableParagraphStyle
+            if let existing = run.uiKit.paragraphStyle {
+                paraStyle = existing.mutableCopy() as! NSMutableParagraphStyle
+            } else {
+                paraStyle = NSParagraphStyle.default.mutableCopy() as! NSMutableParagraphStyle
+            }
+            paraStyle.minimumLineHeight = CGFloat(height)
+            attr[run.range].uiKit.paragraphStyle = paraStyle
+            #elseif canImport(AppKit)
+            let paraStyle: NSMutableParagraphStyle
+            if let existing = run.appKit.paragraphStyle {
+                paraStyle = existing.mutableCopy() as! NSMutableParagraphStyle
+            } else {
+                paraStyle = NSParagraphStyle.default.mutableCopy() as! NSMutableParagraphStyle
+            }
+            paraStyle.minimumLineHeight = CGFloat(height)
+            attr[run.range].appKit.paragraphStyle = paraStyle
+            #endif
+        }
+    case .letterSpacing(let spacing):
+        #if canImport(UIKit)
+        attr[range].uiKit.kern = CGFloat(spacing)
+        #elseif canImport(AppKit)
+        attr[range].appKit.kern = CGFloat(spacing)
+        #endif
+    case .textAlign(let alignment):
+        for run in attr[range].runs {
+            #if canImport(UIKit)
+            let paraStyle: NSMutableParagraphStyle
+            if let existing = run.uiKit.paragraphStyle {
+                paraStyle = existing.mutableCopy() as! NSMutableParagraphStyle
+            } else {
+                paraStyle = NSParagraphStyle.default.mutableCopy() as! NSMutableParagraphStyle
+            }
+            switch alignment {
+            case "center": paraStyle.alignment = .center
+            case "right": paraStyle.alignment = .right
+            case "justify": paraStyle.alignment = .justified
+            default: paraStyle.alignment = .left
+            }
+            attr[run.range].uiKit.paragraphStyle = paraStyle
+            #elseif canImport(AppKit)
+            let paraStyle: NSMutableParagraphStyle
+            if let existing = run.appKit.paragraphStyle {
+                paraStyle = existing.mutableCopy() as! NSMutableParagraphStyle
+            } else {
+                paraStyle = NSParagraphStyle.default.mutableCopy() as! NSMutableParagraphStyle
+            }
+            switch alignment {
+            case "center": paraStyle.alignment = .center
+            case "right": paraStyle.alignment = .right
+            case "justify": paraStyle.alignment = .justified
+            default: paraStyle.alignment = .left
+            }
+            attr[run.range].appKit.paragraphStyle = paraStyle
+            #endif
+        }
     }
 }

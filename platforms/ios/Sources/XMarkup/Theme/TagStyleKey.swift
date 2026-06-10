@@ -17,6 +17,8 @@ public enum TagStyleKey: String, Sendable, Equatable, Hashable, CaseIterable {
     case code              // <code>
     case mark              // <mark>
     case link              // <a>
+    case subscriptText     // <sub>
+    case superscript       // <sup>
     // 块级结构
     case heading           // <h1>~<h6>（统一覆盖，不区分级别）
     case paragraph         // <p>
@@ -25,6 +27,11 @@ public enum TagStyleKey: String, Sendable, Equatable, Hashable, CaseIterable {
     case listItem          // <li>
     case division          // <div>
     case horizontalRule    // <hr>
+    // 表格
+    case table             // <table>
+    case tableRow          // <tr>
+    case tableCell         // <td>
+    case tableHeader       // <th>
     // 媒体
     case image             // <img>
     case video             // <video>

@@ -1,14 +1,24 @@
 import Foundation
 
+// MARK: - Span 树节点
+
+/// 块级 span 的树节点，按范围包含关系组织父子层级
+private struct SpanNode {
+    let span: XMarkupSpan
+    var children: [SpanNode] = []
+    let resolvedKind: BlockKind  // 此 span 映射的 block kind（不含继承）
+}
+
 extension MarkupDocument {
 
     /// 从 C++ 桥接结果构建 MarkupDocument
     ///
     /// 算法：
-    /// 1. 遍历所有 spans，识别块级 tag（h1-h6/p/blockquote/li/pre/hr/div/table）
-    /// 2. 根据每个块级 span 的 NSRange 提取对应文本
-    /// 3. 非块级 span（bold/italic/link/code/mark/...）映射为对应块的 MarkupInline
-    /// 4. 媒体类 span（img/video/audio）映射为 MarkupAttachment
+    /// 1. 提取所有块级 span
+    /// 2. 按范围包含关系构建 Span 树（父 span 范围包含子 span）
+    /// 3. 递归平铺树：父 span 的孤立文本（不被子 span 覆盖的部分）→ 父类型块，
+    ///    子 span → 递归产块。子范围=父范围时子继承父类型。
+    /// 4. 非块级 span 映射为对应块的内联样式
     public static func from(_ result: XMarkupResult) -> MarkupDocument {
         let text = result.text
         let spans = result.spans
@@ -18,7 +28,6 @@ extension MarkupDocument {
         }
 
         // 块级 tag 集合
-        // 注：listOrdered/listUnordered 是容器，不产生独立 block
         let blockTags: Set<XMarkupTag> = [
             .paragraph, .heading1, .heading2, .heading3, .heading4, .heading5, .heading6,
             .blockquote, .preformatted, .horizontalRule, .division,
@@ -30,32 +39,17 @@ extension MarkupDocument {
             .definitionList, .definitionTerm, .definitionDescription,
         ]
 
-        // 媒体 tag 集合
         let mediaTags: Set<XMarkupTag> = [.image, .video, .audio]
 
-        // 提取块级 spans 和内联 spans
-        var blockSpans = spans.filter { blockTags.contains($0.tag) }
+        let blockSpans = spans.filter { blockTags.contains($0.tag) }
         let inlineSpans = spans.filter { !blockTags.contains($0.tag) }
 
-        // 去重：如果一个 block span 的范围内存在其他更小的 block span 子集，
-        // 则该 span 是容器，移除它以避免内容重复渲染。
-        // 例如 <div><p>text</p></div> 产出 div(0,4) 和 p(0,4)，只保留 p。
-        // 例如 <table><tr><td>text</td></tr></table> 产出 table/tr/td 三层，只保留 td。
-        // 但同类标签嵌套不去重（如 <ol><li>...<ul><li>inner</li></ul></li></ol>，两个 li 都保留）。
-        blockSpans = blockSpans.filter { outer in
-            let outerStart = outer.range.location
-            let outerEnd = outerStart + outer.range.length
-            let hasChild = blockSpans.contains { inner in
-                if inner.tag == outer.tag { return false }
-                let innerStart = inner.range.location
-                let innerEnd = innerStart + inner.range.length
-                return innerStart >= outerStart && innerEnd <= outerEnd
-            }
-            return !hasChild
-        }
+        // 构建 Span 树 + 平铺为 MarkupBlock[]
+        let roots = buildSpanTree(blockSpans, allSpans: spans)
+        let blocks = flattenTree(roots, text: text, allSpans: spans, inlineSpans: inlineSpans, mediaTags: mediaTags)
 
-        // 如果没有块级 span，整段文本作为一个 paragraph
-        if blockSpans.isEmpty {
+        // 无块级 span 时（如纯内联标签），整段文本作为单个段落
+        if blocks.isEmpty {
             let nsRange = NSRange(location: 0, length: (text as NSString).length)
             let inlines = convertToInlines(inlineSpans, in: text, parentRange: nsRange)
             return MarkupDocument(blocks: [
@@ -63,40 +57,202 @@ extension MarkupDocument {
             ])
         }
 
-        // 为每个块级 span 构建块
-        var blocks: [MarkupBlock] = []
-        blocks.reserveCapacity(blockSpans.count)
+        return MarkupDocument(blocks: blocks)
+    }
+}
 
-        for span in blockSpans {
-            let spanRange = span.range
-            let kind = blockKind(for: span, allSpans: spans)
-            let blockText = extractText(text: text, nsRange: spanRange)
+// MARK: - Span 树构建
 
-            // 判断是否为媒体块
-            let attachment: MarkupAttachment?
-            if mediaTags.contains(span.tag) {
-                let src = resolveMediaSrc(span, allSpans: spans)
-                attachment = MarkupAttachment(
-                    content: attachmentContent(for: span.tag, src: src),
-                    suggestedSize: CGSize(width: 200, height: 150),
-                    alignment: .default
-                )
-            } else {
-                attachment = nil
+extension MarkupDocument {
+
+    /// 从扁平 blockSpans 构建 SpanNode 树
+    /// 按 (start ASC, length DESC) 排序后逐节点插入
+    private static func buildSpanTree(_ spans: [XMarkupSpan], allSpans: [XMarkupSpan]) -> [SpanNode] {
+        let sorted = spans.sorted { a, b in
+            if a.range.location != b.range.location {
+                return a.range.location < b.range.location
             }
+            return a.range.length > b.range.length
+        }
+        var roots: [SpanNode] = []
+        for span in sorted {
+            let kind = blockKind(for: span, allSpans: allSpans)
+            let node = SpanNode(span: span, children: [], resolvedKind: kind)
+            insertNode(&roots, node: node)
+        }
+        return roots
+    }
 
-            // 收集属于这个块的内联 span
-            let inlines = convertToInlines(inlineSpans, in: text, parentRange: spanRange)
+    /// 递归插入节点到树中（找到最近父节点或作为根）
+    private static func insertNode(_ nodes: inout [SpanNode], node: SpanNode) {
+        for i in (0..<nodes.count).reversed() {
+            if rangeContains(nodes[i].span.range, node.span.range) {
+                var child = nodes[i]
+                insertNode(&child.children, node: node)
+                nodes[i] = child
+                return
+            }
+        }
+        nodes.append(node)
+    }
 
-            blocks.append(MarkupBlock(
-                kind: kind,
-                text: blockText,
-                inlines: inlines,
-                attachment: attachment
-            ))
+    private static func rangeContains(_ outer: NSRange, _ inner: NSRange) -> Bool {
+        let outerEnd = outer.location + outer.length
+        let innerEnd = inner.location + inner.length
+        return inner.location >= outer.location && innerEnd <= outerEnd
+    }
+}
+
+// MARK: - 树平铺
+
+extension MarkupDocument {
+
+    /// 将 SpanNode 树平铺为 MarkupBlock 列表
+    private static func flattenTree(
+        _ nodes: [SpanNode], text: String, allSpans: [XMarkupSpan],
+        inlineSpans: [XMarkupSpan], mediaTags: Set<XMarkupTag>
+    ) -> [MarkupBlock] {
+        var blocks: [MarkupBlock] = []
+        for node in nodes {
+            flattenNode(node, text: text, allSpans: allSpans, inlineSpans: inlineSpans,
+                        mediaTags: mediaTags, inheritedKind: nil, blocks: &blocks)
+        }
+        return blocks
+    }
+
+    /// 递归平铺单个节点
+    private static func flattenNode(
+        _ node: SpanNode, text: String, allSpans: [XMarkupSpan],
+        inlineSpans: [XMarkupSpan], mediaTags: Set<XMarkupTag>,
+        inheritedKind: BlockKind?, blocks: inout [MarkupBlock]
+    ) {
+        // 确定最终 blockKind：继承规则
+        let effectiveKind: BlockKind
+        if let inherited = inheritedKind {
+            switch node.resolvedKind {
+            case .paragraph, .division:
+                effectiveKind = inherited  // 纯容器/段落继承父类型
+            default:
+                effectiveKind = node.resolvedKind  // 自身有语义，不继承
+            }
+        } else {
+            effectiveKind = node.resolvedKind
         }
 
-        return MarkupDocument(blocks: blocks)
+        let nodeRange = node.span.range
+
+        if node.children.isEmpty {
+            // 叶子节点：产出一个块
+            let (blockText, blockInlines) = buildBlock(
+                for: node, text: text, range: nodeRange,
+                inlineSpans: inlineSpans, mediaTags: mediaTags,
+                blocks: &blocks  // 用于计算列表序号
+            )
+            if let detachedText = blockText {
+                let attachment: MarkupAttachment?
+                if mediaTags.contains(node.span.tag) {
+                    let src = resolveMediaSrc(node.span, allSpans: allSpans)
+                    attachment = MarkupAttachment(
+                        content: attachmentContent(for: node.span.tag, src: src),
+                        suggestedSize: CGSize(width: 200, height: 150),
+                        alignment: .default
+                    )
+                } else {
+                    attachment = nil
+                }
+                blocks.append(MarkupBlock(kind: effectiveKind, text: detachedText, inlines: blockInlines, attachment: attachment))
+            }
+            return
+        }
+
+        // 有子节点：计算父节点的孤立文本范围
+        let nodeEnd = nodeRange.location + nodeRange.length
+        var occupied: [(start: Int, end: Int)] = []
+        for child in node.children {
+            let r = child.span.range
+            occupied.append((r.location, r.location + r.length))
+        }
+        occupied.sort { $0.start < $1.start }
+
+        var cursor = nodeRange.location
+        for occ in occupied {
+            if occ.start > cursor {
+                let gap = NSRange(location: cursor, length: occ.start - cursor)
+                emitBlock(text: text, range: gap, kind: effectiveKind, inlineSpans: inlineSpans, blocks: &blocks)
+            }
+            cursor = max(cursor, occ.end)
+        }
+        if cursor < nodeEnd {
+            let gap = NSRange(location: cursor, length: nodeEnd - cursor)
+            emitBlock(text: text, range: gap, kind: effectiveKind, inlineSpans: inlineSpans, blocks: &blocks)
+        }
+
+        // 递归子节点
+        for child in node.children {
+            let childInherited: BlockKind?
+            if child.span.range.location == nodeRange.location && child.span.range.length == nodeRange.length {
+                // 范围相同时：纯容器（division）的子节点不继承，语义容器（blockquote 等）的子节点继承
+                switch effectiveKind {
+                case .division:
+                    childInherited = nil
+                default:
+                    childInherited = effectiveKind
+                }
+            } else {
+                childInherited = nil
+            }
+            flattenNode(child, text: text, allSpans: allSpans, inlineSpans: inlineSpans,
+                        mediaTags: mediaTags, inheritedKind: childInherited, blocks: &blocks)
+        }
+    }
+
+    /// 快速产出一个孤立文本块
+    private static func emitBlock(text: String, range: NSRange, kind: BlockKind,
+                                  inlineSpans: [XMarkupSpan], blocks: inout [MarkupBlock]) {
+        let blockText = extractText(text: text, nsRange: range)
+        guard !blockText.isEmpty else { return }
+        let inlines = convertToInlines(inlineSpans, in: text, parentRange: range)
+        let (finalText, finalInlines) = applyListMarker(blockText, inlines, kind: kind, precedingBlocks: blocks)
+        blocks.append(MarkupBlock(kind: kind, text: finalText, inlines: finalInlines, attachment: nil))
+    }
+
+    /// 构建单个叶子块的文本和内联，处理列表符号
+    private static func buildBlock(
+        for node: SpanNode, text: String, range: NSRange,
+        inlineSpans: [XMarkupSpan], mediaTags: Set<XMarkupTag>,
+        blocks: inout [MarkupBlock]
+    ) -> (String?, [MarkupInline]) {
+        let isPre = node.span.tag == .preformatted
+        let blockText = extractText(text: text, nsRange: range, preserveTrailingNewlines: isPre)
+        guard !blockText.isEmpty else { return (nil, []) }
+        let inlines = convertToInlines(inlineSpans, in: text, parentRange: range,
+                                        preserveTrailingNewlines: isPre)
+        return applyListMarker(blockText, inlines, kind: node.resolvedKind, precedingBlocks: blocks)
+    }
+
+    /// 为列表项添加符号/编号前缀，调整 inline range
+    private static func applyListMarker(
+        _ blockText: String, _ inlines: [MarkupInline],
+        kind: BlockKind, precedingBlocks: [MarkupBlock]
+    ) -> (String, [MarkupInline]) {
+        guard case .listItem(let isOrdered, _) = kind else {
+            return (blockText, inlines)
+        }
+        let marker: String
+        if isOrdered {
+            let preceding = precedingBlocks.filter { b in
+                if case .listItem(true, _) = b.kind { return true }
+                return false
+            }.count
+            marker = "\(preceding + 1).\t"
+        } else {
+            marker = "•\t"
+        }
+        let markerLen = (marker as NSString).length
+        let shiftedInlines = inlines.map { inline in
+            MarkupInline(range: NSRange(location: inline.range.location + markerLen, length: inline.range.length), kind: inline.kind)
+        }
+        return (marker + blockText, shiftedInlines)
     }
 }
 
@@ -140,6 +296,14 @@ extension MarkupDocument {
             return .division
         case .image, .video, .audio:
             return .paragraph
+        case .table:
+            return .table(TableStructure(rows: [], headerRowCount: 0, columnCount: 0))
+        case .tableRow:
+            return .division
+        case .tableCell:
+            return .division
+        case .tableHeader:
+            return .division
         case .article, .section, .header, .footer, .nav, .aside,
              .figure, .figcaption, .main, .address,
              .definitionList, .definitionTerm, .definitionDescription:
@@ -149,8 +313,8 @@ extension MarkupDocument {
         }
     }
 
-    /// 从 NSRange 提取子字符串，修剪尾部换行
-    private static func extractText(text: String, nsRange: NSRange) -> String {
+    /// 从 NSRange 提取子字符串，默认修剪尾部换行；pre 块保留尾部换行
+    private static func extractText(text: String, nsRange: NSRange, preserveTrailingNewlines: Bool = false) -> String {
         let nsString = text as NSString
         guard nsRange.location >= 0,
               nsRange.length >= 0,
@@ -158,6 +322,7 @@ extension MarkupDocument {
             return ""
         }
         let raw = nsString.substring(with: nsRange)
+        if preserveTrailingNewlines { return raw }
         return raw.trimmingTrailingNewlines
     }
 
@@ -166,18 +331,24 @@ extension MarkupDocument {
     private static func convertToInlines(
         _ spans: [XMarkupSpan],
         in text: String,
-        parentRange: NSRange
+        parentRange: NSRange,
+        preserveTrailingNewlines: Bool = false
     ) -> [MarkupInline] {
         var inlines: [MarkupInline] = []
         inlines.reserveCapacity(spans.count)
 
         // 计算当前块的尾部换行修剪位置（仅针对 parentRange 范围）
+        // pre 块保留尾部换行，inline span 范围不截断
         let nsString = text as NSString
-        let parentText = nsString.substring(with: parentRange)
-        let trimmedParentLength = parentText.trimmingTrailingNewlines.utf16.count
-
         let parentEnd = parentRange.location + parentRange.length
-        let trimmedBlockEnd = parentRange.location + trimmedParentLength
+        let trimmedBlockEnd: Int
+        if preserveTrailingNewlines {
+            trimmedBlockEnd = parentEnd
+        } else {
+            let parentText = nsString.substring(with: parentRange)
+            let trimmedParentLength = parentText.trimmingTrailingNewlines.utf16.count
+            trimmedBlockEnd = parentRange.location + trimmedParentLength
+        }
 
         for span in spans {
             // inline span 的起始必须在 parentRange 内
@@ -327,7 +498,7 @@ extension MarkupDocument {
         case .audio:
             return .audio(src: src ?? "")
         default:
-            return .image(src: src ?? "")
+            return .custom(type: "unknown", metadata: ["src": src ?? ""])
         }
     }
 }

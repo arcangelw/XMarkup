@@ -6,7 +6,7 @@ import XCTest
 final class MarkupThemeTests: XCTestCase {
 
     func testTagStyleKeyAllCases() {
-        XCTAssertEqual(TagStyleKey.allCases.count, 17)
+        XCTAssertEqual(TagStyleKey.allCases.count, 23)
     }
 
     func testTagStyleKeyRawValue() {

@@ -22,6 +22,33 @@ func renderBlock(_ block: MarkupBlock, theme: MarkupTheme) -> AttributedString {
     paragraphStyle.paragraphSpacingBefore = theme.paragraphSpacing.spacingBefore
     paragraphStyle.paragraphSpacing = theme.paragraphSpacing.spacingAfter
     paragraphStyle.lineSpacing = theme.paragraphSpacing.lineSpacing
+
+    // 块级特定排版
+    switch block.kind {
+    case let .heading(level):
+        let spacingScale: CGFloat
+        switch level {
+        case .h1: spacingScale = 0.50
+        case .h2: spacingScale = 0.60
+        case .h3: spacingScale = 0.70
+        case .h4: spacingScale = 0.80
+        case .h5: spacingScale = 0.90
+        case .h6: spacingScale = 1.00
+        }
+        let headingSpacing = theme.baseFont.pointSize * spacingScale
+        paragraphStyle.paragraphSpacingBefore = headingSpacing
+        paragraphStyle.paragraphSpacing = headingSpacing * 0.5
+    case .blockquote:
+        paragraphStyle.headIndent = 24
+        paragraphStyle.firstLineHeadIndent = 24
+    case .preformatted:
+        #if canImport(UIKit)
+        paragraphStyle.lineBreakMode = .byCharWrapping
+        #endif
+    default:
+        break
+    }
+
     #if canImport(UIKit)
     baseAttributes.uiKit.paragraphStyle = paragraphStyle
     #elseif canImport(AppKit)
@@ -51,7 +78,13 @@ func renderBlock(_ block: MarkupBlock, theme: MarkupTheme) -> AttributedString {
     }
 
     // 5. 构建段落 AttributedString
-    var attr = AttributedString(block.text, attributes: baseAttributes)
+    let blockText: String
+    if case .horizontalRule = block.kind {
+        blockText = "\u{2003}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2003}"
+    } else {
+        blockText = block.text
+    }
+    var attr = AttributedString(blockText, attributes: baseAttributes)
 
     // 6. 应用内联样式
     for inline in block.inlines {

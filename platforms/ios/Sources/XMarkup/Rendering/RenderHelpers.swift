@@ -45,7 +45,7 @@ func blockStyleKey(for kind: BlockKind) -> TagStyleKey? {
     case .listItem: return .listItem
     case .division: return .division
     case .horizontalRule: return .horizontalRule
-    case .table: return nil
+    case .table: return .table
     }
 }
 
@@ -58,7 +58,8 @@ func inlineStyleKey(for kind: InlineKind) -> TagStyleKey? {
     case .code: return .code
     case .mark: return .mark
     case .link: return .link
-    case .subscriptText, .superscript: return nil
+    case .subscriptText: return .subscriptText
+    case .superscript: return .superscript
     case .span: return nil
     }
 }
