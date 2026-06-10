@@ -345,26 +345,42 @@ void StyleResolver::extract_attribute_value(std::string_view attrs, const char* 
     out_value.clear();
     if (attrs.empty()) return;
 
-    size_t pos = 0;
-    size_t name_len = std::strlen(attr_name);
+    // 构建小写副本用于大小写无关的属性名匹配
+    // （HTTP 属性名不区分大小写，HTML5 §2.4.2）
+    std::string lower_attrs_str;
+    lower_attrs_str.reserve(attrs.size());
+    for (char c : attrs) {
+        lower_attrs_str += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    }
+    std::string_view lower_attrs(lower_attrs_str);
 
-    while (pos + name_len < attrs.size()) {
-        // 查找属性名
-        size_t found = attrs.find(attr_name, pos);
+    // 小写化目标属性名
+    std::string lower_attr_name;
+    for (const char* p = attr_name; *p; p++) {
+        lower_attr_name += static_cast<char>(std::tolower(static_cast<unsigned char>(*p)));
+    }
+
+    size_t pos = 0;
+    size_t name_len = lower_attr_name.size();
+
+    while (pos + name_len < lower_attrs.size()) {
+        // 在小写副本上查找属性名
+        size_t found = lower_attrs.find(lower_attr_name, pos);
         if (found == std::string_view::npos) break;
 
         // 确认匹配的是完整单词（前面是空白或行首，后面是 = 或空白）
-        if (found > 0 && !isspace(static_cast<unsigned char>(attrs[found - 1]))) {
+        if (found > 0 && !isspace(static_cast<unsigned char>(lower_attrs[found - 1]))) {
             pos = found + 1;
             continue;
         }
         size_t after = found + name_len;
-        if (after < attrs.size() && attrs[after] != '=' && !isspace(static_cast<unsigned char>(attrs[after]))) {
+        if (after < lower_attrs.size() && lower_attrs[after] != '=' && !isspace(static_cast<unsigned char>(lower_attrs[after]))) {
             pos = found + 1;
             continue;
         }
 
-        // 找到了属性名，跳过空白和 '='
+        // 找到了属性名（found 在 ASCII 区域与原始 attrs 索引一致）
+        // 跳过空白和 '='
         size_t eq_pos = after;
         while (eq_pos < attrs.size() && isspace(static_cast<unsigned char>(attrs[eq_pos]))) eq_pos++;
         if (eq_pos >= attrs.size() || attrs[eq_pos] != '=') { pos = found + 1; continue; }
@@ -373,7 +389,7 @@ void StyleResolver::extract_attribute_value(std::string_view attrs, const char* 
 
         if (eq_pos >= attrs.size()) break;
 
-        // 读取值
+        // 读取值（在原始 attrs 上提取）
         if (attrs[eq_pos] == '"' || attrs[eq_pos] == '\'') {
             char quote = attrs[eq_pos];
             eq_pos++;

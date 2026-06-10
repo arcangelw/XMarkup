@@ -573,3 +573,34 @@ TEST_F(StyleResolverTest, BlockNewline_HeaderFooter) {
     EXPECT_TRUE(found_header);
     EXPECT_TRUE(found_footer);
 }
+
+// ============================================================
+// Code Review 修复：属性大小写不敏感
+// ============================================================
+
+TEST_F(StyleResolverTest, AttributeNameCaseInsensitiveSrc) {
+    auto r = resolve("<IMG SRC=\"photo.jpg\">");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.tag == XM_TAG_IMAGE && s.value == "photo.jpg") found = true;
+    }
+    EXPECT_TRUE(found) << "IMG SRC=\"photo.jpg\" 应匹配 src 属性";
+}
+
+TEST_F(StyleResolverTest, AttributeNameCaseInsensitiveStyle) {
+    auto r = resolve(R"raw(<P STYLE="color:red">text</P>)raw");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_FOREGROUND_COLOR && s.value == "#FF0000") found = true;
+    }
+    EXPECT_TRUE(found) << "P STYLE=\"color:red\" 应提取 style 属性";
+}
+
+TEST_F(StyleResolverTest, AttributeNameCaseInsensitiveMixed) {
+    auto r = resolve("<a Href=\"http://example.com\">link</a>");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.tag == XM_TAG_LINK && s.value == "http://example.com") found = true;
+    }
+    EXPECT_TRUE(found) << "a Href=\"...\" 应匹配 href 属性";
+}
