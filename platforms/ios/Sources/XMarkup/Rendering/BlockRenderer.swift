@@ -81,6 +81,9 @@ func renderBlock(_ block: MarkupBlock, sharedLists: [NSTextList]?, theme: Markup
     // 2. 根据 block.kind 调整属性
     applyBlockKindAttributes(kind: block.kind, theme: theme, to: &baseAttributes)
 
+    // 2.5 应用 BlockStyle 配置（NSTextBlock 边框/背景）
+    applyBlockStyle(kind: block.kind, theme: theme, to: &baseAttributes)
+
     // 3. 设置自定义 XMarkupScope 属性
     let blockKindName = blockKindName(for: block.kind)
     baseAttributes[XMarkupTagKey.self] = blockKindName
