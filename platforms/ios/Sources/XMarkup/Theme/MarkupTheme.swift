@@ -20,6 +20,8 @@ public struct MarkupTheme: @unchecked Sendable, Equatable {
     public var paragraphSpacing: ParagraphSpacing
     /// 标签样式映射
     public var tagStyles: [TagStyleKey: AttributeContainer]
+    /// 块级排版配置（NSTextBlock / NSTextTable / NSTextList）
+    public var blockStyles: [TagStyleKey: BlockStyleConfiguration]
     /// 媒体渲染策略（不参与 Equatable 比较，因包含闭包）
     public var mediaStrategy: MediaRenderingStrategy
 
@@ -28,12 +30,14 @@ public struct MarkupTheme: @unchecked Sendable, Equatable {
         headingScale: HeadingScale = .default,
         paragraphSpacing: ParagraphSpacing = .default,
         tagStyles: [TagStyleKey: AttributeContainer] = [:],
+        blockStyles: [TagStyleKey: BlockStyleConfiguration] = [:],
         mediaStrategy: MediaRenderingStrategy = .placeholder
     ) {
         self.baseFont = baseFont
         self.headingScale = headingScale
         self.paragraphSpacing = paragraphSpacing
         self.tagStyles = tagStyles
+        self.blockStyles = blockStyles
         self.mediaStrategy = mediaStrategy
     }
 
@@ -43,5 +47,6 @@ public struct MarkupTheme: @unchecked Sendable, Equatable {
             && lhs.headingScale == rhs.headingScale
             && lhs.paragraphSpacing == rhs.paragraphSpacing
             && lhs.tagStyles == rhs.tagStyles
+            && lhs.blockStyles == rhs.blockStyles
     }
 }
