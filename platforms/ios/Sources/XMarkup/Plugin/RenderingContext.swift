@@ -3,6 +3,9 @@ import Foundation
 /// 渲染上下文 — 在整个渲染管线中传递
 ///
 /// 携带当前渲染所需的所有上下文信息，供 Theme resolve 闭包和 Renderer 插件使用。
+///
+/// - Note: `@unchecked Sendable` 因为 `sharedState` 使用 `[String: Any]` 类型（编译器无法推断 Sendable）。
+///   实际存储的值包括 `NSTextList`（引用类型），通过结构体值语义在每个块渲染迭代中创建独立副本，并发访问安全。
 public struct RenderingContext: @unchecked Sendable {
     /// 当前主题配置
     public let theme: MarkupTheme

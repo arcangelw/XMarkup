@@ -86,7 +86,7 @@ func makeSyntheticItalicFont(from font: XMFont) -> XMFont {
         font.pointSize,
         &matrix
     )
-    return ctFont as! UIFont
+    return ctFont as UIFont
 
     #elseif canImport(AppKit)
     var matrix = CGAffineTransform(1, 0, skew, 1, 0, 0)
@@ -95,7 +95,7 @@ func makeSyntheticItalicFont(from font: XMFont) -> XMFont {
         font.pointSize,
         &matrix
     )
-    return ctFont as! NSFont
+    return ctFont as NSFont
     #endif
 }
 

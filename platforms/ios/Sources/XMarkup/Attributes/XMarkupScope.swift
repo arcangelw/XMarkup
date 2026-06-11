@@ -22,4 +22,13 @@ extension NSAttributedString.Key {
 
     /// 附件引用标识符
     public static let xmarkupAttachmentRef = NSAttributedString.Key("XMarkup.AttachmentRef")
+
+    /// 表格列数
+    public static let xmarkupTableColumnCount = NSAttributedString.Key("XMarkup.TableColumnCount")
+
+    /// 表格表头行数
+    public static let xmarkupTableHeaderRowCount = NSAttributedString.Key("XMarkup.TableHeaderRowCount")
+
+    /// 表格行索引
+    public static let xmarkupTableRowIndex = NSAttributedString.Key("XMarkup.TableRowIndex")
 }

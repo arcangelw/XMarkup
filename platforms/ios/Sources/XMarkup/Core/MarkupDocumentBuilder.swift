@@ -198,7 +198,9 @@ extension MarkupDocument {
         var cursor = nodeRange.location
         for occ in occupied {
             if occ.start > cursor {
-                let gap = NSRange(location: cursor, length: occ.start - cursor)
+                let len = occ.start - cursor
+                guard len > 0 else { continue }  // 防御性：跳过零/负长度 gap
+                let gap = NSRange(location: cursor, length: len)
                 emitBlock(text: text, range: gap, kind: resolvedKind, inlineSpans: inlineSpans, blocks: &blocks)
             }
             cursor = max(cursor, occ.end)

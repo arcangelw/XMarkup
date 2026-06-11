@@ -33,9 +33,9 @@ public struct DefaultTableRenderer: BlockRendering, Sendable {
             var attrs: [NSAttributedString.Key: Any] = [
                 .xmarkupBlockKind: "tableRow",
                 .xmarkupTag: "tableRow",
-                NSAttributedString.Key("XMarkup.TableColumnCount"): structure.columnCount,
-                NSAttributedString.Key("XMarkup.TableHeaderRowCount"): structure.headerRowCount,
-                NSAttributedString.Key("XMarkup.TableRowIndex"): rowIdx,
+                .xmarkupTableColumnCount: structure.columnCount,
+                .xmarkupTableHeaderRowCount: structure.headerRowCount,
+                .xmarkupTableRowIndex: rowIdx,
             ]
             if isHeader {
                 attrs[.font] = deriveFont(from: theme.baseFont, addTraits: traitBold)

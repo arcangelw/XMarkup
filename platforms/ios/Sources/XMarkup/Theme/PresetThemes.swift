@@ -86,6 +86,11 @@ extension MarkupTheme {
                 $0.scale = .default
                 $0.bold = true
             }
+            Paragraph {
+                $0.spacingBefore = 12
+                $0.spacingAfter = 12
+                $0.lineSpacing = 4
+            }
             Blockquote {
                 #if canImport(UIKit)
                 $0.textColor = .secondaryLabel

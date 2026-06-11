@@ -10,6 +10,7 @@ import UIKit
 ///
 /// - Note: UILabel 不使用 NSLayoutManager，无法渲染 NSTextList 标记。
 ///         如需完整列表/交互支持，请使用 XMarkupTextView。
+@MainActor
 open class XMarkupLabel: UILabel {
 
     public var mediaLoader: AsyncMediaLoader?

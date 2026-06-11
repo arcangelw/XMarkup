@@ -17,6 +17,7 @@ import UIKit
 /// let textView = XMarkupTextView()
 /// textView.load(document)
 /// ```
+@MainActor
 open class XMarkupTextView: UITextView {
 
     /// 可替换的媒体加载器（默认新建 AsyncMediaLoader）

@@ -512,7 +512,7 @@ final class RenderTests: XCTestCase {
     func testRenderTableCarriesMetadata() throws {
         let nsAttr = try parseAndRender("<table><tr><td>A</td><td>B</td></tr></table>")
         // 表格元数据在 TableRenderer 的 NSMutableAttributedString 上设置
-        let key = NSAttributedString.Key("XMarkup.TableColumnCount")
+        let key = NSAttributedString.Key.xmarkupTableColumnCount
         var foundColumnCount = false
         nsAttr.enumerateAttribute(key, in: NSRange(location: 0, length: nsAttr.length)) { value, _, _ in
             if let count = value as? Int, count == 2 { foundColumnCount = true }

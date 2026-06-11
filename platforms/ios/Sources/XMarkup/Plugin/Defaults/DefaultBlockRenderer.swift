@@ -153,6 +153,8 @@ public struct DefaultBlockRenderer: BlockRendering, Sendable {
         }
 
         // 5. 处理 hr 分隔线（NSTextAttachment 矢量线条，双平台统一）
+        // 注意：HR 返回的是长度为 1 的附件字符（\u{FFFC}），与 block.text 长度无关。
+        // 当前管线不对 HR 块调度 inline renderer，因此 inline range 越界不存在风险。
         if case .horizontalRule = block.kind {
             let attachment = NSTextAttachment()
             let lineWidth: CGFloat = 300

@@ -68,7 +68,7 @@ enum LogBridge {
         Unmanaged<HandlerBox>.fromOpaque(context).release()
     }
 
-    /// 闭包持有盒子（@unchecked Sendable 因为闭包只被主线程持有）
+    /// 持有关闭包的 boxing 容器。回调线程取决于 XMarkupParser.parse() 被调用的线程。
     private final class HandlerBox: @unchecked Sendable {
         let handler: XMarkupLogHandler
         init(_ handler: @escaping XMarkupLogHandler) { self.handler = handler }

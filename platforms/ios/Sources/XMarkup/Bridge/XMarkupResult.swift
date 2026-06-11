@@ -35,7 +35,7 @@ public struct XMarkupResult: Sendable {
         if let cSpans = cResult.pointee.spans {
             for i in 0 ..< count {
                 let s = cSpans[i]
-                let value: String? = s.value != nil ? String(cString: s.value!) : nil
+                let value: String? = s.value.map { String(cString: $0) }
                 spans.append(XMarkupSpan(
                     range: NSRange(location: Int(s.range.start), length: Int(s.range.end - s.range.start)),
                     tag: XMarkupTag(cValue: s.tag),
