@@ -1,9 +1,9 @@
 import XCTest
 @testable import XMarkup
 
-final class NSAttributedStringRendererTests: XCTestCase {
+final class NSConversionTests: XCTestCase {
 
-    func testRenderAttributedString() {
+    func testAttributedStringToNSAttributedString() {
         var attr = AttributedString("Hello World")
         #if canImport(UIKit)
         attr.uiKit.font = .systemFont(ofSize: 16)
@@ -11,12 +11,11 @@ final class NSAttributedStringRendererTests: XCTestCase {
         attr.appKit.font = .systemFont(ofSize: 16)
         #endif
 
-        let renderer = NSAttributedStringRenderer()
-        let result = renderer.render(attr)
+        let result = NSAttributedString(attr)
         XCTAssertEqual(result.string, "Hello World")
     }
 
-    func testRenderPreservesStandardAttributes() {
+    func testStandardAttributesPreserved() {
         var attr = AttributedString("Hello")
         #if canImport(UIKit)
         attr.uiKit.font = .boldSystemFont(ofSize: 20)
@@ -26,10 +25,8 @@ final class NSAttributedStringRendererTests: XCTestCase {
         attr.appKit.foregroundColor = .red
         #endif
 
-        let renderer = NSAttributedStringRenderer()
-        let result = renderer.render(attr)
+        let result = NSAttributedString(attr)
 
-        // UIKit/AppKit 标准属性保留
         let font = result.attribute(.font, at: 0, effectiveRange: nil) as? XMFont
         XCTAssertEqual(font?.pointSize, 20)
     }
@@ -38,8 +35,7 @@ final class NSAttributedStringRendererTests: XCTestCase {
         var attr = AttributedString("Hello")
         attr[XMarkupTagKey.self] = "bold"
 
-        // 通过 Pipeline 完整流程：标准转换 + key 转移
-        let nsAttr = NSMutableAttributedString(attributedString: NSAttributedStringRenderer().render(attr))
+        let nsAttr = NSMutableAttributedString(attributedString: NSAttributedString(attr))
         let transfer = XMarkupKeyTransfer()
         let ctx = RenderingContext(theme: .default, blockIndex: 0, totalBlocks: 1)
         transfer.transfer(from: attr, to: nsAttr, context: ctx)
@@ -56,10 +52,14 @@ final class NSAttributedStringRendererTests: XCTestCase {
         attr.appKit.font = .systemFont(ofSize: 16)
         #endif
 
-        let renderer = NSAttributedStringRenderer()
-        let size = renderer.measure(attr, constrainedTo: 320)
-        XCTAssertGreaterThan(size.width, 0)
-        XCTAssertGreaterThan(size.height, 0)
+        let nsAttr = NSAttributedString(attr)
+        let size = nsAttr.boundingRect(
+            with: CGSize(width: 320, height: 1e9),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            context: nil
+        )
+        XCTAssertGreaterThan(ceil(size.width), 0)
+        XCTAssertGreaterThan(ceil(size.height), 0)
     }
 
     func testMeasureRespectsWidth() {
@@ -70,8 +70,12 @@ final class NSAttributedStringRendererTests: XCTestCase {
         attr.appKit.font = .systemFont(ofSize: 16)
         #endif
 
-        let renderer = NSAttributedStringRenderer()
-        let size = renderer.measure(attr, constrainedTo: 100)
-        XCTAssertLessThanOrEqual(size.width, 100)
+        let nsAttr = NSAttributedString(attr)
+        let size = nsAttr.boundingRect(
+            with: CGSize(width: 100, height: 1e9),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            context: nil
+        )
+        XCTAssertLessThanOrEqual(ceil(size.width), 100)
     }
 }

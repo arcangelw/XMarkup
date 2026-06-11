@@ -76,7 +76,7 @@ final class RenderedTextViewController: NSViewController {
         do {
             let document = try parseDocument()
             let theme: MarkupTheme = example.customTheme ?? .default
-            let attr = document.render(theme: theme)
+            let attr = document.renderAttributed(theme: theme)
             let nsAttr = NSAttributedStringRenderer().render(attr)
             textView.textStorage?.setAttributedString(nsAttr)
         } catch {

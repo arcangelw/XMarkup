@@ -85,7 +85,7 @@ final class ParagraphThemeTests: XCTestCase {
         let parser = try XMarkupParser()
         let result = try parser.parse("<p>Hello</p><p>World</p>")
         let doc = MarkupDocument.from(result)
-        let attr = doc.render(theme: theme)
+        let attr = doc.renderAttributed(theme: theme)
 
         // 验证 runs 中存在 paragraphStyle
         var foundSpacing = false
@@ -111,7 +111,7 @@ final class ParagraphThemeTests: XCTestCase {
         let parser = try XMarkupParser()
         let result = try parser.parse("<p>Hello</p>")
         let doc = MarkupDocument.from(result)
-        let attr = doc.render()
+        let attr = doc.renderAttributed()
 
         // 默认主题应有 8pt 间距
         var foundSpacing = false

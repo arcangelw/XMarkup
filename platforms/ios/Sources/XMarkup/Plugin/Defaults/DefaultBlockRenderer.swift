@@ -72,19 +72,11 @@ public struct DefaultBlockRenderer: BlockRendering, Sendable {
             if let resolved = theme.heading.resolved(for: block, baseFont: theme.baseFont, context: context) {
                 let fontSize = resolved.fontSize
                 if resolved.bold {
+                    let boldFont = deriveFont(from: theme.baseFont, addTraits: traitBold, size: fontSize)
                     #if canImport(UIKit)
-                    if let boldDescriptor = theme.baseFont.fontDescriptor.withSymbolicTraits(traitBold) {
-                        baseAttributes.uiKit.font = UIFont(descriptor: boldDescriptor, size: fontSize)
-                    } else {
-                        baseAttributes.uiKit.font = UIFont.systemFont(ofSize: fontSize, weight: .bold)
-                    }
+                    baseAttributes.uiKit.font = boldFont
                     #elseif canImport(AppKit)
-                    let boldDescriptor = theme.baseFont.fontDescriptor.withSymbolicTraits(.bold)
-                    if let font = NSFont(descriptor: boldDescriptor, size: fontSize) {
-                        baseAttributes.appKit.font = font
-                    } else {
-                        baseAttributes.appKit.font = NSFont.boldSystemFont(ofSize: fontSize)
-                    }
+                    baseAttributes.appKit.font = boldFont
                     #endif
                 } else {
                     #if canImport(UIKit)
@@ -150,13 +142,13 @@ public struct DefaultBlockRenderer: BlockRendering, Sendable {
 
         case .preformatted:
             let resolved = theme.preformatted.resolved(for: block, context: context)
+            let preformattedFont = resolved.font
+                ?? XMFont.monospacedSystemFont(ofSize: theme.baseFont.pointSize, weight: .regular)
             #if canImport(UIKit)
             paragraphStyle.lineBreakMode = .byCharWrapping
-            baseAttributes.uiKit.font = resolved.font
-                ?? UIFont.monospacedSystemFont(ofSize: theme.baseFont.pointSize, weight: .regular)
+            baseAttributes.uiKit.font = preformattedFont
             #elseif canImport(AppKit)
-            baseAttributes.appKit.font = resolved.font
-                ?? NSFont.monospacedSystemFont(ofSize: theme.baseFont.pointSize, weight: .regular)
+            baseAttributes.appKit.font = preformattedFont
             #endif
 
         case .horizontalRule:

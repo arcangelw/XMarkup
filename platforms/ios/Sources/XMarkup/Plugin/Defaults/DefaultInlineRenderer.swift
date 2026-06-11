@@ -10,6 +10,9 @@ import AppKit
 ///
 /// 由 RenderPipeline 在 block 渲染完成后调度。
 /// 每个 block 的 inlines 按注册顺序依次询问 inlineRenderers。
+///
+/// 所有 font 设置通过 `deriveFont` / `makeSyntheticItalicFont` 从当前字体派生，
+/// 不使用硬编码系统字体，确保 trait 累积和 matrix 不丢失。
 public struct DefaultInlineRenderer: InlineRendering, Sendable {
     public init() {}
 
@@ -33,10 +36,10 @@ public struct DefaultInlineRenderer: InlineRendering, Sendable {
 
         switch inline.kind {
         case .bold:
-            applyFontTrait(traitBold, to: attrRange, in: &attributed)
+            applyFontTrait(traitBold, to: attrRange, in: &attributed, context: context)
 
         case .italic:
-            applyFontTrait(traitItalic, to: attrRange, in: &attributed)
+            applyFontTrait(traitItalic, to: attrRange, in: &attributed, context: context)
 
         case .underline:
             #if canImport(UIKit)
@@ -53,7 +56,7 @@ public struct DefaultInlineRenderer: InlineRendering, Sendable {
             #endif
 
         case .code:
-            // 从 typed theme 读取字体和背景色，fallback 到系统默认
+            // 从 typed theme 读取字体和背景色，fallback 从 baseFont 派生等宽字体
             let codeTheme = context.theme.codeInline
             #if canImport(UIKit)
             attributed[attrRange].uiKit.font = codeTheme.font
@@ -92,14 +95,14 @@ public struct DefaultInlineRenderer: InlineRendering, Sendable {
             for run in attributed[attrRange].runs {
                 #if canImport(UIKit)
                 if let font = run.uiKit.font {
-                    let smallFont = UIFont(descriptor: font.fontDescriptor, size: font.pointSize * 0.65)
+                    let smallFont = deriveFont(from: font, size: font.pointSize * 0.65)
                     attributed[run.range].uiKit.font = smallFont
                     attributed[run.range].uiKit.baselineOffset = -font.pointSize * 0.2
                 }
                 #elseif canImport(AppKit)
-                let font = run.appKit.font ?? NSFont.systemFont(ofSize: 12)
-                let smallFont = NSFont(descriptor: font.fontDescriptor, size: font.pointSize * 0.65)
-                if let sf = smallFont { attributed[run.range].appKit.font = sf }
+                let font = run.appKit.font ?? context.theme.baseFont
+                let smallFont = deriveFont(from: font, size: font.pointSize * 0.65)
+                attributed[run.range].appKit.font = smallFont
                 attributed[run.range].appKit.baselineOffset = -font.pointSize * 0.2
                 #endif
             }
@@ -108,21 +111,21 @@ public struct DefaultInlineRenderer: InlineRendering, Sendable {
             for run in attributed[attrRange].runs {
                 #if canImport(UIKit)
                 if let font = run.uiKit.font {
-                    let smallFont = UIFont(descriptor: font.fontDescriptor, size: font.pointSize * 0.65)
+                    let smallFont = deriveFont(from: font, size: font.pointSize * 0.65)
                     attributed[run.range].uiKit.font = smallFont
                     attributed[run.range].uiKit.baselineOffset = font.pointSize * 0.35
                 }
                 #elseif canImport(AppKit)
-                let font = run.appKit.font ?? NSFont.systemFont(ofSize: 12)
-                let smallFont = NSFont(descriptor: font.fontDescriptor, size: font.pointSize * 0.65)
-                if let sf = smallFont { attributed[run.range].appKit.font = sf }
+                let font = run.appKit.font ?? context.theme.baseFont
+                let smallFont = deriveFont(from: font, size: font.pointSize * 0.65)
+                attributed[run.range].appKit.font = smallFont
                 attributed[run.range].appKit.baselineOffset = font.pointSize * 0.35
                 #endif
             }
 
         case .span(let styles):
             for style in styles {
-                applyInlineStyle(style, to: attrRange, in: &attributed)
+                applyInlineStyle(style, to: attrRange, in: &attributed, context: context)
             }
 
         case .lineBreak:
@@ -152,65 +155,31 @@ public struct DefaultInlineRenderer: InlineRendering, Sendable {
 
     // MARK: - Font Trait
 
+    /// 对指定 range 应用字体 trait（bold/italic）
+    ///
+    /// 始终从当前 font 的 descriptor 派生，保留 matrix/family/已有 traits 不丢失。
+    /// italic 统一使用 makeSyntheticItalicFont（矩阵合成），确保中英文行为一致。
     private func applyFontTrait(
         _ trait: XMFontDescriptor.SymbolicTraits,
         to range: Range<AttributedString.Index>,
-        in attributed: inout AttributedString
+        in attributed: inout AttributedString,
+        context: RenderingContext
     ) {
+        let baseFont = context.theme.baseFont
         for run in attributed[range].runs {
             #if canImport(UIKit)
-            if let font = run.uiKit.font {
-                if trait == traitItalic {
-                    var traits = font.fontDescriptor.symbolicTraits
-                    traits.insert(traitItalic)
-                    if let descriptor = font.fontDescriptor.withSymbolicTraits(traits) {
-                        let italicFont = UIFont(descriptor: descriptor, size: font.pointSize)
-                        if italicFont.fontDescriptor.symbolicTraits.contains(traitItalic),
-                           italicFont.fontName != font.fontName {
-                            attributed[run.range].uiKit.font = italicFont
-                        } else {
-                            attributed[run.range].uiKit.obliqueness = 0.25
-                        }
-                    } else {
-                        attributed[run.range].uiKit.obliqueness = 0.25
-                    }
-                } else {
-                    var traits = font.fontDescriptor.symbolicTraits
-                    traits.insert(trait)
-                    if let descriptor = font.fontDescriptor.withSymbolicTraits(traits) {
-                        attributed[run.range].uiKit.font = UIFont(descriptor: descriptor, size: font.pointSize)
-                    } else if trait == traitBold {
-                        attributed[run.range].uiKit.font = UIFont.systemFont(ofSize: font.pointSize, weight: .bold)
-                    }
-                }
-            } else if trait == traitItalic {
-                attributed[run.range].uiKit.obliqueness = 0.25
+            let font = run.uiKit.font ?? baseFont
+            if trait == traitItalic {
+                attributed[run.range].uiKit.font = makeSyntheticItalicFont(from: font)
+            } else {
+                attributed[run.range].uiKit.font = deriveFont(from: font, addTraits: trait)
             }
             #elseif canImport(AppKit)
-            if let font = run.appKit.font {
-                if trait == traitItalic {
-                    var traits = font.fontDescriptor.symbolicTraits
-                    traits.insert(traitItalic)
-                    let descriptor = font.fontDescriptor.withSymbolicTraits(traits)
-                    if let italicFont = NSFont(descriptor: descriptor, size: font.pointSize),
-                       italicFont.fontDescriptor.symbolicTraits.contains(traitItalic),
-                       italicFont.fontName != font.fontName {
-                        attributed[run.range].appKit.font = italicFont
-                    } else {
-                        attributed[run.range].appKit.obliqueness = 0.25
-                    }
-                } else {
-                    var traits = font.fontDescriptor.symbolicTraits
-                    traits.insert(trait)
-                    let descriptor = font.fontDescriptor.withSymbolicTraits(traits)
-                    if let newFont = NSFont(descriptor: descriptor, size: font.pointSize) {
-                        attributed[run.range].appKit.font = newFont
-                    } else if trait == traitBold {
-                        attributed[run.range].appKit.font = NSFont.boldSystemFont(ofSize: font.pointSize)
-                    }
-                }
-            } else if trait == traitItalic {
-                attributed[run.range].appKit.obliqueness = 0.25
+            let font = run.appKit.font ?? baseFont
+            if trait == traitItalic {
+                attributed[run.range].appKit.font = makeSyntheticItalicFont(from: font)
+            } else {
+                attributed[run.range].appKit.font = deriveFont(from: font, addTraits: trait)
             }
             #endif
         }
@@ -221,8 +190,10 @@ public struct DefaultInlineRenderer: InlineRendering, Sendable {
     private func applyInlineStyle(
         _ style: InlineStyle,
         to range: Range<AttributedString.Index>,
-        in attributed: inout AttributedString
+        in attributed: inout AttributedString,
+        context: RenderingContext
     ) {
+        let baseFont = context.theme.baseFont
         switch style {
         case .foregroundColor(let hex):
             if let color = ColorParser.parse(hex) {
@@ -243,21 +214,16 @@ public struct DefaultInlineRenderer: InlineRendering, Sendable {
         case .fontSize(let size):
             for run in attributed[range].runs {
                 #if canImport(UIKit)
-                if let font = run.uiKit.font {
-                    let newFont = UIFont(descriptor: font.fontDescriptor, size: CGFloat(size))
-                    attributed[run.range].uiKit.font = newFont
-                }
+                let font = run.uiKit.font ?? baseFont
+                attributed[run.range].uiKit.font = deriveFont(from: font, size: CGFloat(size))
                 #elseif canImport(AppKit)
-                if let font = run.appKit.font {
-                    if let newFont = NSFont(descriptor: font.fontDescriptor, size: CGFloat(size)) {
-                        attributed[run.range].appKit.font = newFont
-                    }
-                }
+                let font = run.appKit.font ?? baseFont
+                attributed[run.range].appKit.font = deriveFont(from: font, size: CGFloat(size))
                 #endif
             }
         case .fontStyle(let fontStyle):
             if fontStyle == "italic" {
-                applyFontTrait(traitItalic, to: range, in: &attributed)
+                applyFontTrait(traitItalic, to: range, in: &attributed, context: context)
             }
         case .textDecoration(let decoration):
             if decoration == "underline" {
@@ -276,27 +242,26 @@ public struct DefaultInlineRenderer: InlineRendering, Sendable {
         case .fontWeight(let weight):
             for run in attributed[range].runs {
                 #if canImport(UIKit)
-                let currentFont = run.uiKit.font ?? UIFont.systemFont(ofSize: 16)
-                if weight == "bold" || weight == "700" {
-                    attributed[run.range].uiKit.font = UIFont.systemFont(ofSize: currentFont.pointSize, weight: .bold)
-                } else if weight == "normal" || weight == "400" {
-                    attributed[run.range].uiKit.font = UIFont.systemFont(ofSize: currentFont.pointSize, weight: .regular)
-                } else if let w = Float(weight), w >= 600 {
-                    attributed[run.range].uiKit.font = UIFont.systemFont(ofSize: currentFont.pointSize, weight: .bold)
-                } else if let w = Float(weight), w <= 300 {
-                    attributed[run.range].uiKit.font = UIFont.systemFont(ofSize: currentFont.pointSize, weight: .light)
-                }
+                let currentFont = run.uiKit.font ?? baseFont
                 #elseif canImport(AppKit)
-                let currentFont = run.appKit.font ?? NSFont.systemFont(ofSize: 16)
+                let currentFont = run.appKit.font ?? baseFont
+                #endif
+                let newFont: XMFont
                 if weight == "bold" || weight == "700" {
-                    attributed[run.range].appKit.font = NSFont.boldSystemFont(ofSize: currentFont.pointSize)
+                    newFont = deriveFont(from: currentFont, addTraits: traitBold)
                 } else if weight == "normal" || weight == "400" {
-                    attributed[run.range].appKit.font = NSFont.systemFont(ofSize: currentFont.pointSize, weight: .regular)
+                    newFont = deriveFont(from: currentFont, weight: .regular)
                 } else if let w = Float(weight), w >= 600 {
-                    attributed[run.range].appKit.font = NSFont.boldSystemFont(ofSize: currentFont.pointSize)
+                    newFont = deriveFont(from: currentFont, addTraits: traitBold)
                 } else if let w = Float(weight), w <= 300 {
-                    attributed[run.range].appKit.font = NSFont.systemFont(ofSize: currentFont.pointSize, weight: .light)
+                    newFont = deriveFont(from: currentFont, weight: .light)
+                } else {
+                    continue
                 }
+                #if canImport(UIKit)
+                attributed[run.range].uiKit.font = newFont
+                #elseif canImport(AppKit)
+                attributed[run.range].appKit.font = newFont
                 #endif
             }
         case .lineHeight(let height):

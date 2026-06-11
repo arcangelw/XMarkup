@@ -44,11 +44,7 @@ public struct DefaultTableRenderer: BlockRendering, Sendable {
                 tableRowIndexKey: rowIdx,
             ]
             if isHeader {
-                #if canImport(UIKit)
-                attrs[.font] = UIFont.boldSystemFont(ofSize: theme.baseFont.pointSize)
-                #elseif canImport(AppKit)
-                attrs[.font] = NSFont.boldSystemFont(ofSize: theme.baseFont.pointSize)
-                #endif
+                attrs[.font] = deriveFont(from: theme.baseFont, addTraits: traitBold)
             }
 
             result.append(NSAttributedString(string: line, attributes: attrs))

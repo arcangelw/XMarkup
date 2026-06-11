@@ -64,8 +64,8 @@ extension DemoExample {
         DemoExample(
             id: "italic",
             title: "斜体",
-            description: "<i> / <em> 标签",
-            html: "这是<i>斜体</i>文字示例，<em>em 标签</em>也表示强调。",
+            description: "<i> / <em> 标签（英文原生 + 中文合成）",
+            html: "English <i>italic</i> works natively. <em>Emphasized text</em> also renders as italic. 中文<i>斜体</i>使用合成倾斜。粗斜体：<b><i>bold italic</i></b> / <b><i>中文粗斜</i></b>。",
             category: .basic
         ),
         DemoExample(
