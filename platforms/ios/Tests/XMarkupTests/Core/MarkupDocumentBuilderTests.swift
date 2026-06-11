@@ -532,4 +532,11 @@ final class MarkupDocumentBuilderTests: XCTestCase {
         // 当前 direct: TableStructure.rows 中的 cell kind 已由 builder 设置
         XCTAssertEqual(structure.rows[0][0].kind, .tableCell)
     }
+
+    func testMediaWithoutAltTextCreatesAttachment() throws {
+        let result = try parse("<img src=\"photo.jpg\">")
+        let doc = MarkupDocument.from(result)
+        guard let block = doc.blocks.first else { XCTFail("应产出块"); return }
+        XCTAssertNotNil(block.attachment, "零文本 media 应生成附件块")
+    }
 }

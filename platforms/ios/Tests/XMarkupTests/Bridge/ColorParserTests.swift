@@ -62,6 +62,12 @@ final class ColorParserTests: XCTestCase {
         XCTAssertEqual(r, 1.0, accuracy: 0.01, "#FF0000 -> R=1.0")
         XCTAssertEqual(g, 0.0, accuracy: 0.01, "#FF0000 -> G=0.0")
         XCTAssertEqual(b, 0.0, accuracy: 0.01, "#FF0000 -> B=0.0")
+        #elseif canImport(AppKit)
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        color!.getRed(&r, green: &g, blue: &b, alpha: &a)
+        XCTAssertEqual(r, 1.0, accuracy: 0.01, "#FF0000 -> R=1.0")
+        XCTAssertEqual(g, 0.0, accuracy: 0.01, "#FF0000 -> G=0.0")
+        XCTAssertEqual(b, 0.0, accuracy: 0.01, "#FF0000 -> B=0.0")
         #endif
     }
 }

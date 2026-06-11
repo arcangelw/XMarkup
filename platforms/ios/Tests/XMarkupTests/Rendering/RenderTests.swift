@@ -276,7 +276,8 @@ final class RenderTests: XCTestCase {
         let nsAttr = try parseAndRender("<h6>Small</h6>")
         let font = nsAttr.attribute(.font, at: 0, effectiveRange: nil) as? XMFont
         XCTAssertNotNil(font)
-        XCTAssertEqual(font!.pointSize, 16 * 0.67, accuracy: 0.5)
+        let expectedH6 = 16 * MarkupTheme.default.heading.scale.h6
+        XCTAssertEqual(font!.pointSize, expectedH6, accuracy: 0.5)
     }
 
     // MARK: - 更多渲染场景
@@ -397,7 +398,7 @@ final class RenderTests: XCTestCase {
         let nsAttr = try parseAndRender("<span style=\"line-height:2.0\">text</span>")
         let paraStyle = nsAttr.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle
         XCTAssertNotNil(paraStyle)
-        XCTAssertGreaterThan(paraStyle?.minimumLineHeight ?? 0, 1.0)
+        XCTAssertEqual(paraStyle?.minimumLineHeight ?? 0, 2.0, accuracy: 0.5)
     }
 
     func testRenderCSSLetterSpacing() throws {
@@ -663,5 +664,82 @@ final class RenderTests: XCTestCase {
         // 验证 per-level fontSize
         let font = nsAttr.attribute(NSAttributedString.Key.font, at: 0, effectiveRange: nil) as? XMFont
         XCTAssertEqual(font?.pointSize, 30)
+    }
+
+    // MARK: - Code Review 修复验证新增
+
+    func testFontWeightNormalClearsBold() throws {
+        let nsAttr = try parseAndRender("<b><span style=\"font-weight:normal\">text</span></b>")
+        let font = nsAttr.attribute(.font, at: 0, effectiveRange: nil) as? XMFont
+        XCTAssertNotNil(font)
+        #if canImport(UIKit)
+        XCTAssertFalse(font!.fontDescriptor.symbolicTraits.contains(.traitBold),
+                       "font-weight:normal 应清除 bold trait")
+        #elseif canImport(AppKit)
+        XCTAssertFalse(font!.fontDescriptor.symbolicTraits.contains(.bold),
+                       "font-weight:normal 应清除 bold trait")
+        #endif
+    }
+
+    func testFontWeightLightClearsBold() throws {
+        let nsAttr = try parseAndRender("<b><span style=\"font-weight:300\">text</span></b>")
+        let font = nsAttr.attribute(.font, at: 0, effectiveRange: nil) as? XMFont
+        XCTAssertNotNil(font)
+        #if canImport(UIKit)
+        XCTAssertFalse(font!.fontDescriptor.symbolicTraits.contains(.traitBold),
+                       "font-weight:300 应清除 bold trait")
+        #elseif canImport(AppKit)
+        XCTAssertFalse(font!.fontDescriptor.symbolicTraits.contains(.bold),
+                       "font-weight:300 应清除 bold trait")
+        #endif
+    }
+
+    func testFontStyleNormalClearsItalicMatrix() throws {
+        let nsAttr = try parseAndRender("<i><span style=\"font-style:normal\">text</span></i>")
+        let font = nsAttr.attribute(.font, at: 0, effectiveRange: nil) as? XMFont
+        XCTAssertNotNil(font)
+        #if canImport(UIKit)
+        XCTAssertEqual(font!.fontDescriptor.matrix.b, 0,
+                       "font-style:normal 应清除 italic matrix")
+        #elseif canImport(AppKit)
+        // macOS: 验证字体名不再是斜体
+        XCTAssertFalse(font!.fontName.lowercased().contains("italic"),
+                       "font-style:normal 不应包含 italic 字体名")
+        #endif
+    }
+
+    func testCodeDoesNotOverwriteExistingBackgroundColor() throws {
+        let nsAttr = try parseAndRender("<span style=\"background-color:#FF0000\"><code>code</code></span>")
+        let bg = nsAttr.attribute(.backgroundColor, at: 0, effectiveRange: nil) as? XMColor
+        XCTAssertNotNil(bg, "code 不应覆盖 span 已有的背景色")
+        #if canImport(UIKit)
+        XCTAssertEqual(bg, UIColor.red, "code 背景色应为 span 设置的颜色")
+        #elseif canImport(AppKit)
+        XCTAssertEqual(bg, NSColor.red, "code 背景色应为 span 设置的颜色")
+        #endif
+    }
+
+    func testNestedBlockquoteRenders() throws {
+        let nsAttr = try parseAndRender("<blockquote>Outer<blockquote>Inner</blockquote></blockquote>")
+        XCTAssertTrue(nsAttr.string.contains("Outer"))
+        XCTAssertTrue(nsAttr.string.contains("Inner"))
+    }
+
+    func testBRElementCreatesLineBreak() throws {
+        let nsAttr = try parseAndRender("<p>Line1<br>Line2</p>")
+        let text = nsAttr.string
+        XCTAssertTrue(text.contains("\n"), "<br> 应产生换行符")
+        // 验证 "Line1" 和 "Line2" 在不同行
+        let parts = text.components(separatedBy: .newlines)
+        XCTAssertTrue(parts.contains("Line1"))
+        XCTAssertTrue(parts.contains("Line2"))
+    }
+
+    func testHTMLEntitiesDecoded() throws {
+        let nsAttr = try parseAndRender("<p>A &amp; B &lt; C &gt; D</p>")
+        let text = nsAttr.string
+        XCTAssertTrue(text.contains("&"), "&amp; 应解码为 &")
+        XCTAssertTrue(text.contains("<"), "&lt; 应解码为 <")
+        XCTAssertTrue(text.contains(">"), "&gt; 应解码为 >")
     }
 }
