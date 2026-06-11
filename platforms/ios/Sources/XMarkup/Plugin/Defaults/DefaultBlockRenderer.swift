@@ -125,6 +125,9 @@ public struct DefaultBlockRenderer: BlockRendering, Sendable {
             let preformattedFont = resolved.font
                 ?? XMFont.monospacedSystemFont(ofSize: theme.baseFont.pointSize, weight: .regular)
             baseAttributes[.font] = preformattedFont
+            if let bg = resolved.backgroundColor {
+                baseAttributes[.backgroundColor] = bg
+            }
 
         case .horizontalRule:
             break

@@ -26,26 +26,29 @@ public struct DefaultTableRenderer: BlockRendering, Sendable {
         guard !structure.rows.isEmpty else { return result }
 
         let columnCount = max(structure.columnCount, 1)
-        let columnPadding: CGFloat = 8
+        let columnPadding: CGFloat = 16
 
-        // 第一遍：计算每列最大宽度（字符数）
-        var maxWidths = [Int](repeating: 0, count: columnCount)
-        for row in structure.rows {
+        // 预计算 body 和 header 字体
+        let monoFont = theme.preformatted.font
+            ?? XMFont.monospacedSystemFont(ofSize: theme.baseFont.pointSize, weight: .regular)
+        let boldMonoFont = deriveFont(from: monoFont, addTraits: traitBold)
+
+        // 第一遍：用 NSString.size 精确测量每列最大像素宽度
+        var maxWidths = [CGFloat](repeating: 0, count: columnCount)
+        for (rowIdx, row) in structure.rows.enumerated() {
+            let rowFont = rowIdx < structure.headerRowCount ? boldMonoFont : monoFont
             for (colIdx, cell) in row.enumerated() where colIdx < columnCount {
-                maxWidths[colIdx] = max(maxWidths[colIdx], cell.text.utf16.count)
+                let cellStr = cell.text as NSString
+                let cellWidth = cellStr.size(withAttributes: [.font: rowFont]).width
+                maxWidths[colIdx] = max(maxWidths[colIdx], cellWidth)
             }
         }
 
-        // 计算 tab stop 位置（用等宽字体估算宽度）
-        // 等宽字体中每个字符宽度 ≈ baseFont 的 '0' 宽度
-        let monoFont = theme.preformatted.font
-            ?? XMFont.monospacedSystemFont(ofSize: theme.baseFont.pointSize, weight: .regular)
-        let charWidth = monoFont.pointSize * 0.6  // 等宽字体字符宽 ≈ 字号 × 0.6
+        // 计算 tab stop 位置
         var tabLocations: [CGFloat] = []
         for colIdx in 0..<columnCount {
             let prevTab = tabLocations.last ?? 0
-            let cellWidth = CGFloat(maxWidths[colIdx]) * charWidth + columnPadding
-            tabLocations.append(prevTab + cellWidth)
+            tabLocations.append(prevTab + maxWidths[colIdx] + columnPadding)
         }
 
         // 第二遍：构建行，设置 tab stops 和等宽字体
