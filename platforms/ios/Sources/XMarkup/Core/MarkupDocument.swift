@@ -46,44 +46,42 @@ public struct MarkupDocument: Sendable, Equatable {
 
     // ---- render = NSAttributedString 输出 ----
 
-    /// 使用默认管线渲染为 NSAttributedString
+    /// 渲染为 NSAttributedString（NS 层输出）
+    ///
+    /// - Parameters:
+    ///   - theme: 渲染主题，默认 `.default`
+    ///   - pipeline: 渲染管线，默认 `RenderPipeline.default`
+    /// - Returns: 渲染后的 NSAttributedString
     ///
     /// ```swift
-    /// let nsAttr = doc.render(theme: .default)
+    /// let nsAttr = doc.render()                              // 默认
+    /// let dark = doc.render(theme: .dark)                    // 自定义主题
+    /// let custom = doc.render(pipeline: myPipeline)          // 自定义管线
     /// textView.attributedText = nsAttr
     /// ```
-    public func render(theme: MarkupTheme = .default) -> NSAttributedString {
-        RenderPipeline.default.render(self, theme: theme)
-    }
-
-    /// 使用自定义管线渲染为 NSAttributedString
-    ///
-    /// ```swift
-    /// let customPipeline = RenderPipeline.default.addingEnhancers([MyPlugin()])
-    /// let nsAttr = doc.render(theme: .default, pipeline: customPipeline)
-    /// ```
-    public func render(theme: MarkupTheme = .default, pipeline: RenderPipeline) -> NSAttributedString {
+    public func render(
+        theme: MarkupTheme = .default,
+        pipeline: RenderPipeline = .default
+    ) -> NSAttributedString {
         pipeline.render(self, theme: theme)
     }
 
-    // ---- renderAttributed = AttributedString 输出 ----
-
-    /// 使用默认管线渲染为 AttributedString
+    /// 渲染为 AttributedString（AttributedString 层输出）
+    ///
+    /// - Parameters:
+    ///   - theme: 渲染主题，默认 `.default`
+    ///   - pipeline: 渲染管线，默认 `RenderPipeline.default`
+    /// - Returns: 渲染后的 AttributedString
     ///
     /// ```swift
-    /// let attr = doc.renderAttributed(theme: .default)
+    /// let attr = doc.renderAttributed()                     // 默认
+    /// let attr = doc.renderAttributed(theme: .dark)         // 自定义主题
     /// // 可在 AttributedString 层做进一步处理
     /// ```
-    public func renderAttributed(theme: MarkupTheme = .default) -> AttributedString {
-        RenderPipeline.default.renderAttributed(self, theme: theme)
-    }
-
-    /// 使用自定义管线渲染为 AttributedString
-    ///
-    /// ```swift
-    /// let attr = doc.renderAttributed(theme: .default, pipeline: myPipeline)
-    /// ```
-    public func renderAttributed(theme: MarkupTheme = .default, pipeline: RenderPipeline) -> AttributedString {
+    public func renderAttributed(
+        theme: MarkupTheme = .default,
+        pipeline: RenderPipeline = .default
+    ) -> AttributedString {
         pipeline.renderAttributed(self, theme: theme)
     }
 

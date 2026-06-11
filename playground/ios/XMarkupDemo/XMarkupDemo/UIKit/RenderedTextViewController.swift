@@ -51,8 +51,7 @@ final class RenderedTextViewController: UIViewController {
         do {
             let document = try parseDocument()
             let theme: MarkupTheme = example.customTheme ?? .default
-            let attr = document.renderAttributed(theme: theme)
-            let nsAttr = NSAttributedStringRenderer().render(attr)
+            let nsAttr = document.render(theme: theme)
             textView.attributedText = nsAttr
         } catch {
             textView.text = "解析错误：\(error.localizedDescription)"
