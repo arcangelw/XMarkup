@@ -71,4 +71,41 @@ final class XMarkupParserTests: XCTestCase {
             // parser 离开作用域后 deinit 自动调用 xmarkup_destroy
         }
     }
+
+    // MARK: - 解析器错误路径
+
+    func testParseDeeplyNestedHTML() throws {
+        let parser = try XMarkupParser()
+        // 生成 500 层嵌套 <b><b>...text...</b></b>
+        let innerTag = String(repeating: "<b>", count: 500) + "text" + String(repeating: "</b>", count: 500)
+        let result = try parser.parse(innerTag)
+        // 引擎应处理深层嵌套（兜底截断或保留前 N 层），不应崩溃
+        XCTAssertTrue(result.text.contains("text"), "深层嵌套不应崩溃")
+    }
+
+    func testParseMalformedHTML() throws {
+        let parser = try XMarkupParser()
+        // 各种畸形输入——不应崩溃
+        let cases = [
+            "<b>unclosed",
+            "<b><i>crossed</b></i>",
+            "<<<>>>",
+            "<div><p>mismatched</div>",
+            "<a href>missing_value",
+            "<img src='img.jpg'>",  // 单引号属性
+        ]
+        for html in cases {
+            // 不应崩溃（parse 抛出即触发 XCTest 失败）
+            _ = try parser.parse(html)
+        }
+    }
+
+    func testParseWithMaxNestingDepthLimit() throws {
+        let parser = try XMarkupParser(maxNestingDepth: 5, autocorrect: false)
+        // 超过 5 层嵌套
+        let html = String(repeating: "<div>", count: 10) + "text" + String(repeating: "</div>", count: 10)
+        let result = try parser.parse(html)
+        // 不应崩溃，应保留部分文本
+        XCTAssertTrue(result.text.contains("text"), "受限嵌套深度不应崩溃")
+    }
 }

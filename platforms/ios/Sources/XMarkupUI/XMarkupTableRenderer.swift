@@ -44,7 +44,9 @@ struct XMarkupTableRenderer {
                     cellAttr.addAttribute(.paragraphStyle, value: paraStyle,
                                            range: NSRange(location: 0, length: cell.text.utf16.count))
                 }
-                if rowIdx > 0 || colIdx > 0 {
+                // 同行 cell 由 NSTextTableBlock 的 row/column 定位，无需分隔符
+                // 只在行首追加换行（第一行除外）
+                if colIdx == 0 && rowIdx > 0 {
                     result.append(NSAttributedString(string: "\n"))
                 }
                 result.append(cellAttr)

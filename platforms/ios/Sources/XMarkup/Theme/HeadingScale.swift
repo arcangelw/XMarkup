@@ -16,6 +16,8 @@ public struct HeadingScale: Sendable, Equatable {
     /// 创建标题缩放配置
     ///
     /// 默认值对应浏览器默认样式表（MDN 参考）。
+    ///
+    /// - Note: 不校验传入值有效性。设 0 或负值会产生 0pt 标题——调用方应确保正值。
     public init(
         h1: CGFloat = 2.0,
         h2: CGFloat = 1.5,
