@@ -49,7 +49,7 @@ public struct DefaultAttachmentRenderer: BlockRendering, Sendable {
                 let attach = NSTextAttachment()
                 attach.image = image
                 let aspectRatio = image.size.height / max(image.size.width, 1)
-                let displayWidth = attachment.suggestedSize.width
+                let displayWidth = max(attachment.suggestedSize.width, 1)
                 let displaySize = CGSize(width: displayWidth, height: displayWidth * aspectRatio)
                 attach.bounds = CGRect(origin: .zero, size: displaySize)
                 nsAttachment = attach

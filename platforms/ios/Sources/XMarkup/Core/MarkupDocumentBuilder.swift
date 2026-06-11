@@ -163,10 +163,8 @@ extension MarkupDocument {
             // 叶子节点：产出一个块
             let isPre = node.span.tag == .preformatted
             let blockText = extractText(text: text, nsRange: nodeRange, preserveTrailingNewlines: isPre)
-            guard !blockText.isEmpty else { return }
-            let inlines = convertToInlines(inlineSpans, in: text, parentRange: nodeRange,
-                                            preserveTrailingNewlines: isPre)
 
+            // 附件在文本之前创建（即使文本为空也要生成附件块，如无 alt 的 <img>）
             let attachment: MarkupAttachment?
             if mediaTags.contains(node.span.tag) {
                 let src = resolveMediaSrc(node.span, allSpans: allSpans)
@@ -178,6 +176,12 @@ extension MarkupDocument {
             } else {
                 attachment = nil
             }
+
+            // 无文本且无附件时跳过
+            guard !blockText.isEmpty || attachment != nil else { return }
+
+            let inlines = convertToInlines(inlineSpans, in: text, parentRange: nodeRange,
+                                            preserveTrailingNewlines: isPre)
             blocks.append(MarkupBlock(kind: resolvedKind, text: blockText, inlines: inlines, attachment: attachment))
             return
         }
