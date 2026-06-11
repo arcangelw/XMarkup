@@ -2,6 +2,7 @@ import Foundation
 
 #if canImport(UIKit)
 import UIKit
+import CoreText
 #elseif canImport(AppKit)
 import AppKit
 #endif
@@ -146,6 +147,22 @@ func deriveFont(
     // 恢复 matrix（确保 italic 的矩阵变换不因 withSymbolicTraits 丢失）
     if !clearMatrix, originalMatrix.b != 0 {
         descriptor = descriptor.withMatrix(originalMatrix)
+        return UIFont(descriptor: descriptor, size: newSize)
+    }
+
+    // 检查 CTFont 渲染级 matrix（makeSyntheticItalicFont 设置的矩阵在 descriptor 中不可见）
+    if !clearMatrix {
+        #if canImport(UIKit)
+        let ctMatrix = CTFontGetMatrix(font as CTFont)
+        if ctMatrix.b != 0 {
+            var m = ctMatrix
+            return CTFontCreateWithFontDescriptor(
+                descriptor as CTFontDescriptor,
+                newSize,
+                &m
+            ) as! XMFont
+        }
+        #endif
     }
     return UIFont(descriptor: descriptor, size: newSize)
     #elseif canImport(AppKit)
@@ -217,3 +234,4 @@ func deriveMonospacedFont(from font: XMFont) -> XMFont {
     return NSFont(descriptor: resultDescriptor, size: font.pointSize) ?? font
     #endif
 }
+

@@ -30,6 +30,12 @@ public struct DefaultInlineRenderer: InlineRendering, Sendable {
 
         case .italic:
             applyFontTrait(traitItalic, to: nsRange, in: attributed, context: context)
+            // 倾斜 matrix 使字形向右延伸，与下个字重叠，在末尾加 positive kern 补偿
+            if nsRange.upperBound < attributed.length {
+                let overlapKern = context.theme.baseFont.pointSize * 0.08
+                attributed.addAttribute(.kern, value: overlapKern,
+                                        range: NSRange(location: nsRange.upperBound - 1, length: 1))
+            }
 
         case .underline:
             attributed.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: nsRange)
@@ -136,6 +142,10 @@ public struct DefaultInlineRenderer: InlineRendering, Sendable {
     ///
     /// 始终从当前 font 的 descriptor 派生，保留 matrix/family/已有 traits 不丢失。
     /// italic 使用 makeSyntheticItalicFont（matrix 矩阵倾斜），中英文统一处理。
+    ///
+    /// - Note: makeSyntheticItalicFont 通过 CTFontCreateWithFontDescriptor 创建字体，
+    ///   matrix 是渲染级参数，不存储在 fontDescriptor 中。后续 deriveFont 读取 descriptor.matrix
+    ///   时得到 identity（b=0），会丢失斜体。此处非 italic 分支主动检测 CTFont 渲染级 matrix 并恢复。
     private func applyFontTrait(
         _ trait: XMFontDescriptor.SymbolicTraits,
         to range: NSRange,
