@@ -56,18 +56,18 @@ public struct DefaultInlineRenderer: InlineRendering, Sendable {
             #endif
 
         case .code:
-            // 从 typed theme 读取字体和背景色，fallback 从当前 run 的字号派生等宽字体
+            // 从 typed theme 读取字体和背景色，fallback 从当前 run 派生等宽字体
             let codeTheme = context.theme.codeInline
             for run in attributed[attrRange].runs {
                 #if canImport(UIKit)
-                let currentSize = run.uiKit.font?.pointSize ?? context.theme.baseFont.pointSize
+                let currentFont = run.uiKit.font ?? context.theme.baseFont
                 attributed[run.range].uiKit.font = codeTheme.font
-                    ?? UIFont.monospacedSystemFont(ofSize: currentSize, weight: .regular)
+                    ?? deriveMonospacedFont(from: currentFont)
                 attributed[run.range].uiKit.backgroundColor = codeTheme.backgroundColor ?? UIColor.systemGray6
                 #elseif canImport(AppKit)
-                let currentSize = run.appKit.font?.pointSize ?? context.theme.baseFont.pointSize
+                let currentFont = run.appKit.font ?? context.theme.baseFont
                 attributed[run.range].appKit.font = codeTheme.font
-                    ?? NSFont.monospacedSystemFont(ofSize: currentSize, weight: .regular)
+                    ?? deriveMonospacedFont(from: currentFont)
                 attributed[run.range].appKit.backgroundColor = codeTheme.backgroundColor
                     ?? NSColor.systemGray.withAlphaComponent(0.2)
                 #endif
@@ -153,7 +153,7 @@ public struct DefaultInlineRenderer: InlineRendering, Sendable {
     /// 对指定 range 应用字体 trait（bold/italic）
     ///
     /// 始终从当前 font 的 descriptor 派生，保留 matrix/family/已有 traits 不丢失。
-    /// italic 统一使用 makeSyntheticItalicFont（矩阵合成），确保中英文行为一致。
+    /// italic 使用 makeSyntheticItalicFont（matrix 矩阵倾斜），中英文统一处理。
     private func applyFontTrait(
         _ trait: XMFontDescriptor.SymbolicTraits,
         to range: Range<AttributedString.Index>,
@@ -219,6 +219,7 @@ public struct DefaultInlineRenderer: InlineRendering, Sendable {
         case .fontStyle(let fontStyle):
             if fontStyle == "italic" {
                 applyFontTrait(traitItalic, to: range, in: &attributed, context: context)
+                // obliqueness 已在 applyFontTrait 中设置
                 mergeInlinePresentationIntent(.emphasized, into: range, in: &attributed)
             }
         case .textDecoration(let decoration):

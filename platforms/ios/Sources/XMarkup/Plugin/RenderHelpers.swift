@@ -66,24 +66,36 @@ let traitBold: NSFontDescriptor.SymbolicTraits = .bold
 let traitItalic: NSFontDescriptor.SymbolicTraits = .italic
 #endif
 
-// MARK: - 合成斜体
+// MARK: - 斜体字体
 
-/// 创建合成斜体字体（Synthetic Oblique）
+/// 通过矩阵变换创建合成斜体字体
 ///
-/// 大多数中文字体没有 italic 变体，`withSymbolicTraits(.traitItalic)` 返回的原字体不变。
-/// 通过 `CGAffineTransform` 矩阵倾斜实现视觉斜体效果（约 15°），UITextView/NSTextView 可正确渲染。
+/// 使用 Core Text C API 的独立 matrix 参数创建字体：
+/// `CTFontCreateWithFontDescriptor` 的 matrix 参数是渲染级变换，
+/// 不存储在 font descriptor 中，由 Core Text 在光栅化时直接应用。
 ///
-/// 参考：https://www.cnblogs.com/iOS-Girl/p/3753282.html
+/// 区别于 `UIFont(descriptor:withMatrix:size:)`——后者将 matrix 存在
+/// descriptor 中，Apple 系统字体会丢弃该值。
 func makeSyntheticItalicFont(from font: XMFont) -> XMFont {
     let skew = CGFloat(tan(15.0 * Double.pi / 180.0))
+
     #if canImport(UIKit)
-    let matrix = CGAffineTransform(1, 0, skew, 1, 0, 0)
-    let descriptor = font.fontDescriptor.withMatrix(matrix)
-    return UIFont(descriptor: descriptor, size: font.pointSize)
+    var matrix = CGAffineTransform(1, 0, skew, 1, 0, 0)
+    let ctFont = CTFontCreateWithFontDescriptor(
+        font.fontDescriptor as CTFontDescriptor,
+        font.pointSize,
+        &matrix
+    )
+    return ctFont as! UIFont
+
     #elseif canImport(AppKit)
-    let matrix = AffineTransform(m11: 1, m12: 0, m21: skew, m22: 1, tX: 0, tY: 0)
-    let descriptor = font.fontDescriptor.withMatrix(matrix)
-    return NSFont(descriptor: descriptor, size: font.pointSize) ?? font
+    var matrix = CGAffineTransform(1, 0, skew, 1, 0, 0)
+    let ctFont = CTFontCreateWithFontDescriptor(
+        font.fontDescriptor as CTFontDescriptor,
+        font.pointSize,
+        &matrix
+    )
+    return ctFont as! NSFont
     #endif
 }
 
@@ -108,6 +120,9 @@ func deriveFont(
     var descriptor = font.fontDescriptor
 
     #if canImport(UIKit)
+    // 保存原始 matrix（italic 通过 matrix 实现，withSymbolicTraits 会丢弃）
+    let originalMatrix = descriptor.matrix
+
     // 追加 traits（与已有合并）
     if let traits {
         var currentTraits = descriptor.symbolicTraits
@@ -122,8 +137,15 @@ func deriveFont(
             .traits: [UIFontDescriptor.TraitKey.weight: weight]
         ])
     }
+    // 恢复 matrix（确保 italic 的矩阵变换不因 withSymbolicTraits 丢失）
+    if originalMatrix.b != 0 {
+        descriptor = descriptor.withMatrix(originalMatrix)
+    }
     return UIFont(descriptor: descriptor, size: newSize)
     #elseif canImport(AppKit)
+    // 保存原始 matrix
+    let originalMatrix = descriptor.matrix
+
     // 追加 traits（NSFontDescriptor.withSymbolicTraits 返回非 Optional）
     if let traits {
         var currentTraits = descriptor.symbolicTraits
@@ -136,6 +158,56 @@ func deriveFont(
             .traits: [NSFontDescriptor.TraitKey.weight: weight]
         ])
     }
+    // 恢复 matrix
+    if let matrix = originalMatrix {
+        descriptor = descriptor.withMatrix(matrix)
+    }
     return NSFont(descriptor: descriptor, size: newSize) ?? font
+    #endif
+}
+
+// MARK: - 等宽字体派生
+
+/// 从当前字体派生等宽字体，保留所有已有 traits（bold）和 matrix（italic）
+///
+/// 获取系统等宽字体的 descriptor（提供 monospace family），
+/// 将当前字体的 symbolicTraits + matrix 合并上去，用当前字号创建。
+/// 确保嵌套场景（如 `<b><code>` 或 `<i><code>`）不丢失已有样式。
+///
+/// ```swift
+/// // <h1><b><i><code>text</code></i></b></h1>
+/// // 当前 font = .SFNS-Bold + matrix(italic) 32pt
+/// let monoFont = deriveMonospacedFont(from: currentFont)
+/// // → .AppleSystemUIFontMonospaced-Semibold + matrix(italic) 32pt
+/// ```
+func deriveMonospacedFont(from font: XMFont) -> XMFont {
+    #if canImport(UIKit)
+    let monoDescriptor = UIFont.monospacedSystemFont(ofSize: font.pointSize, weight: .regular)
+        .fontDescriptor
+    // 1. 合并 traits
+    let targetTraits = font.fontDescriptor.symbolicTraits
+    var resultDescriptor: UIFontDescriptor = monoDescriptor
+    if let combined = monoDescriptor.withSymbolicTraits(targetTraits) {
+        resultDescriptor = combined
+    }
+    // 2. 合并 matrix（italic 通过 matrix 实现时需保留）
+    let sourceMatrix = font.fontDescriptor.matrix
+    if sourceMatrix.b != 0 {
+        resultDescriptor = resultDescriptor.withMatrix(sourceMatrix)
+    }
+    return UIFont(descriptor: resultDescriptor, size: font.pointSize)
+
+    #elseif canImport(AppKit)
+    let monoDescriptor = NSFont.monospacedSystemFont(ofSize: font.pointSize, weight: .regular)
+        .fontDescriptor
+    // 1. 合并 traits
+    let targetTraits = font.fontDescriptor.symbolicTraits
+    var resultDescriptor: NSFontDescriptor = monoDescriptor.withSymbolicTraits(targetTraits)
+    // 2. 合并 matrix
+    let sourceMatrix = font.fontDescriptor.matrix
+    if sourceMatrix != nil {
+        resultDescriptor = resultDescriptor.withMatrix(sourceMatrix!)
+    }
+    return NSFont(descriptor: resultDescriptor, size: font.pointSize) ?? font
     #endif
 }
