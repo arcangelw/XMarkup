@@ -1,15 +1,14 @@
 import AppKit
 import XMarkup
-import XMarkupUI
 
-/// XMarkupTextView 渲染视图（AppKit）
+/// 原生 NSTextView 渲染视图（AppKit）
 ///
-/// 使用 XMarkupTextView 替代原生 NSTextView，自动处理 hr 自适应、
-/// blockquote per-edge 边框（macOS NSTextBlock）和异步媒体加载。
+/// 使用核心 render() + NSAttributedStringRenderer 产出 NSAttributedString，
+/// 直接赋值给原生 NSTextView。
 final class RenderedTextViewController: NSViewController {
     private let example: DemoExample
     private let scrollView = NSScrollView()
-    private let textView = XMarkupTextView()
+    private let textView = NSTextView()
 
     init(example: DemoExample) {
         self.example = example
@@ -55,8 +54,8 @@ final class RenderedTextViewController: NSViewController {
         textView.isAutomaticQuoteSubstitutionEnabled = false
         textView.isAutomaticDashSubstitutionEnabled = false
         textView.isAutomaticTextReplacementEnabled = false
-        // 清空 linkTextAttributes 让 NSAttributedString 自身的 .foregroundColor 生效
         textView.linkTextAttributes = [:]
+        textView.textContainerInset = NSSize(width: 16, height: 8)
 
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.hasVerticalScroller = true
@@ -77,10 +76,12 @@ final class RenderedTextViewController: NSViewController {
         do {
             let document = try parseDocument()
             let theme: MarkupTheme = example.customTheme ?? .default
-            textView.load(document, theme: theme)
+            let attr = document.render(theme: theme)
+            let nsAttr = NSAttributedStringRenderer().render(attr)
+            textView.textStorage?.setAttributedString(nsAttr)
         } catch {
             textView.string = "解析错误：\(error.localizedDescription)"
-            textView.textColor = .systemRed
+            textView.textColor = NSColor.systemRed
         }
     }
 

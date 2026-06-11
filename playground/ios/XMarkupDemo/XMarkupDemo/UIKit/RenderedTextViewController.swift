@@ -1,14 +1,13 @@
 import UIKit
 import XMarkup
-import XMarkupUI
 
-/// XMarkupTextView 渲染视图（UIKit）
+/// 原生 UITextView 渲染视图（UIKit）
 ///
-/// 使用 XMarkupTextView 替代原生 UITextView，自动处理 hr 自适应、
-/// blockquote 左侧竖线和异步媒体加载。
+/// 使用核心 render() + NSAttributedStringRenderer 产出 NSAttributedString，
+/// 直接赋值给原生 UITextView。
 final class RenderedTextViewController: UIViewController {
     private let example: DemoExample
-    private let textView = XMarkupTextView()
+    private let textView = UITextView()
 
     init(example: DemoExample) {
         self.example = example
@@ -34,6 +33,7 @@ final class RenderedTextViewController: UIViewController {
         textView.alwaysBounceVertical = true
         textView.backgroundColor = .clear
         textView.linkTextAttributes = [:]
+        textView.textContainerInset = UIEdgeInsets(top: 8, left: 16, bottom: 8, right: 16)
         textView.translatesAutoresizingMaskIntoConstraints = false
 
         view.addSubview(textView)
@@ -51,7 +51,9 @@ final class RenderedTextViewController: UIViewController {
         do {
             let document = try parseDocument()
             let theme: MarkupTheme = example.customTheme ?? .default
-            textView.load(document, theme: theme)
+            let attr = document.render(theme: theme)
+            let nsAttr = NSAttributedStringRenderer().render(attr)
+            textView.attributedText = nsAttr
         } catch {
             textView.text = "解析错误：\(error.localizedDescription)"
             textView.textColor = .systemRed

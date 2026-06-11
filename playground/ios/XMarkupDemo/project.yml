@@ -21,8 +21,6 @@ targets:
       - path: XMarkupDemo/SwiftUI
     dependencies:
       - package: XMarkup
-      - package: XMarkup
-        product: XMarkupUI
     settings:
       base:
         SWIFT_VERSION: "6.0"
@@ -49,8 +47,6 @@ targets:
           - Info.plist
     dependencies:
       - package: XMarkup
-      - package: XMarkup
-        product: XMarkupUI
     settings:
       base:
         SWIFT_VERSION: "6.0"
@@ -73,8 +69,6 @@ targets:
       - path: XMarkupDemo/AppKit
     dependencies:
       - package: XMarkup
-      - package: XMarkup
-        product: XMarkupUI
     settings:
       base:
         SWIFT_VERSION: "6.0"
