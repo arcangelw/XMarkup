@@ -11,6 +11,9 @@ import AppKit
 /// 只负责块级渲染（字体、间距、缩进、XMarkupScope key、HR）。
 /// inline 渲染由 RenderPipeline 在 block 渲染完成后通过 inlineRenderers 调度。
 /// 不处理 `.table`（由 DefaultTableRenderer 处理）和带 attachment 的 block（由 DefaultAttachmentRenderer 处理）。
+///
+/// 通过调用各 typed theme 的 `resolved()` 方法消费主题配置，启用三级精度控制：
+/// base → per-level override → 动态 resolve 闭包。
 public struct DefaultBlockRenderer: BlockRendering, Sendable {
     public init() {}
 
@@ -28,6 +31,9 @@ public struct DefaultBlockRenderer: BlockRendering, Sendable {
 
         let theme = context.theme
 
+        // 解析段落主题（作为所有 block 的间距 fallback）
+        let resolvedParagraph = theme.paragraph.resolved(for: block, context: context)
+
         // 1. 构建块级基础属性
         var baseAttributes = AttributeContainer()
         #if canImport(UIKit)
@@ -36,15 +42,19 @@ public struct DefaultBlockRenderer: BlockRendering, Sendable {
         baseAttributes.appKit.font = theme.baseFont
         #endif
 
-        // 1.5 应用段落排版间距
+        // 2. 构建段落排版样式
         let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.paragraphSpacingBefore = theme.paragraph.spacingBefore
-        paragraphStyle.paragraphSpacing = theme.paragraph.spacingAfter
-        paragraphStyle.lineSpacing = theme.paragraph.lineSpacing
+        paragraphStyle.paragraphSpacingBefore = resolvedParagraph.spacingBefore
+        paragraphStyle.paragraphSpacing = resolvedParagraph.spacingAfter
+        paragraphStyle.lineSpacing = resolvedParagraph.lineSpacing
+        if let alignment = resolvedParagraph.alignment {
+            paragraphStyle.alignment = alignment
+        }
 
-        // 块级特定排版
+        // 3. 块级特定：排版 + 字体 + 文本色
         switch block.kind {
         case let .heading(level):
+            // 标题间距：按级别递增
             let spacingScale: CGFloat
             switch level {
             case .h1: spacingScale = 0.50
@@ -57,9 +67,53 @@ public struct DefaultBlockRenderer: BlockRendering, Sendable {
             let headingSpacing = theme.baseFont.pointSize * spacingScale
             paragraphStyle.paragraphSpacingBefore = headingSpacing
             paragraphStyle.paragraphSpacing = headingSpacing * 0.5
+
+            // 通过 resolved() 消费标题主题（启用三级精度：base → per-level → resolve）
+            if let resolved = theme.heading.resolved(for: block, baseFont: theme.baseFont, context: context) {
+                let fontSize = resolved.fontSize
+                if resolved.bold {
+                    #if canImport(UIKit)
+                    if let boldDescriptor = theme.baseFont.fontDescriptor.withSymbolicTraits(traitBold) {
+                        baseAttributes.uiKit.font = UIFont(descriptor: boldDescriptor, size: fontSize)
+                    } else {
+                        baseAttributes.uiKit.font = UIFont.systemFont(ofSize: fontSize, weight: .bold)
+                    }
+                    #elseif canImport(AppKit)
+                    let boldDescriptor = theme.baseFont.fontDescriptor.withSymbolicTraits(.bold)
+                    if let font = NSFont(descriptor: boldDescriptor, size: fontSize) {
+                        baseAttributes.appKit.font = font
+                    } else {
+                        baseAttributes.appKit.font = NSFont.boldSystemFont(ofSize: fontSize)
+                    }
+                    #endif
+                } else {
+                    #if canImport(UIKit)
+                    baseAttributes.uiKit.font = theme.baseFont.withSize(fontSize)
+                    #elseif canImport(AppKit)
+                    baseAttributes.appKit.font = theme.baseFont.withSize(fontSize)
+                    #endif
+                }
+                if let textColor = resolved.textColor {
+                    #if canImport(UIKit)
+                    baseAttributes.uiKit.foregroundColor = textColor
+                    #elseif canImport(AppKit)
+                    baseAttributes.appKit.foregroundColor = textColor
+                    #endif
+                }
+            }
+
         case .blockquote:
-            paragraphStyle.headIndent = theme.blockquote.indent
-            paragraphStyle.firstLineHeadIndent = theme.blockquote.indent
+            let resolved = theme.blockquote.resolved(for: block, context: context)
+            paragraphStyle.headIndent = resolved.indent
+            paragraphStyle.firstLineHeadIndent = resolved.indent
+            if let textColor = resolved.textColor {
+                #if canImport(UIKit)
+                baseAttributes.uiKit.foregroundColor = textColor
+                #elseif canImport(AppKit)
+                baseAttributes.appKit.foregroundColor = textColor
+                #endif
+            }
+
         case .listItem(let isOrdered, let indentLevel):
             // 优先使用共享的 NSTextList 实例（同一组列表项自动编号）
             if let shared = sharedLists {
@@ -93,12 +147,30 @@ public struct DefaultBlockRenderer: BlockRendering, Sendable {
             } else {
                 paragraphStyle.paragraphSpacing = 2
             }
+
         case .preformatted:
+            let resolved = theme.preformatted.resolved(for: block, context: context)
             #if canImport(UIKit)
             paragraphStyle.lineBreakMode = .byCharWrapping
+            baseAttributes.uiKit.font = resolved.font
+                ?? UIFont.monospacedSystemFont(ofSize: theme.baseFont.pointSize, weight: .regular)
+            #elseif canImport(AppKit)
+            baseAttributes.appKit.font = resolved.font
+                ?? NSFont.monospacedSystemFont(ofSize: theme.baseFont.pointSize, weight: .regular)
             #endif
-        default:
+
+        case .horizontalRule:
             break
+
+        default:
+            // 普通段落：应用段落级 textColor（如有配置）
+            if let textColor = resolvedParagraph.textColor {
+                #if canImport(UIKit)
+                baseAttributes.uiKit.foregroundColor = textColor
+                #elseif canImport(AppKit)
+                baseAttributes.appKit.foregroundColor = textColor
+                #endif
+            }
         }
 
         #if canImport(UIKit)
@@ -107,10 +179,7 @@ public struct DefaultBlockRenderer: BlockRendering, Sendable {
         baseAttributes.appKit.paragraphStyle = paragraphStyle
         #endif
 
-        // 2. 根据 block.kind 调整属性
-        applyBlockKindAttributes(kind: block.kind, theme: theme, to: &baseAttributes)
-
-        // 3. 设置自定义 XMarkupScope 属性
+        // 4. 设置自定义 XMarkupScope 属性
         let blockKindName = blockKindName(for: block.kind)
         baseAttributes[XMarkupTagKey.self] = blockKindName
         baseAttributes[XMarkupBlockKindKey.self] = blockKindName
@@ -124,7 +193,7 @@ public struct DefaultBlockRenderer: BlockRendering, Sendable {
             break
         }
 
-        // 4. 处理 hr 分隔线（NSTextAttachment 矢量线条，双平台统一）
+        // 5. 处理 hr 分隔线（NSTextAttachment 矢量线条，双平台统一）
         if case .horizontalRule = block.kind {
             let attachment = NSTextAttachment()
             let lineWidth: CGFloat = 300
@@ -146,64 +215,15 @@ public struct DefaultBlockRenderer: BlockRendering, Sendable {
             attachment.bounds = CGRect(x: 0, y: 0, width: lineWidth, height: lineHeight)
             let nsAttr = NSMutableAttributedString(attachment: attachment)
             nsAttr.addAttribute(.paragraphStyle, value: paragraphStyle,
-                                 range: NSRange(location: 0, length: nsAttr.length))
+                                range: NSRange(location: 0, length: nsAttr.length))
             nsAttr.addAttribute(NSAttributedString.Key(XMarkupBlockKindKey.name),
-                                 value: "horizontalRule",
-                                 range: NSRange(location: 0, length: nsAttr.length))
+                                value: "horizontalRule",
+                                range: NSRange(location: 0, length: nsAttr.length))
             return AttributedString(nsAttr)
         }
 
-        // 5. 构建段落 AttributedString（不含 inline 渲染）
+        // 6. 构建段落 AttributedString（不含 inline 渲染）
         let blockText = block.text
         return AttributedString(blockText, attributes: baseAttributes)
-    }
-
-    // MARK: - Block Kind Attributes
-
-    private func applyBlockKindAttributes(
-        kind: BlockKind,
-        theme: MarkupTheme,
-        to attributes: inout AttributeContainer
-    ) {
-        switch kind {
-        case let .heading(level):
-            let scale: CGFloat
-            switch level {
-            case .h1: scale = theme.heading.scale.h1
-            case .h2: scale = theme.heading.scale.h2
-            case .h3: scale = theme.heading.scale.h3
-            case .h4: scale = theme.heading.scale.h4
-            case .h5: scale = theme.heading.scale.h5
-            case .h6: scale = theme.heading.scale.h6
-            }
-            let fontSize = theme.baseFont.pointSize * scale
-            #if canImport(UIKit)
-            if let boldDescriptor = theme.baseFont.fontDescriptor.withSymbolicTraits(traitBold) {
-                attributes.uiKit.font = UIFont(descriptor: boldDescriptor, size: fontSize)
-            } else {
-                attributes.uiKit.font = UIFont.systemFont(ofSize: fontSize, weight: .bold)
-            }
-            #elseif canImport(AppKit)
-            let boldDescriptor = theme.baseFont.fontDescriptor.withSymbolicTraits(.bold)
-            if let font = NSFont(descriptor: boldDescriptor, size: fontSize) {
-                attributes.appKit.font = font
-            } else {
-                attributes.appKit.font = NSFont.boldSystemFont(ofSize: fontSize)
-            }
-            #endif
-
-        case .preformatted:
-            #if canImport(UIKit)
-            attributes.uiKit.font = UIFont.monospacedSystemFont(ofSize: theme.baseFont.pointSize, weight: .regular)
-            #elseif canImport(AppKit)
-            attributes.appKit.font = NSFont.monospacedSystemFont(ofSize: theme.baseFont.pointSize, weight: .regular)
-            #endif
-
-        case .horizontalRule:
-            break
-
-        default:
-            break
-        }
     }
 }

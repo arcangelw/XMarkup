@@ -21,6 +21,9 @@ import AppKit
 /// let pipeline = RenderPipeline(plugins: [MyPlugin()])
 /// let nsAttr = pipeline.render(document, theme: .default)
 /// ```
+///
+/// - Note: `@unchecked Sendable` 标记因为持有 protocol existential 数组，
+///   实际约束为所有注册的渲染器必须为 Sendable（由协议要求保证）。
 public struct RenderPipeline: @unchecked Sendable {
 
     // MARK: - 阶段注册表
@@ -55,7 +58,11 @@ public struct RenderPipeline: @unchecked Sendable {
 
     /// 从 RendererPlugin 数组自动分类到各阶段
     ///
-    /// 同一组插件实例同时注册到所有四个阶段，每个插件只需覆写关心的方法。
+    /// 同一组插件实例同时注册到所有四个阶段（blockRenderers/inlineRenderers/
+    /// postProcessors/enhancers），每个插件只需覆写关心的方法，未覆写的使用
+    /// RendererPlugin 协议的默认空实现。
+    ///
+    /// - Note: 对于精确注册，使用 `init(blockRenderers:inlineRenderers:...)` 代替。
     public init(
         plugins: [any RendererPlugin],
         bridge: some MarkupRenderer<NSAttributedString> = NSAttributedStringRenderer()
@@ -113,7 +120,7 @@ public struct RenderPipeline: @unchecked Sendable {
 
         // Phase 3: 桥接为 NSAttributedString
         let nsAttr = bridge.render(attr)
-        let mutableAttr = nsAttr.mutableCopy() as! NSMutableAttributedString
+        let mutableAttr = NSMutableAttributedString(attributedString: nsAttr)
 
         // Phase 4: NSAttributedString 增强
         for enhancer in enhancers {

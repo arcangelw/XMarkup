@@ -31,184 +31,112 @@ public func BaseFont(_ font: XMFont) -> BaseFontComponent {
     BaseFontComponent(font)
 }
 
-// MARK: - 块级主题 DSL 入口
+// MARK: - 泛型块级/链接主题组件
 
-/// 配置段落主题
-public func Paragraph(_ configure: @escaping @Sendable (inout ParagraphTheme) -> Void) -> ParagraphThemeComponent {
-    ParagraphThemeComponent(configure)
-}
-
-public struct ParagraphThemeComponent: @unchecked Sendable, ThemeComponent {
-    private let configure: @Sendable (inout ParagraphTheme) -> Void
-    init(_ configure: @escaping @Sendable (inout ParagraphTheme) -> Void) {
-        self.configure = configure
-    }
-    public func apply(to theme: inout MarkupTheme) {
-        configure(&theme.paragraph)
-    }
-}
-
-/// 配置标题主题
-public func Heading(_ configure: @escaping @Sendable (inout HeadingTheme) -> Void) -> HeadingThemeComponent {
-    HeadingThemeComponent(configure)
-}
-
-public struct HeadingThemeComponent: @unchecked Sendable, ThemeComponent {
-    private let configure: @Sendable (inout HeadingTheme) -> Void
-    init(_ configure: @escaping @Sendable (inout HeadingTheme) -> Void) {
-        self.configure = configure
-    }
-    public func apply(to theme: inout MarkupTheme) {
-        configure(&theme.heading)
-    }
-}
-
-/// 配置引用块主题
-public func Blockquote(_ configure: @escaping @Sendable (inout BlockquoteTheme) -> Void) -> BlockquoteThemeComponent {
-    BlockquoteThemeComponent(configure)
-}
-
-public struct BlockquoteThemeComponent: @unchecked Sendable, ThemeComponent {
-    private let configure: @Sendable (inout BlockquoteTheme) -> Void
-    init(_ configure: @escaping @Sendable (inout BlockquoteTheme) -> Void) {
-        self.configure = configure
-    }
-    public func apply(to theme: inout MarkupTheme) {
-        configure(&theme.blockquote)
-    }
-}
-
-/// 配置列表主题
-public func List(_ configure: @escaping @Sendable (inout ListTheme) -> Void) -> ListThemeComponent {
-    ListThemeComponent(configure)
-}
-
-public struct ListThemeComponent: @unchecked Sendable, ThemeComponent {
-    private let configure: @Sendable (inout ListTheme) -> Void
-    init(_ configure: @escaping @Sendable (inout ListTheme) -> Void) {
-        self.configure = configure
-    }
-    public func apply(to theme: inout MarkupTheme) {
-        configure(&theme.list)
-    }
-}
-
-/// 配置代码块主题
-public func Preformatted(_ configure: @escaping @Sendable (inout PreformattedTheme) -> Void) -> PreformattedThemeComponent {
-    PreformattedThemeComponent(configure)
-}
-
-public struct PreformattedThemeComponent: @unchecked Sendable, ThemeComponent {
-    private let configure: @Sendable (inout PreformattedTheme) -> Void
-    init(_ configure: @escaping @Sendable (inout PreformattedTheme) -> Void) {
-        self.configure = configure
-    }
-    public func apply(to theme: inout MarkupTheme) {
-        configure(&theme.preformatted)
-    }
-}
-
-/// 配置表格主题
-public func Table(_ configure: @escaping @Sendable (inout TableTheme) -> Void) -> TableThemeComponent {
-    TableThemeComponent(configure)
-}
-
-public struct TableThemeComponent: @unchecked Sendable, ThemeComponent {
-    private let configure: @Sendable (inout TableTheme) -> Void
-    init(_ configure: @escaping @Sendable (inout TableTheme) -> Void) {
-        self.configure = configure
-    }
-    public func apply(to theme: inout MarkupTheme) {
-        configure(&theme.table)
-    }
-}
-
-/// 配置水平线主题
-public func HorizontalRule(_ configure: @escaping @Sendable (inout HorizontalRuleTheme) -> Void) -> HorizontalRuleThemeComponent {
-    HorizontalRuleThemeComponent(configure)
-}
-
-public struct HorizontalRuleThemeComponent: @unchecked Sendable, ThemeComponent {
-    private let configure: @Sendable (inout HorizontalRuleTheme) -> Void
-    init(_ configure: @escaping @Sendable (inout HorizontalRuleTheme) -> Void) {
-        self.configure = configure
-    }
-    public func apply(to theme: inout MarkupTheme) {
-        configure(&theme.horizontalRule)
-    }
-}
-
-// MARK: - 内联主题 DSL 入口
-
-/// 配置粗体主题
-public func Bold(_ configure: @escaping @Sendable (inout InlineTextTheme) -> Void) -> InlineThemeComponent {
-    InlineThemeComponent(field: \MarkupTheme.bold, configure: configure)
-}
-
-/// 配置斜体主题
-public func Italic(_ configure: @escaping @Sendable (inout InlineTextTheme) -> Void) -> InlineThemeComponent {
-    InlineThemeComponent(field: \MarkupTheme.italic, configure: configure)
-}
-
-/// 配置下划线主题
-public func Underline(_ configure: @escaping @Sendable (inout InlineTextTheme) -> Void) -> InlineThemeComponent {
-    InlineThemeComponent(field: \MarkupTheme.underline, configure: configure)
-}
-
-/// 配置删除线主题
-public func Strikethrough(_ configure: @escaping @Sendable (inout InlineTextTheme) -> Void) -> InlineThemeComponent {
-    InlineThemeComponent(field: \MarkupTheme.strikethrough, configure: configure)
-}
-
-/// 配置行内代码主题
-public func Code(_ configure: @escaping @Sendable (inout InlineTextTheme) -> Void) -> InlineThemeComponent {
-    InlineThemeComponent(field: \MarkupTheme.codeInline, configure: configure)
-}
-
-/// 配置高亮标记主题
-public func Mark(_ configure: @escaping @Sendable (inout InlineTextTheme) -> Void) -> InlineThemeComponent {
-    InlineThemeComponent(field: \MarkupTheme.mark, configure: configure)
-}
-
-/// 配置下标主题
-public func Subscript(_ configure: @escaping @Sendable (inout InlineTextTheme) -> Void) -> InlineThemeComponent {
-    InlineThemeComponent(field: \MarkupTheme.subscriptText, configure: configure)
-}
-
-/// 配置上标主题
-public func Superscript(_ configure: @escaping @Sendable (inout InlineTextTheme) -> Void) -> InlineThemeComponent {
-    InlineThemeComponent(field: \MarkupTheme.superscript, configure: configure)
-}
-
-/// 内联文本主题组件（通过 KeyPath 绑定到 MarkupTheme 的对应字段）
-public struct InlineThemeComponent: @unchecked Sendable, ThemeComponent {
-    private let field: WritableKeyPath<MarkupTheme, InlineTextTheme>
-    private let configure: @Sendable (inout InlineTextTheme) -> Void
-
-    init(field: WritableKeyPath<MarkupTheme, InlineTextTheme>,
-         configure: @escaping @Sendable (inout InlineTextTheme) -> Void) {
-        self.field = field
-        self.configure = configure
-    }
+/// 泛型主题组件 — 通过 KeyPath 绑定到 MarkupTheme 的对应字段
+///
+/// 统一替代 ParagraphThemeComponent / HeadingThemeComponent / ... / LinkThemeComponent
+/// 8 个重复 struct，消除约 70 行重复代码。
+public struct TypedThemeComponent<ThemeType>: @unchecked Sendable, ThemeComponent {
+    let field: WritableKeyPath<MarkupTheme, ThemeType>
+    let configure: @Sendable (inout ThemeType) -> Void
 
     public func apply(to theme: inout MarkupTheme) {
         configure(&theme[keyPath: field])
     }
 }
 
-/// 配置链接主题
-public func Link(_ configure: @escaping @Sendable (inout LinkTheme) -> Void) -> LinkThemeComponent {
-    LinkThemeComponent(configure)
+// MARK: - 块级主题 DSL 入口（7 个）
+
+/// 配置段落主题
+public func Paragraph(_ configure: @escaping @Sendable (inout ParagraphTheme) -> Void) -> TypedThemeComponent<ParagraphTheme> {
+    TypedThemeComponent(field: \.paragraph, configure: configure)
 }
 
-/// 链接主题组件
-public struct LinkThemeComponent: @unchecked Sendable, ThemeComponent {
-    private let configure: @Sendable (inout LinkTheme) -> Void
-    init(_ configure: @escaping @Sendable (inout LinkTheme) -> Void) {
-        self.configure = configure
-    }
+/// 配置标题主题
+public func Heading(_ configure: @escaping @Sendable (inout HeadingTheme) -> Void) -> TypedThemeComponent<HeadingTheme> {
+    TypedThemeComponent(field: \.heading, configure: configure)
+}
+
+/// 配置引用块主题
+public func Blockquote(_ configure: @escaping @Sendable (inout BlockquoteTheme) -> Void) -> TypedThemeComponent<BlockquoteTheme> {
+    TypedThemeComponent(field: \.blockquote, configure: configure)
+}
+
+/// 配置列表主题
+public func List(_ configure: @escaping @Sendable (inout ListTheme) -> Void) -> TypedThemeComponent<ListTheme> {
+    TypedThemeComponent(field: \.list, configure: configure)
+}
+
+/// 配置代码块主题
+public func Preformatted(_ configure: @escaping @Sendable (inout PreformattedTheme) -> Void) -> TypedThemeComponent<PreformattedTheme> {
+    TypedThemeComponent(field: \.preformatted, configure: configure)
+}
+
+/// 配置表格主题
+public func Table(_ configure: @escaping @Sendable (inout TableTheme) -> Void) -> TypedThemeComponent<TableTheme> {
+    TypedThemeComponent(field: \.table, configure: configure)
+}
+
+/// 配置水平线主题
+public func HorizontalRule(_ configure: @escaping @Sendable (inout HorizontalRuleTheme) -> Void) -> TypedThemeComponent<HorizontalRuleTheme> {
+    TypedThemeComponent(field: \.horizontalRule, configure: configure)
+}
+
+// MARK: - 内联主题 DSL 入口（9 个）
+
+/// 配置粗体主题
+public func Bold(_ configure: @escaping @Sendable (inout InlineTextTheme) -> Void) -> InlineThemeComponent {
+    InlineThemeComponent(field: \.bold, configure: configure)
+}
+
+/// 配置斜体主题
+public func Italic(_ configure: @escaping @Sendable (inout InlineTextTheme) -> Void) -> InlineThemeComponent {
+    InlineThemeComponent(field: \.italic, configure: configure)
+}
+
+/// 配置下划线主题
+public func Underline(_ configure: @escaping @Sendable (inout InlineTextTheme) -> Void) -> InlineThemeComponent {
+    InlineThemeComponent(field: \.underline, configure: configure)
+}
+
+/// 配置删除线主题
+public func Strikethrough(_ configure: @escaping @Sendable (inout InlineTextTheme) -> Void) -> InlineThemeComponent {
+    InlineThemeComponent(field: \.strikethrough, configure: configure)
+}
+
+/// 配置行内代码主题
+public func Code(_ configure: @escaping @Sendable (inout InlineTextTheme) -> Void) -> InlineThemeComponent {
+    InlineThemeComponent(field: \.codeInline, configure: configure)
+}
+
+/// 配置高亮标记主题
+public func Mark(_ configure: @escaping @Sendable (inout InlineTextTheme) -> Void) -> InlineThemeComponent {
+    InlineThemeComponent(field: \.mark, configure: configure)
+}
+
+/// 配置下标主题
+public func Subscript(_ configure: @escaping @Sendable (inout InlineTextTheme) -> Void) -> InlineThemeComponent {
+    InlineThemeComponent(field: \.subscriptText, configure: configure)
+}
+
+/// 配置上标主题
+public func Superscript(_ configure: @escaping @Sendable (inout InlineTextTheme) -> Void) -> InlineThemeComponent {
+    InlineThemeComponent(field: \.superscript, configure: configure)
+}
+
+/// 配置链接主题
+public func Link(_ configure: @escaping @Sendable (inout LinkTheme) -> Void) -> TypedThemeComponent<LinkTheme> {
+    TypedThemeComponent(field: \.link, configure: configure)
+}
+
+/// 内联文本主题组件（通过 KeyPath 绑定到 MarkupTheme 的 InlineTextTheme 字段）
+public struct InlineThemeComponent: @unchecked Sendable, ThemeComponent {
+    let field: WritableKeyPath<MarkupTheme, InlineTextTheme>
+    let configure: @Sendable (inout InlineTextTheme) -> Void
+
     public func apply(to theme: inout MarkupTheme) {
-        configure(&theme.link)
+        configure(&theme[keyPath: field])
     }
 }
 
@@ -219,6 +147,7 @@ public func Media(_ strategy: MediaRenderingStrategy) -> MediaComponent {
     MediaComponent(strategy)
 }
 
+/// 媒体策略组件
 public struct MediaComponent: @unchecked Sendable, ThemeComponent {
     public let strategy: MediaRenderingStrategy
     public init(_ strategy: MediaRenderingStrategy) {

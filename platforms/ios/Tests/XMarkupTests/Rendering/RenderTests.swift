@@ -569,4 +569,159 @@ final class RenderTests: XCTestCase {
         XCTAssertTrue(text.contains("B"), "应包含 cell B")
         XCTAssertTrue(text.contains("\t"), "cell 应以 tab 分隔")
     }
+
+    // MARK: - Typed Theme 消费验证
+
+    func testRenderCodeInlineConsumesThemeBackgroundColor() throws {
+        // 自定义 code 背景色，验证渲染器读取了 theme.codeInline.backgroundColor
+        let customTheme = MarkupTheme {
+            Code {
+                #if canImport(UIKit)
+                $0.backgroundColor = .red
+                #elseif canImport(AppKit)
+                $0.backgroundColor = .red
+                #endif
+            }
+        }
+        let attr = try parseAndRender("<code>test</code>", theme: customTheme)
+        let nsAttr = NSAttributedStringRenderer().render(attr)
+        let bg = nsAttr.attribute(.backgroundColor, at: 0, effectiveRange: nil) as? XMColor
+        XCTAssertNotNil(bg, "code 内联应有背景色")
+        #if canImport(UIKit)
+        XCTAssertEqual(bg, UIColor.red)
+        #elseif canImport(AppKit)
+        XCTAssertEqual(bg, NSColor.red)
+        #endif
+    }
+
+    func testRenderMarkConsumesThemeBackgroundColor() throws {
+        let customTheme = MarkupTheme {
+            Mark {
+                #if canImport(UIKit)
+                $0.backgroundColor = .green
+                #elseif canImport(AppKit)
+                $0.backgroundColor = .green
+                #endif
+            }
+        }
+        let attr = try parseAndRender("<mark>hi</mark>", theme: customTheme)
+        let nsAttr = NSAttributedStringRenderer().render(attr)
+        let bg = nsAttr.attribute(.backgroundColor, at: 0, effectiveRange: nil) as? XMColor
+        XCTAssertNotNil(bg, "mark 内联应有背景色")
+        #if canImport(UIKit)
+        XCTAssertEqual(bg, UIColor.green)
+        #elseif canImport(AppKit)
+        XCTAssertEqual(bg, NSColor.green)
+        #endif
+    }
+
+    func testRenderLinkConsumesThemeTextColor() throws {
+        let customTheme = MarkupTheme {
+            Link {
+                #if canImport(UIKit)
+                $0.textColor = .red
+                #elseif canImport(AppKit)
+                $0.textColor = .red
+                #endif
+            }
+        }
+        let attr = try parseAndRender("<a href=\"https://example.com\">click</a>", theme: customTheme)
+        let nsAttr = NSAttributedStringRenderer().render(attr)
+        let color = nsAttr.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? XMColor
+        XCTAssertNotNil(color, "link 内联应有前景色")
+        #if canImport(UIKit)
+        XCTAssertEqual(color, UIColor.red)
+        #elseif canImport(AppKit)
+        XCTAssertEqual(color, NSColor.red)
+        #endif
+    }
+
+    func testRenderBlockquoteConsumesThemeTextColor() throws {
+        let customTheme = MarkupTheme {
+            Blockquote {
+                #if canImport(UIKit)
+                $0.textColor = .purple
+                #elseif canImport(AppKit)
+                $0.textColor = .purple
+                #endif
+            }
+        }
+        let attr = try parseAndRender("<blockquote>quote</blockquote>", theme: customTheme)
+        let nsAttr = NSAttributedStringRenderer().render(attr)
+        let color = nsAttr.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? XMColor
+        XCTAssertNotNil(color, "blockquote 应有前景色")
+        #if canImport(UIKit)
+        XCTAssertEqual(color, UIColor.purple)
+        #elseif canImport(AppKit)
+        XCTAssertEqual(color, NSColor.purple)
+        #endif
+    }
+
+    func testRenderHeadingConsumesResolvedTheme() throws {
+        // 验证 heading 使用 resolved() 消费主题
+        let customTheme = MarkupTheme {
+            Heading {
+                $0.bold = false  // 标题不加粗
+                $0.scale = HeadingScale(h1: 1.0)  // h1 与 baseFont 相同大小
+                #if canImport(UIKit)
+                $0.textColor = .orange
+                #elseif canImport(AppKit)
+                $0.textColor = .orange
+                #endif
+            }
+        }
+        let attr = try parseAndRender("<h1>Title</h1>", theme: customTheme)
+        let nsAttr = NSAttributedStringRenderer().render(attr)
+
+        // 验证 textColor
+        let color = nsAttr.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? XMColor
+        #if canImport(UIKit)
+        XCTAssertEqual(color, UIColor.orange)
+        #elseif canImport(AppKit)
+        XCTAssertEqual(color, NSColor.orange)
+        #endif
+
+        // 验证不加粗
+        let font = nsAttr.attribute(.font, at: 0, effectiveRange: nil) as? XMFont
+        XCTAssertNotNil(font)
+        #if canImport(UIKit)
+        XCTAssertFalse(font!.fontDescriptor.symbolicTraits.contains(.traitBold), "bold=false 时标题不应加粗")
+        #elseif canImport(AppKit)
+        XCTAssertFalse(font!.fontDescriptor.symbolicTraits.contains(.bold), "bold=false 时标题不应加粗")
+        #endif
+    }
+
+    func testRenderPreformattedConsumesThemeFont() throws {
+        var customTheme = MarkupTheme()
+        customTheme.preformatted.font = XMFont.monospacedSystemFont(ofSize: 20, weight: .regular)
+        let attr = try parseAndRender("<pre>code</pre>", theme: customTheme)
+        let nsAttr = NSAttributedStringRenderer().render(attr)
+        let font = nsAttr.attribute(NSAttributedString.Key.font, at: 0, effectiveRange: nil) as? XMFont
+        XCTAssertNotNil(font)
+        XCTAssertEqual(font?.pointSize, 20, "应使用主题指定的字号")
+    }
+
+    func testRenderHeadingPerLevelOverrideViaResolved() throws {
+        // 验证 HeadingTheme.LevelOverride 通过 resolved() 生效
+        let customTheme = MarkupTheme {
+            Heading {
+                $0.scale = .default
+                $0.h2 = .init(fontSize: 30, textColor: XMColor.red)
+            }
+        }
+        let attr = try parseAndRender("<h2>Sub</h2>", theme: customTheme)
+        let nsAttr = NSAttributedStringRenderer().render(attr)
+
+        // 验证 per-level textColor
+        let color = nsAttr.attribute(NSAttributedString.Key.foregroundColor, at: 0, effectiveRange: nil) as? XMColor
+        #if canImport(UIKit)
+        XCTAssertEqual(color, UIColor.red)
+        #elseif canImport(AppKit)
+        XCTAssertEqual(color, NSColor.red)
+        #endif
+
+        // 验证 per-level fontSize
+        let font = nsAttr.attribute(NSAttributedString.Key.font, at: 0, effectiveRange: nil) as? XMFont
+        XCTAssertEqual(font?.pointSize, 30)
+    }
 }

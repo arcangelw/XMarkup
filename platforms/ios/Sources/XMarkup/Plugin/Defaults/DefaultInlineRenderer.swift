@@ -53,30 +53,37 @@ public struct DefaultInlineRenderer: InlineRendering, Sendable {
             #endif
 
         case .code:
+            // 从 typed theme 读取字体和背景色，fallback 到系统默认
+            let codeTheme = context.theme.codeInline
             #if canImport(UIKit)
-            attributed[attrRange].uiKit.font = UIFont.monospacedSystemFont(
-                ofSize: context.theme.baseFont.pointSize, weight: .regular
-            )
-            attributed[attrRange].uiKit.backgroundColor = UIColor.systemGray6
+            attributed[attrRange].uiKit.font = codeTheme.font
+                ?? UIFont.monospacedSystemFont(ofSize: context.theme.baseFont.pointSize, weight: .regular)
+            attributed[attrRange].uiKit.backgroundColor = codeTheme.backgroundColor ?? UIColor.systemGray6
             #elseif canImport(AppKit)
-            attributed[attrRange].appKit.font = NSFont.monospacedSystemFont(
-                ofSize: context.theme.baseFont.pointSize, weight: .regular
-            )
-            attributed[attrRange].appKit.backgroundColor = NSColor.systemGray.withAlphaComponent(0.2)
+            attributed[attrRange].appKit.font = codeTheme.font
+                ?? NSFont.monospacedSystemFont(ofSize: context.theme.baseFont.pointSize, weight: .regular)
+            attributed[attrRange].appKit.backgroundColor = codeTheme.backgroundColor
+                ?? NSColor.systemGray.withAlphaComponent(0.2)
             #endif
 
         case .mark:
+            // 从 typed theme 读取背景色，fallback 到系统黄色
+            let markTheme = context.theme.mark
             #if canImport(UIKit)
-            attributed[attrRange].uiKit.backgroundColor = UIColor.systemYellow.withAlphaComponent(0.3)
+            attributed[attrRange].uiKit.backgroundColor = markTheme.backgroundColor
+                ?? UIColor.systemYellow.withAlphaComponent(0.3)
             #elseif canImport(AppKit)
-            attributed[attrRange].appKit.backgroundColor = NSColor.systemYellow.withAlphaComponent(0.3)
+            attributed[attrRange].appKit.backgroundColor = markTheme.backgroundColor
+                ?? NSColor.systemYellow.withAlphaComponent(0.3)
             #endif
 
         case .link(let url):
+            // 从 typed theme 读取文字颜色，fallback 到系统链接色
+            let linkTheme = context.theme.link
             #if canImport(UIKit)
-            attributed[attrRange].uiKit.foregroundColor = .systemBlue
+            attributed[attrRange].uiKit.foregroundColor = linkTheme.textColor ?? .systemBlue
             #elseif canImport(AppKit)
-            attributed[attrRange].appKit.foregroundColor = .linkColor
+            attributed[attrRange].appKit.foregroundColor = linkTheme.textColor ?? .linkColor
             #endif
             attributed[attrRange].link = URL(string: url)
             attributed[attrRange][XMarkupLinkURLKey.self] = url
