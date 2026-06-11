@@ -7,7 +7,7 @@ import AppKit
 #endif
 
 /// 链接主题配置
-public struct LinkTheme: Sendable, @unchecked Equatable {
+public struct LinkTheme: @unchecked Sendable, @unchecked Equatable {
     /// 文本颜色
     public var textColor: XMColor?
     /// 下划线样式（nil = 无下划线）

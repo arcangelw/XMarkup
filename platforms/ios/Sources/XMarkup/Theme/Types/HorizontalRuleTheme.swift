@@ -7,7 +7,7 @@ import AppKit
 #endif
 
 /// 水平线主题配置
-public struct HorizontalRuleTheme: Sendable, @unchecked Equatable {
+public struct HorizontalRuleTheme: @unchecked Sendable, @unchecked Equatable {
     /// 最小宽度（pt）
     public var minWidth: CGFloat = 100
     /// 颜色（nil = 使用 separator 系统色）

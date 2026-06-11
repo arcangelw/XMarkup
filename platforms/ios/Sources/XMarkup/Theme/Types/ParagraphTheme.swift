@@ -10,7 +10,7 @@ import AppKit
 ///
 /// 控制所有段落的默认间距、文本颜色和对齐方式。
 /// 作为其他块级主题的 spacing fallback。
-public struct ParagraphTheme: Sendable, Equatable {
+public struct ParagraphTheme: @unchecked Sendable, @unchecked Equatable {
     /// 段前间距（pt）
     public var spacingBefore: CGFloat = 8
     /// 段后间距（pt）
@@ -21,6 +21,9 @@ public struct ParagraphTheme: Sendable, Equatable {
     public var textColor: XMColor?
     /// 文本对齐（nil = 跟随系统默认 .natural）
     public var alignment: NSTextAlignment?
+
+    /// 动态 resolve
+    public var resolve: (@Sendable (MarkupBlock, RenderingContext, ResolvedParagraphTheme) -> ResolvedParagraphTheme?)?
 
     public init(
         spacingBefore: CGFloat = 8,
@@ -36,5 +39,44 @@ public struct ParagraphTheme: Sendable, Equatable {
         self.alignment = alignment
     }
 
+    /// 最终解析结果
+    public struct ResolvedParagraphTheme: @unchecked Sendable, @unchecked Equatable {
+        public var spacingBefore: CGFloat
+        public var spacingAfter: CGFloat
+        public var lineSpacing: CGFloat
+        public var textColor: XMColor?
+        public var alignment: NSTextAlignment?
+
+        public func with<T>(_ keyPath: WritableKeyPath<ResolvedParagraphTheme, T>, _ value: T) -> ResolvedParagraphTheme {
+            var copy = self
+            copy[keyPath: keyPath] = value
+            return copy
+        }
+    }
+
+    /// 解析为最终渲染配置
+    public func resolved(for block: MarkupBlock, context: RenderingContext) -> ResolvedParagraphTheme {
+        var result = ResolvedParagraphTheme(
+            spacingBefore: spacingBefore,
+            spacingAfter: spacingAfter,
+            lineSpacing: lineSpacing,
+            textColor: textColor,
+            alignment: alignment
+        )
+        if let resolver = resolve, let override = resolver(block, context, result) {
+            result = override
+        }
+        return result
+    }
+
     public static let `default` = ParagraphTheme()
+
+    // Equatable 排除 resolve（闭包不可比较）
+    public static func == (lhs: ParagraphTheme, rhs: ParagraphTheme) -> Bool {
+        lhs.spacingBefore == rhs.spacingBefore
+            && lhs.spacingAfter == rhs.spacingAfter
+            && lhs.lineSpacing == rhs.lineSpacing
+            && lhs.textColor == rhs.textColor
+            && lhs.alignment == rhs.alignment
+    }
 }
