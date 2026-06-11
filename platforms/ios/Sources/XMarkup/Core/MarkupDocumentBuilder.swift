@@ -449,6 +449,8 @@ extension MarkupDocument {
             return .subscriptText
         case .superscript:
             return .superscript
+        case .lineBreak:
+            return .lineBreak
         case .span:
             return .span(styles: inlineStyles(for: span))
         default:

@@ -23,4 +23,21 @@ public enum XMarkupError: Error, Sendable, Equatable {
         default: self = .unknown(code: Int32(truncatingIfNeeded: cError.rawValue))
         }
     }
+
+    /// 错误的可读描述（来自 C 引擎）
+    public var description: String {
+        let cError: XMError
+        switch self {
+        case .nullParser:      cError = XM_ERR_NULL_PARSER
+        case .nullInput:       cError = XM_ERR_NULL_INPUT
+        case .nestingOverflow: cError = XM_ERR_NESTING_OVERFLOW
+        case .allocationFailed: cError = XM_ERR_ALLOC_FAILED
+        case .unknown(let code):
+            return "XMarkupError.unknown(code: \(code))"
+        }
+        let cStr = xmarkup_error_string(cError)
+        return cStr.map { String(cString: $0) } ?? "unknown error"
+    }
 }
+
+extension XMarkupError: CustomStringConvertible {}

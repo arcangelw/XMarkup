@@ -27,6 +27,7 @@ public final class XMarkupParser: @unchecked Sendable {
     // MARK: - Private Properties
 
     private let handle: OpaquePointer
+    private let logContext: UnsafeMutableRawPointer?
 
     // MARK: - Initialization
 
@@ -36,18 +37,34 @@ public final class XMarkupParser: @unchecked Sendable {
     ///   - baseFontSize: 基准字号（pt），用于 CSS em/rem/% 单位换算，默认 16
     ///   - maxNestingDepth: 最大嵌套深度，超出截断，默认 256
     ///   - autocorrect: 是否自动纠错乱序嵌套/未闭合标签，默认 true
+    ///   - logLevel: 最低日志输出级别，默认 `.error`
+    ///   - logHandler: 日志回调闭包，`nil` 表示不输出日志
     /// - Throws: 内存不足时抛出 `XMarkupError.allocationFailed`
     public init(
         baseFontSize: CGFloat = 16,
         maxNestingDepth: UInt16 = 256,
-        autocorrect: Bool = true
+        autocorrect: Bool = true,
+        logLevel: XMarkupLogLevel = .error,
+        logHandler: XMarkupLogHandler? = nil
     ) throws {
         self.baseFontSize = baseFontSize
         var config = XMConfig()
         config.enable_autocorrect = autocorrect ? 1 : 0
         config.max_nesting_depth = maxNestingDepth
         config.base_font_size = Float(baseFontSize)
+        config.log_level = XMLogLevel(rawValue: UInt32(logLevel.rawValue))
+
+        if let handler = logHandler {
+            let (callback, context) = LogBridge.wrap(handler)
+            config.log_callback = callback
+            config.log_context = context
+            self.logContext = context
+        } else {
+            self.logContext = nil
+        }
+
         guard let ptr = xmarkup_create(&config) else {
+            if let ctx = self.logContext { LogBridge.release(ctx) }
             throw XMarkupError.allocationFailed
         }
         handle = ptr
@@ -55,9 +72,16 @@ public final class XMarkupParser: @unchecked Sendable {
 
     deinit {
         xmarkup_destroy(handle)
+        if let ctx = logContext { LogBridge.release(ctx) }
     }
 
     // MARK: - Public Methods
+
+    /// C++ 核心引擎版本号（格式 "MAJOR.MINOR.PATCH"）
+    public static var version: String {
+        guard let cStr = xmarkup_version() else { return "unknown" }
+        return String(cString: cStr)
+    }
 
     /// 解析 HTML 字符串
     ///

@@ -123,6 +123,9 @@ func applyInlineAttributes(
         for style in styles {
             applyInlineStyle(style, to: attrRange, in: &attr)
         }
+
+    case .lineBreak:
+        break  // <br> 已在文本中为 \n，无需额外样式处理
     }
 
     // 为所有内联元素设置自定义 tag

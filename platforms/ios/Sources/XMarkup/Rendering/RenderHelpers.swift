@@ -36,6 +36,7 @@ func inlineKindName(for kind: InlineKind) -> String {
     case .subscriptText: return "subscript"
     case .superscript: return "superscript"
     case .span: return "span"
+    case .lineBreak: return "lineBreak"
     }
 }
 
@@ -67,6 +68,7 @@ func inlineStyleKey(for kind: InlineKind) -> TagStyleKey? {
     case .subscriptText: return .subscriptText
     case .superscript: return .superscript
     case .span: return nil
+    case .lineBreak: return nil
     }
 }
 

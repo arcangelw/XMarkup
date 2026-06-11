@@ -33,6 +33,7 @@ public enum InlineKind: Sendable, Equatable {
     case subscriptText     // <sub>
     case superscript       // <sup>
     case span(styles: [InlineStyle]) // <span style="...">
+    case lineBreak         // <br> 位置标记（文本中已插入 \n）
 }
 
 /// CSS 行内样式
