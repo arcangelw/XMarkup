@@ -11,13 +11,10 @@ import AppKit
 /// 渲染流程：
 /// 1. **列表组分析**：识别连续的 list item 组，共享 NSTextList 实例
 /// 2. **Block 渲染**：按 blockRenderers 注册顺序依次询问，第一个返回非 nil 的胜出
-/// 3. **AttributedString 后处理**：按 postProcessors 顺序依次执行
-/// 4. **桥接为 NSAttributedString**
-/// 5. **NSAttributedString 增强**：按 enhancers 顺序依次执行
-///
-/// 注意：当前 inline 渲染由 DefaultBlockRenderer 内部完成（包装了旧的 renderBlock 自由函数）。
-/// inlineRenderers 预留给自定义插件拦截特定 inline 类型。
-/// Phase 5 内联渲染逻辑后将 block/inline 完全分离。
+/// 3. **Inline 渲染**：对每个 block 的 inlines，按 inlineRenderers 顺序依次询问
+/// 4. **AttributedString 后处理**：按 postProcessors 顺序依次执行
+/// 5. **桥接为 NSAttributedString**
+/// 6. **NSAttributedString 增强**：按 enhancers 顺序依次执行
 ///
 /// 使用方式：
 /// ```swift
@@ -167,7 +164,16 @@ public struct RenderPipeline: @unchecked Sendable {
                 if rendered != nil { break }
             }
 
-            if let rendered {
+            if var rendered {
+                // 调度 inlineRenderers：对每个 inline 按注册顺序询问
+                for inline in block.inlines {
+                    for inlineRenderer in inlineRenderers {
+                        if inlineRenderer.apply(inline: inline, to: &rendered,
+                                                 blockText: block.text, context: ctx) {
+                            break
+                        }
+                    }
+                }
                 result.append(rendered)
             }
         }

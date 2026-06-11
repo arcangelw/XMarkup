@@ -15,7 +15,44 @@ public struct DefaultTableRenderer: BlockRendering, Sendable {
 
     public func render(block: MarkupBlock, context: RenderingContext) -> AttributedString? {
         guard case .table(let structure) = block.kind else { return nil }
-        let nsAttr = renderTable(structure, theme: context.theme)
-        return AttributedString(nsAttr)
+        return renderTable(structure, theme: context.theme)
+    }
+
+    // MARK: - Table Rendering
+
+    private func renderTable(_ structure: TableStructure, theme: MarkupTheme) -> AttributedString {
+        let result = NSMutableAttributedString()
+        guard !structure.rows.isEmpty else { return AttributedString(result) }
+
+        let blockKindKey = NSAttributedString.Key(XMarkupBlockKindKey.name)
+        let tagKey = NSAttributedString.Key(XMarkupTagKey.name)
+        let tableColumnCountKey = NSAttributedString.Key("XMarkup.TableColumnCount")
+        let tableHeaderCountKey = NSAttributedString.Key("XMarkup.TableHeaderRowCount")
+        let tableRowIndexKey = NSAttributedString.Key("XMarkup.TableRowIndex")
+
+        for (rowIdx, row) in structure.rows.enumerated() {
+            if rowIdx > 0 { result.append(NSAttributedString(string: "\n")) }
+
+            let line = row.map(\.text).joined(separator: "\t")
+            let isHeader = rowIdx < structure.headerRowCount
+
+            var attrs: [NSAttributedString.Key: Any] = [
+                blockKindKey: "tableRow",
+                tagKey: "tableRow",
+                tableColumnCountKey: structure.columnCount,
+                tableHeaderCountKey: structure.headerRowCount,
+                tableRowIndexKey: rowIdx,
+            ]
+            if isHeader {
+                #if canImport(UIKit)
+                attrs[.font] = UIFont.boldSystemFont(ofSize: theme.baseFont.pointSize)
+                #elseif canImport(AppKit)
+                attrs[.font] = NSFont.boldSystemFont(ofSize: theme.baseFont.pointSize)
+                #endif
+            }
+
+            result.append(NSAttributedString(string: line, attributes: attrs))
+        }
+        return AttributedString(result)
     }
 }
