@@ -26,7 +26,7 @@ import AppKit
 ///     }
 /// }
 /// ```
-public struct HeadingTheme: @unchecked Sendable, @unchecked Equatable {
+public struct HeadingTheme: @unchecked Sendable, Equatable {
     // MARK: Level 1 — 基础默认
 
     /// 标题字号缩放系数

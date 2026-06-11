@@ -28,9 +28,9 @@ func renderBlock(_ block: MarkupBlock, sharedLists: [NSTextList]?,
 
     // 1.5 应用段落排版间距
     let paragraphStyle = NSMutableParagraphStyle()
-    paragraphStyle.paragraphSpacingBefore = theme.paragraphSpacing.spacingBefore
-    paragraphStyle.paragraphSpacing = theme.paragraphSpacing.spacingAfter
-    paragraphStyle.lineSpacing = theme.paragraphSpacing.lineSpacing
+    paragraphStyle.paragraphSpacingBefore = theme.paragraph.spacingBefore
+    paragraphStyle.paragraphSpacing = theme.paragraph.spacingAfter
+    paragraphStyle.lineSpacing = theme.paragraph.lineSpacing
 
     // 块级特定排版
     switch block.kind {
@@ -48,8 +48,8 @@ func renderBlock(_ block: MarkupBlock, sharedLists: [NSTextList]?,
         paragraphStyle.paragraphSpacingBefore = headingSpacing
         paragraphStyle.paragraphSpacing = headingSpacing * 0.5
     case .blockquote:
-        paragraphStyle.headIndent = theme.blockquoteIndent
-        paragraphStyle.firstLineHeadIndent = theme.blockquoteIndent
+        paragraphStyle.headIndent = theme.blockquote.indent
+        paragraphStyle.firstLineHeadIndent = theme.blockquote.indent
     case .listItem(let isOrdered, let indentLevel):
         // 优先使用共享的 NSTextList 实例（同一组列表项自动编号）
         if let shared = sharedLists {
@@ -78,12 +78,12 @@ func renderBlock(_ block: MarkupBlock, sharedLists: [NSTextList]?,
 
         // 列表组内间距优化：组内项间微间距，首末项保留正常间距
         if isFirstInListGroup {
-            paragraphStyle.paragraphSpacingBefore = theme.paragraphSpacing.spacingBefore
+            paragraphStyle.paragraphSpacingBefore = theme.paragraph.spacingBefore
         } else {
             paragraphStyle.paragraphSpacingBefore = 0
         }
         if isLastInListGroup {
-            paragraphStyle.paragraphSpacing = theme.paragraphSpacing.spacingAfter
+            paragraphStyle.paragraphSpacing = theme.paragraph.spacingAfter
         } else {
             paragraphStyle.paragraphSpacing = 2
         }
@@ -162,9 +162,7 @@ func renderBlock(_ block: MarkupBlock, sharedLists: [NSTextList]?,
         applyInlineAttributes(inline, theme: theme, to: &attr, blockText: block.text)
     }
 
-    // 7. 应用主题 tagStyles 覆盖
-    applyThemeOverrides(for: block, theme: theme, to: &attr)
-
+    // 7. tagStyles 覆盖已移除，由 typed theme 系统在 Phase 4 插件化渲染器中替代
     return attr
 }
 
@@ -179,12 +177,12 @@ func applyBlockKindAttributes(
     case let .heading(level):
         let scale: CGFloat
         switch level {
-        case .h1: scale = theme.headingScale.h1
-        case .h2: scale = theme.headingScale.h2
-        case .h3: scale = theme.headingScale.h3
-        case .h4: scale = theme.headingScale.h4
-        case .h5: scale = theme.headingScale.h5
-        case .h6: scale = theme.headingScale.h6
+        case .h1: scale = theme.heading.scale.h1
+        case .h2: scale = theme.heading.scale.h2
+        case .h3: scale = theme.heading.scale.h3
+        case .h4: scale = theme.heading.scale.h4
+        case .h5: scale = theme.heading.scale.h5
+        case .h6: scale = theme.heading.scale.h6
         }
         let fontSize = theme.baseFont.pointSize * scale
         #if canImport(UIKit)
@@ -218,58 +216,5 @@ func applyBlockKindAttributes(
 }
 
 // MARK: - Theme Overrides
-
-func applyThemeOverrides(
-    for block: MarkupBlock,
-    theme: MarkupTheme,
-    to attr: inout AttributedString
-) {
-    // 块级主题覆盖
-    if let blockKey = blockStyleKey(for: block.kind),
-       let container = theme.tagStyles[blockKey] {
-        let fullRange = attr.startIndex..<attr.endIndex
-        mergeAttributeContainer(container, into: &attr, range: fullRange)
-    }
-
-    // 内联主题覆盖
-    for inline in block.inlines {
-        if let inlineKey = inlineStyleKey(for: inline.kind),
-           let container = theme.tagStyles[inlineKey] {
-            guard let stringRange = Range(inline.range, in: block.text) else { continue }
-            let charOffset = block.text.distance(from: block.text.startIndex, to: stringRange.lowerBound)
-            let charLength = block.text.distance(from: stringRange.lowerBound, to: stringRange.upperBound)
-            guard charLength > 0 else { continue }
-            let start = attr.index(attr.startIndex, offsetByCharacters: charOffset)
-            let end = attr.index(start, offsetByCharacters: charLength)
-            mergeAttributeContainer(container, into: &attr, range: start..<end)
-        }
-    }
-}
-
-func mergeAttributeContainer(
-    _ container: AttributeContainer,
-    into attr: inout AttributedString,
-    range: Range<AttributedString.Index>
-) {
-    #if canImport(UIKit)
-    if let font = container.uiKit.font {
-        attr[range].uiKit.font = font
-    }
-    if let color = container.uiKit.foregroundColor {
-        attr[range].uiKit.foregroundColor = color
-    }
-    if let bgColor = container.uiKit.backgroundColor {
-        attr[range].uiKit.backgroundColor = bgColor
-    }
-    #elseif canImport(AppKit)
-    if let font = container.appKit.font {
-        attr[range].appKit.font = font
-    }
-    if let color = container.appKit.foregroundColor {
-        attr[range].appKit.foregroundColor = color
-    }
-    if let bgColor = container.appKit.backgroundColor {
-        attr[range].appKit.backgroundColor = bgColor
-    }
-    #endif
-}
+// tagStyles 字典系统已移除，由 typed theme 在 Phase 4 插件化渲染器中替代。
+// mergeAttributeContainer 保留，供 XMarkupUI 等外部模块使用。

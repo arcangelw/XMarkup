@@ -1,18 +1,11 @@
 import XCTest
 @testable import XMarkup
 
-// MARK: - 任务 7：MarkupTheme 基础结构测试
+// MARK: - MarkupTheme 类型化主题测试
 
 final class MarkupThemeTests: XCTestCase {
 
-    func testTagStyleKeyAllCases() {
-        XCTAssertEqual(TagStyleKey.allCases.count, 23)
-    }
-
-    func testTagStyleKeyRawValue() {
-        XCTAssertEqual(TagStyleKey.bold.rawValue, "bold")
-        XCTAssertEqual(TagStyleKey.heading.rawValue, "heading")
-    }
+    // MARK: - 基础结构
 
     func testDefaultHeadingScale() {
         let scale = HeadingScale.default
@@ -36,7 +29,7 @@ final class MarkupThemeTests: XCTestCase {
 
     func testDefaultThemeHasHeadingScale() {
         let theme = MarkupTheme.default
-        XCTAssertEqual(theme.headingScale, .default)
+        XCTAssertEqual(theme.heading.scale, .default)
     }
 
     func testThemeEquality() {
@@ -45,49 +38,64 @@ final class MarkupThemeTests: XCTestCase {
         XCTAssertEqual(a, b)
     }
 
-    func testThemeEqualityIgnoresMediaStrategy() {
-        let a = MarkupTheme(mediaStrategy: .placeholder)
-        let b: MarkupTheme = MarkupTheme(mediaStrategy: .imageProvider({ _ in nil }))
-        // mediaStrategy 不同但 baseFont/headingScale/tagStyles 相同，应判等
+    func testThemeEqualityIgnoresMedia() {
+        var a = MarkupTheme()
+        a.media = .placeholder
+        var b = MarkupTheme()
+        b.media = .imageProvider({ _ in nil })
+        // media 不同但其他字段相同，应判等
         XCTAssertEqual(a, b)
     }
 
-    func testThemeInequalityDifferentTagStyles() {
+    func testThemeInequalityDifferentTypedTheme() {
         let a = MarkupTheme()
         var b = MarkupTheme()
-        var container = AttributeContainer()
-        #if canImport(UIKit)
-        container.uiKit.foregroundColor = .red
-        #elseif canImport(AppKit)
-        container.appKit.foregroundColor = .red
-        #endif
-        b.tagStyles[.bold] = container
+        b.paragraph.spacingBefore = 20
         XCTAssertNotEqual(a, b)
     }
 
-    func testThemeWithCustomTagStyle() {
-        var theme = MarkupTheme.default
-        var container = AttributeContainer()
-        #if canImport(UIKit)
-        container.uiKit.foregroundColor = .systemBlue
-        #elseif canImport(AppKit)
-        container.appKit.foregroundColor = .systemBlue
-        #endif
-        theme.tagStyles[.link] = container
-        XCTAssertNotNil(theme.tagStyles[.link])
-    }
-
-    func testThemeMediaStrategyDefault() {
+    func testThemeMediaDefault() {
         let theme = MarkupTheme.default
-        if case .placeholder = theme.mediaStrategy {
+        if case .placeholder = theme.media {
             // 正确
         } else {
             XCTFail("Expected .placeholder")
         }
     }
+
+    // MARK: - Typed Theme 字段验证
+
+    func testDefaultParagraphTheme() {
+        let theme = MarkupTheme()
+        XCTAssertEqual(theme.paragraph.spacingBefore, 8)
+        XCTAssertEqual(theme.paragraph.spacingAfter, 8)
+        XCTAssertEqual(theme.paragraph.lineSpacing, 0)
+    }
+
+    func testDefaultBlockquoteTheme() {
+        let theme = MarkupTheme()
+        XCTAssertEqual(theme.blockquote.indent, 12)
+    }
+
+    func testDefaultListTheme() {
+        let theme = MarkupTheme()
+        XCTAssertEqual(theme.list.indentUnit, 24)
+        XCTAssertEqual(theme.list.orderedMarker, .decimal)
+        XCTAssertEqual(theme.list.unorderedMarker, .disc)
+    }
+
+    func testDefaultInlineTextThemes() {
+        let theme = MarkupTheme()
+        // 默认 inline text themes 不应有 nil resolve
+        XCTAssertNotNil(theme.bold)
+        XCTAssertNotNil(theme.italic)
+        XCTAssertNotNil(theme.codeInline)
+        XCTAssertNotNil(theme.mark)
+        XCTAssertNotNil(theme.link)
+    }
 }
 
-// MARK: - 任务 8：Result Builder DSL 测试
+// MARK: - Result Builder DSL 测试
 
 final class ThemeBuilderTests: XCTestCase {
 
@@ -98,99 +106,157 @@ final class ThemeBuilderTests: XCTestCase {
         XCTAssertEqual(theme.baseFont.pointSize, 20)
     }
 
-    func testHeadingScaleComponent() {
+    func testHeadingComponent() {
         let theme = MarkupTheme {
-            HeadingScaleComponent(HeadingScale(h1: 3.0, h2: 2.0, h3: 1.5, h4: 1.0, h5: 0.8, h6: 0.6))
+            Heading {
+                $0.scale = HeadingScale(h1: 3.0, h2: 2.0, h3: 1.5, h4: 1.0, h5: 0.8, h6: 0.6)
+                $0.bold = true
+            }
         }
-        XCTAssertEqual(theme.headingScale.h1, 3.0)
-        XCTAssertEqual(theme.headingScale.h2, 2.0)
+        XCTAssertEqual(theme.heading.scale.h1, 3.0)
+        XCTAssertEqual(theme.heading.scale.h2, 2.0)
+        XCTAssertTrue(theme.heading.bold)
     }
 
-    func testTagComponent() {
+    func testParagraphComponent() {
         let theme = MarkupTheme {
-            Tag(.link) { container in
+            Paragraph {
+                $0.spacingBefore = 12
+                $0.spacingAfter = 12
+                $0.lineSpacing = 4
+            }
+        }
+        XCTAssertEqual(theme.paragraph.spacingBefore, 12)
+        XCTAssertEqual(theme.paragraph.spacingAfter, 12)
+        XCTAssertEqual(theme.paragraph.lineSpacing, 4)
+    }
+
+    func testBlockquoteComponent() {
+        let theme = MarkupTheme {
+            Blockquote {
+                $0.indent = 20
+                $0.borderWidth = 4
+            }
+        }
+        XCTAssertEqual(theme.blockquote.indent, 20)
+        XCTAssertEqual(theme.blockquote.borderWidth, 4)
+    }
+
+    func testCodeComponent() {
+        let theme = MarkupTheme {
+            Code { theme in
+                theme.font = XMFont.monospacedSystemFont(ofSize: 14, weight: .regular)
+            }
+        }
+        XCTAssertNotNil(theme.codeInline.font)
+        XCTAssertEqual(theme.codeInline.font?.pointSize, 14)
+    }
+
+    func testMarkComponent() {
+        let theme = MarkupTheme {
+            Mark { theme in
                 #if canImport(UIKit)
-                container.uiKit.foregroundColor = .systemBlue
+                theme.backgroundColor = .systemYellow.withAlphaComponent(0.3)
                 #elseif canImport(AppKit)
-                container.appKit.foregroundColor = .systemBlue
+                theme.backgroundColor = .systemYellow.withAlphaComponent(0.3)
                 #endif
             }
         }
-        XCTAssertNotNil(theme.tagStyles[.link])
+        XCTAssertNotNil(theme.mark.backgroundColor)
+    }
+
+    func testLinkComponent() {
+        let theme = MarkupTheme {
+            Link {
+                #if canImport(UIKit)
+                $0.textColor = .systemBlue
+                #elseif canImport(AppKit)
+                $0.textColor = .linkColor
+                #endif
+            }
+        }
+        XCTAssertNotNil(theme.link.textColor)
     }
 
     func testMediaComponent() {
         let theme = MarkupTheme {
             Media(.placeholder)
         }
-        if case .placeholder = theme.mediaStrategy {
+        if case .placeholder = theme.media {
             // 正确
         } else {
             XCTFail("Expected .placeholder")
         }
     }
 
+    func testListComponent() {
+        let theme = MarkupTheme {
+            List {
+                $0.indentUnit = 32
+                $0.orderedMarker = .lowerRoman
+            }
+        }
+        XCTAssertEqual(theme.list.indentUnit, 32)
+        XCTAssertEqual(theme.list.orderedMarker, .lowerRoman)
+    }
+
     func testMultipleComponents() {
         let theme = MarkupTheme {
             BaseFont(XMFont.systemFont(ofSize: 14))
-            HeadingScaleComponent(HeadingScale(h1: 2.5))
-            Tag(.code) { container in
-                #if canImport(UIKit)
-                container.uiKit.font = .monospacedSystemFont(ofSize: 14, weight: .regular)
-                container.uiKit.backgroundColor = .systemGray6
-                #elseif canImport(AppKit)
-                container.appKit.font = .monospacedSystemFont(ofSize: 14, weight: .regular)
-                #endif
+            Heading {
+                $0.scale = HeadingScale(h1: 2.5)
             }
-            Tag(.link) { container in
+            Code { theme in
+                theme.font = XMFont.monospacedSystemFont(ofSize: 14, weight: .regular)
+            }
+            Link {
                 #if canImport(UIKit)
-                container.uiKit.foregroundColor = .tintColor
+                $0.textColor = .tintColor
                 #elseif canImport(AppKit)
-                container.appKit.foregroundColor = .controlAccentColor
+                $0.textColor = .controlAccentColor
                 #endif
             }
         }
         XCTAssertEqual(theme.baseFont.pointSize, 14)
-        XCTAssertEqual(theme.headingScale.h1, 2.5)
-        XCTAssertNotNil(theme.tagStyles[.code])
-        XCTAssertNotNil(theme.tagStyles[.link])
+        XCTAssertEqual(theme.heading.scale.h1, 2.5)
+        XCTAssertNotNil(theme.codeInline.font)
+        XCTAssertNotNil(theme.link.textColor)
     }
 }
 
-// MARK: - 任务 9：预置主题测试
+// MARK: - 预置主题测试
 
 final class PresetThemesTests: XCTestCase {
 
     func testDefaultTheme() {
         let theme = MarkupTheme.default
         XCTAssertEqual(theme.baseFont.pointSize, 16)
-        XCTAssertNotNil(theme.tagStyles[.mark])
-        XCTAssertNotNil(theme.tagStyles[.code])
+        XCTAssertNotNil(theme.codeInline.font)
+        XCTAssertNotNil(theme.mark.backgroundColor)
     }
 
     func testDarkTheme() {
         let theme = MarkupTheme.dark
         XCTAssertEqual(theme.baseFont.pointSize, 16)
-        XCTAssertNotNil(theme.tagStyles[.mark])
-        XCTAssertNotNil(theme.tagStyles[.code])
+        XCTAssertNotNil(theme.codeInline.font)
+        XCTAssertNotNil(theme.mark.backgroundColor)
     }
 
     func testChatTheme() {
         let theme = MarkupTheme.chat
         XCTAssertEqual(theme.baseFont.pointSize, 14)
-        XCTAssertNotNil(theme.tagStyles[.link])
     }
 
     func testArticleTheme() {
         let theme = MarkupTheme.article
         XCTAssertEqual(theme.baseFont.pointSize, 17)
-        XCTAssertNotNil(theme.tagStyles[.blockquote])
-        XCTAssertNotNil(theme.tagStyles[.code])
+        XCTAssertNotNil(theme.blockquote.textColor)
+        XCTAssertNotNil(theme.codeInline.font)
     }
 
     func testDefaultThemeHasPlaceholderStrategy() {
         let theme = MarkupTheme.default
-        if case .placeholder = theme.mediaStrategy {
+        if case .placeholder = theme.media {
             // 正确
         } else {
             XCTFail("Expected .placeholder")

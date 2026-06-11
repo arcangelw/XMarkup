@@ -13,10 +13,22 @@ extension MarkupTheme {
     /// ```swift
     /// let theme = MarkupTheme {
     ///     BaseFont(.systemFont(ofSize: 17))
-    ///     HeadingScaleComponent(HeadingScale(h1: 2.5))
-    ///     ParagraphSpacingComponent(ParagraphSpacing(spacingBefore: 12, spacingAfter: 12))
-    ///     Tag(.code) { $0.uiKit.backgroundColor = .systemGray6 }
-    ///     Tag(.link) { $0.uiKit.foregroundColor = .systemBlue }
+    ///     Heading {
+    ///         $0.scale = HeadingScale(h1: 2.5)
+    ///         $0.bold = true
+    ///     }
+    ///     Paragraph {
+    ///         $0.spacingBefore = 12
+    ///         $0.spacingAfter = 12
+    ///     }
+    ///     Code {
+    ///         $0.font = .monospacedSystemFont(ofSize: 14, weight: .regular)
+    ///         $0.backgroundColor = .systemGray6
+    ///     }
+    ///     Link {
+    ///         $0.textColor = .systemBlue
+    ///     }
+    ///     Media(.placeholder)
     /// }
     /// ```
     public init(@MarkupThemeBuilder builder: () -> [ThemeComponent]) {

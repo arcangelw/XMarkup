@@ -1,74 +1,86 @@
 import XCTest
 @testable import XMarkup
 
-final class ParagraphSpacingTests: XCTestCase {
+// MARK: - ParagraphTheme 测试（原 ParagraphSpacing 测试迁移）
 
-    // MARK: - ParagraphSpacing 结构体
+final class ParagraphThemeTests: XCTestCase {
 
-    func testDefaultSpacing() {
-        let spacing = ParagraphSpacing.default
-        XCTAssertEqual(spacing.spacingBefore, 8)
-        XCTAssertEqual(spacing.spacingAfter, 8)
-        XCTAssertEqual(spacing.lineSpacing, 0)
+    // MARK: - ParagraphTheme 结构体
+
+    func testDefaultValues() {
+        let theme = ParagraphTheme.default
+        XCTAssertEqual(theme.spacingBefore, 8)
+        XCTAssertEqual(theme.spacingAfter, 8)
+        XCTAssertEqual(theme.lineSpacing, 0)
     }
 
-    func testCustomSpacing() {
-        let spacing = ParagraphSpacing(spacingBefore: 12, spacingAfter: 16, lineSpacing: 4)
-        XCTAssertEqual(spacing.spacingBefore, 12)
-        XCTAssertEqual(spacing.spacingAfter, 16)
-        XCTAssertEqual(spacing.lineSpacing, 4)
+    func testCustomValues() {
+        let theme = ParagraphTheme(spacingBefore: 12, spacingAfter: 16, lineSpacing: 4)
+        XCTAssertEqual(theme.spacingBefore, 12)
+        XCTAssertEqual(theme.spacingAfter, 16)
+        XCTAssertEqual(theme.lineSpacing, 4)
     }
 
     func testEquality() {
-        let a = ParagraphSpacing(spacingBefore: 8, spacingAfter: 8, lineSpacing: 0)
-        let b = ParagraphSpacing.default
+        let a = ParagraphTheme(spacingBefore: 8, spacingAfter: 8, lineSpacing: 0)
+        let b = ParagraphTheme.default
         XCTAssertEqual(a, b)
     }
 
     func testInequality() {
-        let a = ParagraphSpacing(lineSpacing: 4)
-        let b = ParagraphSpacing.default
+        let a = ParagraphTheme(lineSpacing: 4)
+        let b = ParagraphTheme.default
         XCTAssertNotEqual(a, b)
     }
 
     // MARK: - MarkupTheme 集成
 
-    func testThemeDefaultParagraphSpacing() {
+    func testThemeDefaultParagraphTheme() {
         let theme = MarkupTheme.default
-        XCTAssertEqual(theme.paragraphSpacing, .default)
+        XCTAssertEqual(theme.paragraph, .default)
     }
 
-    func testThemeEqualityIncludesParagraphSpacing() {
+    func testThemeEqualityIncludesParagraph() {
         var a = MarkupTheme.default
         let b = MarkupTheme.default
         XCTAssertEqual(a, b)
-        a.paragraphSpacing = ParagraphSpacing(lineSpacing: 4)
+        a.paragraph = ParagraphTheme(lineSpacing: 4)
         XCTAssertNotEqual(a, b)
     }
 
     // MARK: - DSL 组件
 
-    func testParagraphSpacingComponent() {
+    func testParagraphComponent() {
         let theme = MarkupTheme {
-            ParagraphSpacingComponent(ParagraphSpacing(spacingBefore: 10, spacingAfter: 10, lineSpacing: 2))
+            Paragraph {
+                $0.spacingBefore = 10
+                $0.spacingAfter = 10
+                $0.lineSpacing = 2
+            }
         }
-        XCTAssertEqual(theme.paragraphSpacing.spacingBefore, 10)
-        XCTAssertEqual(theme.paragraphSpacing.spacingAfter, 10)
-        XCTAssertEqual(theme.paragraphSpacing.lineSpacing, 2)
+        XCTAssertEqual(theme.paragraph.spacingBefore, 10)
+        XCTAssertEqual(theme.paragraph.spacingAfter, 10)
+        XCTAssertEqual(theme.paragraph.lineSpacing, 2)
     }
 
-    func testParagraphSpacingComponentWithDefaults() {
+    func testParagraphComponentWithDefaults() {
         let theme = MarkupTheme {
-            ParagraphSpacingComponent(.default)
+            Paragraph { _ in }
         }
-        XCTAssertEqual(theme.paragraphSpacing, .default)
+        // Paragraph { _ in } 不修改任何字段，应保持默认
+        XCTAssertEqual(theme.paragraph.spacingBefore, 8)
+        XCTAssertEqual(theme.paragraph.spacingAfter, 8)
     }
 
     // MARK: - 渲染管线验证
 
     func testRenderAppliesParagraphSpacing() throws {
         let theme = MarkupTheme {
-            ParagraphSpacingComponent(ParagraphSpacing(spacingBefore: 12, spacingAfter: 10, lineSpacing: 4))
+            Paragraph {
+                $0.spacingBefore = 12
+                $0.spacingAfter = 10
+                $0.lineSpacing = 4
+            }
         }
         let parser = try XMarkupParser()
         let result = try parser.parse("<p>Hello</p><p>World</p>")
@@ -92,7 +104,7 @@ final class ParagraphSpacingTests: XCTestCase {
             }
             #endif
         }
-        XCTAssertTrue(foundSpacing, "渲染结果应包含 ParagraphSpacing 配置的 NSParagraphStyle")
+        XCTAssertTrue(foundSpacing, "渲染结果应包含 ParagraphTheme 配置的 NSParagraphStyle")
     }
 
     func testRenderDefaultThemeHasParagraphSpacing() throws {

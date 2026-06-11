@@ -1,7 +1,7 @@
 import Foundation
 
 /// 列表主题配置
-public struct ListTheme: @unchecked Sendable, @unchecked Equatable {
+public struct ListTheme: @unchecked Sendable, Equatable {
     /// 每级缩进量（pt）
     public var indentUnit: CGFloat = 24
     /// 有序列表标记类型

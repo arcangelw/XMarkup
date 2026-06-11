@@ -9,7 +9,7 @@ import AppKit
 /// 内联文本通用主题配置
 ///
 /// 适用于 bold、italic、underline、strikethrough、code、mark、subscript、superscript 等内联样式。
-public struct InlineTextTheme: @unchecked Sendable, @unchecked Equatable {
+public struct InlineTextTheme: @unchecked Sendable, Equatable {
     /// 文本颜色
     public var textColor: XMColor?
     /// 背景色

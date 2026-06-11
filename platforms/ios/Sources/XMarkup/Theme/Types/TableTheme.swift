@@ -7,7 +7,7 @@ import AppKit
 #endif
 
 /// 表格主题配置
-public struct TableTheme: @unchecked Sendable, @unchecked Equatable {
+public struct TableTheme: @unchecked Sendable, Equatable {
     /// 表头字体（nil = baseFont.bold）
     public var headerFont: XMFont?
     /// 表头背景色

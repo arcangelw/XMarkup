@@ -7,7 +7,7 @@ import AppKit
 #endif
 
 /// 引用块主题配置
-public struct BlockquoteTheme: @unchecked Sendable, @unchecked Equatable {
+public struct BlockquoteTheme: @unchecked Sendable, Equatable {
     /// 文本缩进量（pt）
     public var indent: CGFloat = 12
     /// 文本颜色

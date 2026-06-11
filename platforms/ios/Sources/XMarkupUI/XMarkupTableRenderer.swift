@@ -21,7 +21,7 @@ struct XMarkupTableRenderer {
         // macOS NSTextTable 使用 setColumnCount 而非属性
         textTable.numberOfColumns = max(structure.columnCount, 1)
 
-        let collapsesBorders = theme.blockStyles[.table]?.collapsesBorders ?? true
+        let collapsesBorders = theme.table.collapsesBorders
         textTable.collapsesBorders = collapsesBorders
 
         for (rowIdx, row) in structure.rows.enumerated() {
@@ -33,10 +33,8 @@ struct XMarkupTableRenderer {
                     startingColumn: colIdx,
                     columnSpan: 1
                 )
-                if let cellConfig = theme.blockStyles[cell.kind == .tableHeader ? .tableHeader : .tableCell],
-                   let bg = cellConfig.backgroundColor,
-                   let color = ColorParser.parse(bg) {
-                    cellBlock.backgroundColor = color
+                if cell.kind == .tableHeader, let bgColor = theme.table.headerBackgroundColor {
+                    cellBlock.backgroundColor = bgColor
                 }
 
                 let paraStyle = NSMutableParagraphStyle()

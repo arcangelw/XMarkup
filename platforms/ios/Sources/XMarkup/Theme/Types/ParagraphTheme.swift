@@ -10,7 +10,7 @@ import AppKit
 ///
 /// 控制所有段落的默认间距、文本颜色和对齐方式。
 /// 作为其他块级主题的 spacing fallback。
-public struct ParagraphTheme: @unchecked Sendable, @unchecked Equatable {
+public struct ParagraphTheme: @unchecked Sendable, Equatable {
     /// 段前间距（pt）
     public var spacingBefore: CGFloat = 8
     /// 段后间距（pt）
@@ -40,7 +40,7 @@ public struct ParagraphTheme: @unchecked Sendable, @unchecked Equatable {
     }
 
     /// 最终解析结果
-    public struct ResolvedParagraphTheme: @unchecked Sendable, @unchecked Equatable {
+    public struct ResolvedParagraphTheme: @unchecked Sendable, Equatable {
         public var spacingBefore: CGFloat
         public var spacingAfter: CGFloat
         public var lineSpacing: CGFloat

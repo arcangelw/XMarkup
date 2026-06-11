@@ -16,7 +16,7 @@ func renderAttachmentBlock(
 ) -> AttributedString {
     let nsAttachment: NSTextAttachment
 
-    switch theme.mediaStrategy {
+    switch theme.media {
     case .placeholder:
         nsAttachment = createPlaceholderAttachment(
             content: attachment.content,

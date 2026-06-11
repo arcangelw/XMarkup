@@ -7,7 +7,7 @@ import AppKit
 #endif
 
 /// 预格式化主题配置
-public struct PreformattedTheme: @unchecked Sendable, @unchecked Equatable {
+public struct PreformattedTheme: @unchecked Sendable, Equatable {
     /// 字体（nil = 自动从 baseFont 派生等宽字体）
     public var font: XMFont?
     /// 背景色
