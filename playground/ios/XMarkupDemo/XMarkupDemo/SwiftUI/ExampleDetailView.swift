@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 示例详情页：四段 Tab（HTML 源码 / 渲染效果 / WebView / Span 数据）
+/// 示例详情页：五段 Tab（HTML 源码 / 渲染效果 / WebView / Span 数据 / 日志）
 struct ExampleDetailView: View {
     let example: DemoExample
     @State private var selectedTab = 0
@@ -12,6 +12,7 @@ struct ExampleDetailView: View {
                 Text("渲染效果").tag(1)
                 Text("WebView").tag(2)
                 Text("Span 数据").tag(3)
+                Text("日志").tag(4)
             }
             .pickerStyle(.segmented)
             .padding(.horizontal, 16)
@@ -38,6 +39,8 @@ struct ExampleDetailView: View {
             WebViewPreviewView(html: example.html)
         case 3:
             SpanDataView(example: example)
+        case 4:
+            LogView(example: example)
         default:
             EmptyView()
         }

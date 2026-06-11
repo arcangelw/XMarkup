@@ -1,10 +1,10 @@
 import AppKit
 
-/// 详情页：四段 Tab 切换（HTML 源码 / 渲染效果 / WebView / Span 数据）
+/// 详情页：五段 Tab 切换（HTML 源码 / 渲染效果 / WebView / Span 数据 / 日志）
 final class ExampleDetailViewController: NSViewController {
     private let containerView = NSView()
     private let segmentedControl = NSSegmentedControl(
-        labels: ["HTML 源码", "渲染效果", "WebView", "Span 数据"],
+        labels: ["HTML 源码", "渲染效果", "WebView", "Span 数据", "日志"],
         trackingMode: .selectOne,
         target: nil,
         action: nil
@@ -14,6 +14,7 @@ final class ExampleDetailViewController: NSViewController {
     private var renderedVC: RenderedTextViewController?
     private var webViewVC: WebViewViewController?
     private var spanVC: SpanDataViewController?
+    private var logVC: LogViewController?
 
     override func loadView() {
         view = NSView()
@@ -85,8 +86,9 @@ final class ExampleDetailViewController: NSViewController {
         renderedVC = RenderedTextViewController(example: example)
         webViewVC = WebViewViewController(html: example.html)
         spanVC = SpanDataViewController(example: example)
+        logVC = LogViewController(example: example)
 
-        let children: [NSViewController] = [htmlVC!, renderedVC!, webViewVC!, spanVC!]
+        let children: [NSViewController] = [htmlVC!, renderedVC!, webViewVC!, spanVC!, logVC!]
         for child in children {
             addChild(child)
             child.view.translatesAutoresizingMaskIntoConstraints = false
@@ -111,6 +113,7 @@ final class ExampleDetailViewController: NSViewController {
         renderedVC?.view.isHidden = segmentedControl.selectedSegment != 1
         webViewVC?.view.isHidden = segmentedControl.selectedSegment != 2
         spanVC?.view.isHidden = segmentedControl.selectedSegment != 3
+        logVC?.view.isHidden = segmentedControl.selectedSegment != 4
         containerView.layoutSubtreeIfNeeded()
     }
 }
