@@ -8,7 +8,7 @@ import AppKit
 
 /// 默认块级渲染器 — 处理除 table 和 media attachment 外的所有 block 类型
 ///
-/// 从 RenderingContext.theme 读取 typed theme 配置，替代旧的 tagStyles 字典。
+/// 从 RenderingContext.theme 读取 typed theme 配置，从 sharedState 读取列表组信息。
 /// 不处理 `.table`（由 DefaultTableRenderer 处理）和带 attachment 的 block（由 DefaultAttachmentRenderer 处理）。
 public struct DefaultBlockRenderer: BlockRendering, Sendable {
     public init() {}
@@ -20,17 +20,13 @@ public struct DefaultBlockRenderer: BlockRendering, Sendable {
         // media attachment 由 DefaultAttachmentRenderer 处理
         if block.attachment != nil { return nil }
 
-        return renderBlockInternal(block, theme: context.theme)
-    }
+        // 从 sharedState 读取列表组信息（由 RenderPipeline 分析后注入）
+        let sharedLists = context.sharedState[RenderPipeline.SharedStateKeys.listTextLists] as? [NSTextList]
+        let isFirst = context.sharedState[RenderPipeline.SharedStateKeys.isFirstInListGroup] as? Bool ?? false
+        let isLast = context.sharedState[RenderPipeline.SharedStateKeys.isLastInListGroup] as? Bool ?? false
 
-    // MARK: - 内部渲染（复用现有自由函数）
-
-    /// 将现有 renderBlock 自由函数包装为协议方法
-    ///
-    /// Phase 5 将把完整渲染逻辑内联到此处，当前复用 Rendering/BlockRenderer.swift
-    private func renderBlockInternal(_ block: MarkupBlock, theme: MarkupTheme) -> AttributedString {
-        // 复用列表组分析后的渲染（这里用无共享列表的简化路径）
-        let lists: [NSTextList]? = nil
-        return XMarkup.renderBlock(block, sharedLists: lists, isFirstInListGroup: false, isLastInListGroup: false, theme: theme)
+        return XMarkup.renderBlock(block, sharedLists: sharedLists,
+                                    isFirstInListGroup: isFirst, isLastInListGroup: isLast,
+                                    theme: context.theme)
     }
 }
