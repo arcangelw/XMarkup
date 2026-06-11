@@ -41,8 +41,19 @@ public struct DefaultInlineRenderer: InlineRendering, Sendable {
             let codeTheme = context.theme.codeInline
             attributed.enumerateAttribute(.font, in: nsRange, options: []) { value, subrange, _ in
                 let currentFont = value as? XMFont ?? context.theme.baseFont
-                attributed.addAttribute(.font, value: codeTheme.font
-                    ?? deriveMonospacedFont(from: currentFont), range: subrange)
+                let codeFont: XMFont
+                if let themeFont = codeTheme.font {
+                    codeFont = themeFont
+                } else {
+                    let scale = codeTheme.sizeScale
+                    if scale != 1.0 {
+                        let scaledFont = deriveMonospacedFont(from: currentFont)
+                        codeFont = deriveFont(from: scaledFont, size: currentFont.pointSize * scale)
+                    } else {
+                        codeFont = deriveMonospacedFont(from: currentFont)
+                    }
+                }
+                attributed.addAttribute(.font, value: codeFont, range: subrange)
                 // 只在没有已有 backgroundColor（如 mark/span 背景色）时才设置 code 背景色
                 var effectiveRange = NSRange()
                 let existing = attributed.attribute(.backgroundColor, at: subrange.location,

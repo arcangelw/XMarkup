@@ -17,8 +17,9 @@ extension MarkupTheme {
                 $0.bold = true
             }
             Code {
-                // font 不硬编码 — 由 inline renderer 从当前 run 的字号动态派生等宽字体，
-                // 确保 code 在 heading 等场景下正确继承块级字号
+                // 字号缩小约 87.5% 以对齐 Web 中 code 的视觉比例
+                // font 不硬编码 — 由 inline renderer 从当前 run 的字号动态派生等宽字体
+                $0.sizeScale = 0.875
                 #if canImport(UIKit)
                 $0.backgroundColor = .systemGray6
                 #elseif canImport(AppKit)
@@ -26,10 +27,19 @@ extension MarkupTheme {
                 #endif
             }
             Mark {
+                // Web 标准 background-color: yellow（#FFFF00）
                 #if canImport(UIKit)
-                $0.backgroundColor = .systemYellow.withAlphaComponent(0.3)
+                $0.backgroundColor = .systemYellow
                 #elseif canImport(AppKit)
-                $0.backgroundColor = .systemYellow.withAlphaComponent(0.3)
+                $0.backgroundColor = .systemYellow
+                #endif
+            }
+            // Pre 默认浅灰背景，对齐 Web 浏览器样式
+            Preformatted {
+                #if canImport(UIKit)
+                $0.backgroundColor = .systemGray6
+                #elseif canImport(AppKit)
+                $0.backgroundColor = .textBackgroundColor
                 #endif
             }
         }
@@ -48,6 +58,7 @@ extension MarkupTheme {
                 $0.bold = true
             }
             Code {
+                $0.sizeScale = 0.875
                 #if canImport(UIKit)
                 $0.backgroundColor = .systemGray
                 #elseif canImport(AppKit)
@@ -56,9 +67,16 @@ extension MarkupTheme {
             }
             Mark {
                 #if canImport(UIKit)
-                $0.backgroundColor = .systemOrange.withAlphaComponent(0.3)
+                $0.backgroundColor = .systemOrange
                 #elseif canImport(AppKit)
-                $0.backgroundColor = .systemOrange.withAlphaComponent(0.3)
+                $0.backgroundColor = .systemOrange
+                #endif
+            }
+            Preformatted {
+                #if canImport(UIKit)
+                $0.backgroundColor = .systemGray.withAlphaComponent(0.2)
+                #elseif canImport(AppKit)
+                $0.backgroundColor = .textBackgroundColor
                 #endif
             }
         }
@@ -99,6 +117,14 @@ extension MarkupTheme {
                 #endif
             }
             Code {
+                $0.sizeScale = 0.875
+                #if canImport(UIKit)
+                $0.backgroundColor = .systemGray6
+                #elseif canImport(AppKit)
+                $0.backgroundColor = .textBackgroundColor
+                #endif
+            }
+            Preformatted {
                 #if canImport(UIKit)
                 $0.backgroundColor = .systemGray6
                 #elseif canImport(AppKit)

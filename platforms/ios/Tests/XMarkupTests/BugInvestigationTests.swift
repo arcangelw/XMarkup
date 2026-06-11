@@ -267,11 +267,13 @@ final class BugInvestigationTests: XCTestCase {
         let codeRange = (text as NSString).range(of: "NestedCode")
         let codeFont = nsAttr.attribute(.font, at: codeRange.location, effectiveRange: nil) as? XMFont
 
-        // 验证 heading 字号与旁边文本一致
+        // 验证 code 字号缩放（默认 sizeScale=0.875）
         let textBefore = "前"
         let headingFont = nsAttr.attribute(.font, at: (text as NSString).range(of: textBefore).location, effectiveRange: nil) as? XMFont
-        XCTAssertLessThan(abs(codeFont!.pointSize - headingFont!.pointSize), 1,
-            "code 在 h1 内应保持 h1 字号，实际=\(codeFont!.pointSize)")
+        let expectedScale: CGFloat = 0.875
+        let expectedCodeSize = headingFont!.pointSize * expectedScale
+        XCTAssertEqual(codeFont!.pointSize, expectedCodeSize, accuracy: 1,
+            "code 在 h1 内应缩放至 \(expectedCodeSize)pt，实际=\(codeFont!.pointSize)")
 
         #if canImport(UIKit)
         XCTAssertTrue(codeFont!.fontDescriptor.symbolicTraits.contains(.traitBold),
