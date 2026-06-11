@@ -245,6 +245,7 @@ final class PresetThemesTests: XCTestCase {
     func testChatTheme() {
         let theme = MarkupTheme.chat
         XCTAssertEqual(theme.baseFont.pointSize, 14)
+        XCTAssertNotNil(theme.link.textColor)
     }
 
     func testArticleTheme() {

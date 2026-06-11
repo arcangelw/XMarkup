@@ -217,4 +217,3 @@ func applyBlockKindAttributes(
 
 // MARK: - Theme Overrides
 // tagStyles 字典系统已移除，由 typed theme 在 Phase 4 插件化渲染器中替代。
-// mergeAttributeContainer 保留，供 XMarkupUI 等外部模块使用。

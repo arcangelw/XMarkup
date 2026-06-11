@@ -16,19 +16,19 @@ extension MarkupTheme {
                 $0.scale = .default
                 $0.bold = true
             }
-            Code { theme in
-                theme.font = XMFont.monospacedSystemFont(ofSize: 16, weight: .regular)
+            Code {
+                $0.font = XMFont.monospacedSystemFont(ofSize: 16, weight: .regular)
                 #if canImport(UIKit)
-                theme.backgroundColor = .systemGray6
+                $0.backgroundColor = .systemGray6
                 #elseif canImport(AppKit)
-                theme.backgroundColor = .systemGray.withAlphaComponent(0.15)
+                $0.backgroundColor = .systemGray.withAlphaComponent(0.15)
                 #endif
             }
-            Mark { theme in
+            Mark {
                 #if canImport(UIKit)
-                theme.backgroundColor = .systemYellow.withAlphaComponent(0.3)
+                $0.backgroundColor = .systemYellow.withAlphaComponent(0.3)
                 #elseif canImport(AppKit)
-                theme.backgroundColor = .systemYellow.withAlphaComponent(0.3)
+                $0.backgroundColor = .systemYellow.withAlphaComponent(0.3)
                 #endif
             }
         }
@@ -46,19 +46,19 @@ extension MarkupTheme {
                 $0.scale = .default
                 $0.bold = true
             }
-            Code { theme in
-                theme.font = XMFont.monospacedSystemFont(ofSize: 16, weight: .regular)
+            Code {
+                $0.font = XMFont.monospacedSystemFont(ofSize: 16, weight: .regular)
                 #if canImport(UIKit)
-                theme.backgroundColor = .systemGray
+                $0.backgroundColor = .systemGray
                 #elseif canImport(AppKit)
-                theme.backgroundColor = .systemGray.withAlphaComponent(0.3)
+                $0.backgroundColor = .systemGray.withAlphaComponent(0.3)
                 #endif
             }
-            Mark { theme in
+            Mark {
                 #if canImport(UIKit)
-                theme.backgroundColor = .systemOrange.withAlphaComponent(0.3)
+                $0.backgroundColor = .systemOrange.withAlphaComponent(0.3)
                 #elseif canImport(AppKit)
-                theme.backgroundColor = .systemOrange.withAlphaComponent(0.3)
+                $0.backgroundColor = .systemOrange.withAlphaComponent(0.3)
                 #endif
             }
         }
@@ -66,7 +66,16 @@ extension MarkupTheme {
 
     /// 聊天气泡主题
     public static let chat: MarkupTheme = {
-        MarkupTheme(baseFont: XMFont.systemFont(ofSize: 14))
+        MarkupTheme {
+            BaseFont(XMFont.systemFont(ofSize: 14))
+            Link {
+                #if canImport(UIKit)
+                $0.textColor = .systemBlue
+                #elseif canImport(AppKit)
+                $0.textColor = .linkColor
+                #endif
+            }
+        }
     }()
 
     /// 文章阅读主题
@@ -84,12 +93,12 @@ extension MarkupTheme {
                 $0.textColor = .secondaryLabelColor
                 #endif
             }
-            Code { theme in
-                theme.font = XMFont.monospacedSystemFont(ofSize: 17, weight: .regular)
+            Code {
+                $0.font = XMFont.monospacedSystemFont(ofSize: 17, weight: .regular)
                 #if canImport(UIKit)
-                theme.backgroundColor = .systemGray6
+                $0.backgroundColor = .systemGray6
                 #elseif canImport(AppKit)
-                theme.backgroundColor = .textBackgroundColor
+                $0.backgroundColor = .textBackgroundColor
                 #endif
             }
         }

@@ -10,8 +10,7 @@ import AppKit
 struct XMarkupTableRenderer {
 
     /// 使用 NSTextTable 渲染表格（macOS 专用）
-    /// - Note: 依赖 XMarkup 公开 blockStyleKey、ColorParser 等 internal API
-    ///        当前为 sketch 版本，P2 待完善
+    /// - Note: 使用 typed theme（theme.table）替代旧的 blockStyles 字典。当前为 sketch 版本，P2 待完善
     static func renderTable(
         _ structure: TableStructure,
         theme: MarkupTheme

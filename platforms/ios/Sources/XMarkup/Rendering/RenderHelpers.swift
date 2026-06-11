@@ -40,38 +40,6 @@ func inlineKindName(for kind: InlineKind) -> String {
     }
 }
 
-public func blockStyleKey(for kind: BlockKind) -> TagStyleKey? {
-    switch kind {
-    case .paragraph: return .paragraph
-    case .heading: return .heading
-    case .blockquote: return .blockquote
-    case .preformatted: return .preformatted
-    case .listItem: return .listItem
-    case .division: return .division
-    case .horizontalRule: return .horizontalRule
-    case .table: return .table
-    case .tableRow: return .tableRow
-    case .tableCell: return .tableCell
-    case .tableHeader: return .tableHeader
-    }
-}
-
-func inlineStyleKey(for kind: InlineKind) -> TagStyleKey? {
-    switch kind {
-    case .bold: return .bold
-    case .italic: return .italic
-    case .underline: return .underline
-    case .strikethrough: return .strikethrough
-    case .code: return .code
-    case .mark: return .mark
-    case .link: return .link
-    case .subscriptText: return .subscriptText
-    case .superscript: return .superscript
-    case .span: return nil
-    case .lineBreak: return nil
-    }
-}
-
 func extractSrc(from content: AttachmentContent) -> String {
     switch content {
     case .image(let src), .video(let src), .audio(let src): return src
