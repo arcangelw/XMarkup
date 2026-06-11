@@ -536,8 +536,7 @@ final class RenderTests: XCTestCase {
         // XMarkupBlockKindKey 设置在 NS 层的原始输出中
         let result = try parse("<hr>")
         let doc = MarkupDocument.from(result)
-        let renderer = DocumentRenderer(theme: .default)
-        let attr = renderer.render(doc.blocks)
+        let attr = doc.render(theme: .default)
 
         // 验证 AttributedString 包含 attachment（hr 的载体）
         let nsAttr = NSAttributedStringRenderer().render(attr)

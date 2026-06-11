@@ -19,9 +19,11 @@ public struct MarkupDocument: Sendable, Equatable {
 
     /// 将文档渲染为 AttributedString
     ///
-    /// 通过 DocumentRenderer 执行两阶段渲染：
-    /// Phase 1: 组分析（列表项共享 NSTextList 实例）
-    /// Phase 2: 渲染（含 NSTextTable / NSTextBlock 支持）
+    /// 通过 RenderPipeline.default 执行渲染：
+    /// 1. 列表组分析（连续 list item 共享 NSTextList 实例）
+    /// 2. Block 渲染（table → attachment → 通用 block，按优先级）
+    /// 3. Inline 渲染（bold/italic/code/link 等）
+    /// 4. AttributedString 后处理
     ///
     /// ```swift
     /// let parser = try XMarkupParser()
@@ -30,8 +32,12 @@ public struct MarkupDocument: Sendable, Equatable {
     /// let attr = doc.render(theme: .default)
     /// ```
     public func render(theme: MarkupTheme = .default) -> AttributedString {
-        let renderer = DocumentRenderer(theme: theme)
-        return renderer.render(blocks)
+        RenderPipeline.default.renderAttributed(self, theme: theme)
+    }
+
+    /// 使用自定义管线渲染为 NSAttributedString
+    public func render(theme: MarkupTheme = .default, pipeline: RenderPipeline) -> NSAttributedString {
+        pipeline.render(self, theme: theme)
     }
 
     /// 追加内容（聊天场景）
