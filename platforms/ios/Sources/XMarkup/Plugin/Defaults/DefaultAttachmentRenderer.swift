@@ -12,21 +12,17 @@ import AppKit
 public struct DefaultAttachmentRenderer: BlockRendering, Sendable {
     public init() {}
 
-    public func render(block: MarkupBlock, context: RenderingContext) -> AttributedString? {
+    public func render(block: MarkupBlock, context: RenderingContext) -> NSMutableAttributedString? {
         guard let attachment = block.attachment else { return nil }
 
         // 构建块级基础属性
-        var baseAttributes = AttributeContainer()
-        #if canImport(UIKit)
-        baseAttributes.uiKit.font = context.theme.baseFont
-        #elseif canImport(AppKit)
-        baseAttributes.appKit.font = context.theme.baseFont
-        #endif
+        var baseAttributes: [NSAttributedString.Key: Any] = [:]
+        baseAttributes[.font] = context.theme.baseFont
 
         // 设置自定义 key
         let blockKindName = blockKindName(for: block.kind)
-        baseAttributes[XMarkupTagKey.self] = blockKindName
-        baseAttributes[XMarkupBlockKindKey.self] = blockKindName
+        baseAttributes[.xmarkupTag] = blockKindName
+        baseAttributes[.xmarkupBlockKind] = blockKindName
 
         return renderAttachmentBlock(block, attachment: attachment, theme: context.theme, baseAttributes: baseAttributes)
     }
@@ -37,8 +33,8 @@ public struct DefaultAttachmentRenderer: BlockRendering, Sendable {
         _ block: MarkupBlock,
         attachment: MarkupAttachment,
         theme: MarkupTheme,
-        baseAttributes: AttributeContainer
-    ) -> AttributedString {
+        baseAttributes: [NSAttributedString.Key: Any]
+    ) -> NSMutableAttributedString {
         let nsAttachment: NSTextAttachment
 
         switch theme.media {
@@ -74,15 +70,17 @@ public struct DefaultAttachmentRenderer: BlockRendering, Sendable {
             }
         }
 
-        var attr = AttributedString("\u{FFFC}", attributes: baseAttributes)
-        attr[XMarkupAttachmentRefKey.self] = srcIdentifier(from: attachment.content)
-        attr[XMarkupTagKey.self] = blockKindName(for: block.kind)
+        let result = NSMutableAttributedString(string: "\u{FFFC}", attributes: baseAttributes)
+        result.addAttribute(.xmarkupAttachmentRef,
+                            value: srcIdentifier(from: attachment.content),
+                            range: NSRange(location: 0, length: result.length))
+        result.addAttribute(.xmarkupTag,
+                            value: blockKindName(for: block.kind),
+                            range: NSRange(location: 0, length: result.length))
+        result.addAttribute(.attachment, value: nsAttachment,
+                            range: NSRange(location: 0, length: result.length))
 
-        let nsAttr = NSMutableAttributedString(attributedString: NSAttributedString(attr))
-        nsAttr.addAttribute(.attachment, value: nsAttachment,
-                             range: NSRange(location: 0, length: nsAttr.length))
-
-        return AttributedString(nsAttr)
+        return result
     }
 
     // MARK: - Placeholder
@@ -127,11 +125,11 @@ public struct DefaultAttachmentRenderer: BlockRendering, Sendable {
         let image = NSImage(size: size)
         image.lockFocus()
         NSColor.systemGray.withAlphaComponent(0.1).setFill()
-        NSRect(origin: .zero, size: size).fill()
+        NSRect(origin: NSPoint.zero, size: size).fill()
         let symbolSize = symbol.size
         symbol.draw(
             at: NSPoint(x: (size.width - symbolSize.width) / 2, y: (size.height - symbolSize.height) / 2),
-            from: .zero,
+            from: NSRect.zero,
             operation: .sourceOver,
             fraction: 1.0
         )

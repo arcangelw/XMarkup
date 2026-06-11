@@ -20,7 +20,7 @@ class BlockquoteLayoutManager: NSLayoutManager {
         guard let config = markupConfig,
               let textStorage else { return }
 
-        let key = NSAttributedString.Key(XMarkupBlockKindKey.name)
+        let key = NSAttributedString.Key.xmarkupBlockKind
         let fullCharRange = NSRange(location: 0, length: textStorage.length)
 
         // 逐 blockquote 段落绘制竖线

@@ -23,7 +23,7 @@ enum HorizontalRuleUpdater {
         minWidth: CGFloat = 100
     ) {
         let fullRange = NSRange(location: 0, length: textStorage.length)
-        let blockKindKey = NSAttributedString.Key(XMarkupBlockKindKey.name)
+        let blockKindKey = NSAttributedString.Key.xmarkupBlockKind
         textStorage.enumerateAttribute(.attachment, in: fullRange) { value, range, _ in
             guard let attachment = value as? NSTextAttachment,
                   let kind = textStorage.attribute(blockKindKey, at: range.location, effectiveRange: nil) as? String,

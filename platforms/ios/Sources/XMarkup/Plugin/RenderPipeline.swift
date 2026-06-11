@@ -12,20 +12,14 @@ import AppKit
 /// 1. **列表组分析**：识别连续的 list item 组，共享 NSTextList 实例
 /// 2. **Block 渲染**：按 blockRenderers 注册顺序依次询问，第一个返回非 nil 的胜出
 /// 3. **Inline 渲染**：对每个 block 的 inlines，按 inlineRenderers 顺序依次询问
-/// 4. **AttributedString 后处理**：按 postProcessors 顺序依次执行
-/// 5. **标准 NS 转换**：AttributedString → NSMutableAttributedString（固定步骤）
-/// 6. **Key 转移**：按 keyTransfers 顺序依次执行（默认由 `XMarkupKeyTransfer` 转移内置 key）
-/// 7. **NSAttributedString 增强**：按 enhancers 顺序依次执行
+/// 4. **NSAttributedString 增强**：按 enhancers 顺序依次执行
+///
+/// 全程直接操作 NSMutableAttributedString，无需 AttributedString 桥接。
 ///
 /// 使用方式：
 /// ```swift
 /// let pipeline = RenderPipeline(plugins: [MyPlugin()])
 /// let nsAttr = pipeline.render(document, theme: .default)
-/// ```
-///
-/// 追加自定义 key 转移：
-/// ```swift
-/// let pipeline = RenderPipeline.default.addingKeyTransfers([MyCustomKeyTransfer()])
 /// ```
 ///
 /// - Note: `@unchecked Sendable` 标记因为持有 protocol existential 数组，
@@ -38,11 +32,7 @@ public struct RenderPipeline: @unchecked Sendable {
     public let blockRenderers: [any BlockRendering]
     /// 内联渲染器（预留给自定义插件拦截特定 inline 类型）
     public let inlineRenderers: [any InlineRendering]
-    /// AttributedString 后处理器
-    public let postProcessors: [any AttributedStringProcessing]
-    /// Key 转移插件（将 AttributedString 中的自定义 key 转移到 NSAttributedString）
-    public let keyTransfers: [any NSAttributeTransferring]
-    /// NSAttributedString 增强器
+    /// NSAttributedString 增强器（后处理 + 平台增强）
     public let enhancers: [any NSAttributedStringProcessing]
 
     // MARK: - 初始化
@@ -51,52 +41,27 @@ public struct RenderPipeline: @unchecked Sendable {
     public init(
         blockRenderers: [any BlockRendering] = [],
         inlineRenderers: [any InlineRendering] = [],
-        postProcessors: [any AttributedStringProcessing] = [],
-        keyTransfers: [any NSAttributeTransferring] = [XMarkupKeyTransfer()],
         enhancers: [any NSAttributedStringProcessing] = []
     ) {
         self.blockRenderers = blockRenderers
         self.inlineRenderers = inlineRenderers
-        self.postProcessors = postProcessors
-        self.keyTransfers = keyTransfers
         self.enhancers = enhancers
     }
 
     /// 从 RendererPlugin 数组自动分类到各阶段
     ///
-    /// 同一组插件实例同时注册到所有四个阶段（blockRenderers/inlineRenderers/
-    /// postProcessors/enhancers），每个插件只需覆写关心的方法，未覆写的使用
-    /// RendererPlugin 协议的默认空实现。
-    ///
-    /// - Note: 对于精确注册，使用 `init(blockRenderers:inlineRenderers:...)` 代替。
+    /// 同一组插件实例同时注册到 blockRenderers/inlineRenderers/enhancers，
+    /// 每个插件只需覆写关心的方法，未覆写的使用 RendererPlugin 协议的默认空实现。
     public init(
         plugins: [any RendererPlugin],
-        keyTransfers: [any NSAttributeTransferring] = [XMarkupKeyTransfer()],
         enhancers: [any NSAttributedStringProcessing] = []
     ) {
         self.blockRenderers = plugins
         self.inlineRenderers = plugins
-        self.postProcessors = plugins
-        self.keyTransfers = keyTransfers
         self.enhancers = enhancers
     }
 
     // MARK: - 派生方法
-
-    /// 基于当前管线追加 key 转移插件，返回新管线实例
-    ///
-    /// ```swift
-    /// let pipeline = RenderPipeline.default.addingKeyTransfers([MyCustomKeyTransfer()])
-    /// ```
-    public func addingKeyTransfers(_ newTransfers: [any NSAttributeTransferring]) -> RenderPipeline {
-        RenderPipeline(
-            blockRenderers: blockRenderers,
-            inlineRenderers: inlineRenderers,
-            postProcessors: postProcessors,
-            keyTransfers: keyTransfers + newTransfers,
-            enhancers: enhancers
-        )
-    }
 
     /// 基于当前管线追加增强器，返回新管线实例
     ///
@@ -108,20 +73,7 @@ public struct RenderPipeline: @unchecked Sendable {
         RenderPipeline(
             blockRenderers: blockRenderers,
             inlineRenderers: inlineRenderers,
-            postProcessors: postProcessors,
-            keyTransfers: keyTransfers,
             enhancers: enhancers + newEnhancers
-        )
-    }
-
-    /// 基于当前管线追加后处理器，返回新管线实例
-    public func addingPostProcessors(_ newProcessors: [any AttributedStringProcessing]) -> RenderPipeline {
-        RenderPipeline(
-            blockRenderers: blockRenderers,
-            inlineRenderers: inlineRenderers,
-            postProcessors: postProcessors + newProcessors,
-            keyTransfers: keyTransfers,
-            enhancers: enhancers
         )
     }
 
@@ -131,56 +83,33 @@ public struct RenderPipeline: @unchecked Sendable {
     public func render(_ document: MarkupDocument, theme: MarkupTheme = .default) -> NSAttributedString {
         let totalBlocks = document.blocks.count
 
-        // Phase 1: Block 渲染（含列表组分析 + inline 渲染）
-        var attr = renderBlocks(document.blocks, theme: theme)
+        // Phase 1 & 2: Block 渲染（含列表组分析 + inline 渲染）
+        let result = renderBlocks(document.blocks, theme: theme)
 
-        // Phase 2: AttributedString 后处理
-        for processor in postProcessors {
-            let ctx = RenderingContext(theme: theme, blockIndex: 0, totalBlocks: totalBlocks)
-            attr = processor.process(attr, context: ctx)
-        }
-
-        // Phase 3: 标准 NS 转换
-        let mutableAttr = NSMutableAttributedString(attributedString: NSAttributedString(attr))
-
-        // Phase 4: Key 转移（自定义 attribute key 从 AttributedString 转移到 NSMutableAttributedString）
-        let transferCtx = RenderingContext(theme: theme, blockIndex: 0, totalBlocks: totalBlocks)
-        for transfer in keyTransfers {
-            transfer.transfer(from: attr, to: mutableAttr, context: transferCtx)
-        }
-
-        // Phase 5: NSAttributedString 增强
+        // Phase 3: NSAttributedString 增强
         for enhancer in enhancers {
             let ctx = RenderingContext(theme: theme, blockIndex: 0, totalBlocks: totalBlocks)
-            enhancer.enhance(mutableAttr, context: ctx)
+            enhancer.enhance(result, context: ctx)
         }
 
-        return mutableAttr
+        return result
     }
 
-    /// 渲染为 AttributedString（不含 NS 转换、key 转移和增强）
+    /// 渲染为 AttributedString（便利包装，可直接用于 SwiftUI Text）
     public func renderAttributed(_ document: MarkupDocument, theme: MarkupTheme = .default) -> AttributedString {
-        let totalBlocks = document.blocks.count
-        var attr = renderBlocks(document.blocks, theme: theme)
-
-        for processor in postProcessors {
-            let ctx = RenderingContext(theme: theme, blockIndex: 0, totalBlocks: totalBlocks)
-            attr = processor.process(attr, context: ctx)
-        }
-
-        return attr
+        AttributedString(render(document, theme: theme))
     }
 
     // MARK: - Block 渲染（含列表组分析）
 
-    /// 渲染块列表，合并为单个 AttributedString
-    private func renderBlocks(_ blocks: [MarkupBlock], theme: MarkupTheme) -> AttributedString {
+    /// 渲染块列表，合并为单个 NSMutableAttributedString
+    private func renderBlocks(_ blocks: [MarkupBlock], theme: MarkupTheme) -> NSMutableAttributedString {
         let totalBlocks = blocks.count
         let groups = analyzeBlockGroups(blocks)
-        var result = AttributedString("")
+        let result = NSMutableAttributedString()
 
         for (i, block) in blocks.enumerated() {
-            if i > 0 { result.append(AttributedString("\n")) }
+            if i > 0 { result.append(NSAttributedString(string: "\n")) }
 
             var ctx = RenderingContext(theme: theme, blockIndex: i, totalBlocks: totalBlocks)
 
@@ -192,17 +121,17 @@ public struct RenderPipeline: @unchecked Sendable {
             ctx.sharedState[SharedStateKeys.isLastInListGroup] = groups.listGroupLast.contains(i)
 
             // 按顺序询问 blockRenderers
-            var rendered: AttributedString?
+            var rendered: NSMutableAttributedString?
             for renderer in blockRenderers {
                 rendered = renderer.render(block: block, context: ctx)
                 if rendered != nil { break }
             }
 
-            if var rendered {
+            if let rendered {
                 // 调度 inlineRenderers：对每个 inline 按注册顺序询问
                 for inline in block.inlines {
                     for inlineRenderer in inlineRenderers {
-                        if inlineRenderer.apply(inline: inline, to: &rendered,
+                        if inlineRenderer.apply(inline: inline, to: rendered,
                                                  blockText: block.text, context: ctx) {
                             break
                         }

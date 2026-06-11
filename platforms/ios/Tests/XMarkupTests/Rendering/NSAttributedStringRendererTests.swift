@@ -3,6 +3,8 @@ import XCTest
 
 final class NSConversionTests: XCTestCase {
 
+    // MARK: - AttributedString → NSAttributedString（标准 API）
+
     func testAttributedStringToNSAttributedString() {
         var attr = AttributedString("Hello World")
         #if canImport(UIKit)
@@ -31,28 +33,34 @@ final class NSConversionTests: XCTestCase {
         XCTAssertEqual(font?.pointSize, 20)
     }
 
-    func testKeyTransferViaPipeline() {
-        var attr = AttributedString("Hello")
-        attr[XMarkupTagKey.self] = "bold"
+    // MARK: - NSAttributedString → AttributedString（renderAttributed 包装）
 
-        let nsAttr = NSMutableAttributedString(attributedString: NSAttributedString(attr))
-        let transfer = XMarkupKeyTransfer()
-        let ctx = RenderingContext(theme: .default, blockIndex: 0, totalBlocks: 1)
-        transfer.transfer(from: attr, to: nsAttr, context: ctx)
+    func testRenderAttributedWrapsStandardKeys() throws {
+        let parser = try XMarkupParser()
+        let result = try parser.parse("<b>bold</b>")
+        let doc = MarkupDocument.from(result)
+        let attr = doc.renderAttributed()
 
-        let tagValue = nsAttr.attribute(NSAttributedString.Key(XMarkupTagKey.name), at: 0, effectiveRange: nil) as? String
-        XCTAssertEqual(tagValue, "bold")
+        #if canImport(UIKit)
+        let hasBold = attr.runs.contains { run in
+            guard let font = run.uiKit.font else { return false }
+            return font.fontDescriptor.symbolicTraits.contains(.traitBold)
+        }
+        #elseif canImport(AppKit)
+        let hasBold = attr.runs.contains { run in
+            guard let font = run.appKit.font else { return false }
+            return font.fontDescriptor.symbolicTraits.contains(.bold)
+        }
+        #endif
+        XCTAssertTrue(hasBold, "renderAttributed 返回的 AttributedString 应携带标准字体属性")
     }
 
-    func testMeasureReturnsNonZeroSize() {
-        var attr = AttributedString("Hello World with some text")
-        #if canImport(UIKit)
-        attr.uiKit.font = .systemFont(ofSize: 16)
-        #elseif canImport(AppKit)
-        attr.appKit.font = .systemFont(ofSize: 16)
-        #endif
+    func testMeasureReturnsNonZeroSize() throws {
+        let parser = try XMarkupParser()
+        let result = try parser.parse("<p>Hello World with some text</p>")
+        let doc = MarkupDocument.from(result)
+        let nsAttr = doc.render()
 
-        let nsAttr = NSAttributedString(attr)
         let size = nsAttr.boundingRect(
             with: CGSize(width: 320, height: 1e9),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
@@ -62,15 +70,12 @@ final class NSConversionTests: XCTestCase {
         XCTAssertGreaterThan(ceil(size.height), 0)
     }
 
-    func testMeasureRespectsWidth() {
-        var attr = AttributedString("A very long text that should wrap to multiple lines when constrained to a narrow width")
-        #if canImport(UIKit)
-        attr.uiKit.font = .systemFont(ofSize: 16)
-        #elseif canImport(AppKit)
-        attr.appKit.font = .systemFont(ofSize: 16)
-        #endif
+    func testMeasureRespectsWidth() throws {
+        let parser = try XMarkupParser()
+        let result = try parser.parse("<p>A very long text that should wrap to multiple lines</p>")
+        let doc = MarkupDocument.from(result)
+        let nsAttr = doc.render()
 
-        let nsAttr = NSAttributedString(attr)
         let size = nsAttr.boundingRect(
             with: CGSize(width: 100, height: 1e9),
             options: [.usesLineFragmentOrigin, .usesFontLeading],

@@ -29,7 +29,7 @@ final class XMarkupViewConfigTests: XCTestCase {
         attachment.bounds = CGRect(x: 0, y: 0, width: 300, height: 1)
         let attrString = NSMutableAttributedString(attachment: attachment)
         attrString.addAttribute(
-            NSAttributedString.Key(XMarkupBlockKindKey.name),
+            .xmarkupBlockKind,
             value: "horizontalRule",
             range: NSRange(location: 0, length: attrString.length)
         )

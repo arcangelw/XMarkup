@@ -143,7 +143,7 @@ public final class AsyncMediaLoader: @unchecked Sendable {
 
     private func srcForRange(_ nsAttr: NSMutableAttributedString, range: NSRange) -> String {
         nsAttr.attribute(
-            NSAttributedString.Key(XMarkupAttachmentRefKey.name),
+            .xmarkupAttachmentRef,
             at: range.location,
             effectiveRange: nil
         ) as? String ?? ""

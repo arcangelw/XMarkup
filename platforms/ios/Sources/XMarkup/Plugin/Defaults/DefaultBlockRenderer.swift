@@ -8,7 +8,7 @@ import AppKit
 
 /// 默认块级渲染器 — 处理除 table 和 media attachment 外的所有 block 类型
 ///
-/// 只负责块级渲染（字体、间距、缩进、XMarkupScope key、HR）。
+/// 只负责块级渲染（字体、间距、缩进、自定义 key、HR）。
 /// inline 渲染由 RenderPipeline 在 block 渲染完成后通过 inlineRenderers 调度。
 /// 不处理 `.table`（由 DefaultTableRenderer 处理）和带 attachment 的 block（由 DefaultAttachmentRenderer 处理）。
 ///
@@ -17,7 +17,7 @@ import AppKit
 public struct DefaultBlockRenderer: BlockRendering, Sendable {
     public init() {}
 
-    public func render(block: MarkupBlock, context: RenderingContext) -> AttributedString? {
+    public func render(block: MarkupBlock, context: RenderingContext) -> NSMutableAttributedString? {
         // table 由 DefaultTableRenderer 处理
         if case .table = block.kind { return nil }
 
@@ -35,12 +35,8 @@ public struct DefaultBlockRenderer: BlockRendering, Sendable {
         let resolvedParagraph = theme.paragraph.resolved(for: block, context: context)
 
         // 1. 构建块级基础属性
-        var baseAttributes = AttributeContainer()
-        #if canImport(UIKit)
-        baseAttributes.uiKit.font = theme.baseFont
-        #elseif canImport(AppKit)
-        baseAttributes.appKit.font = theme.baseFont
-        #endif
+        var baseAttributes: [NSAttributedString.Key: Any] = [:]
+        baseAttributes[.font] = theme.baseFont
 
         // 2. 构建段落排版样式
         let paragraphStyle = NSMutableParagraphStyle()
@@ -73,24 +69,12 @@ public struct DefaultBlockRenderer: BlockRendering, Sendable {
                 let fontSize = resolved.fontSize
                 if resolved.bold {
                     let boldFont = deriveFont(from: theme.baseFont, addTraits: traitBold, size: fontSize)
-                    #if canImport(UIKit)
-                    baseAttributes.uiKit.font = boldFont
-                    #elseif canImport(AppKit)
-                    baseAttributes.appKit.font = boldFont
-                    #endif
+                    baseAttributes[.font] = boldFont
                 } else {
-                    #if canImport(UIKit)
-                    baseAttributes.uiKit.font = theme.baseFont.withSize(fontSize)
-                    #elseif canImport(AppKit)
-                    baseAttributes.appKit.font = theme.baseFont.withSize(fontSize)
-                    #endif
+                    baseAttributes[.font] = theme.baseFont.withSize(fontSize)
                 }
                 if let textColor = resolved.textColor {
-                    #if canImport(UIKit)
-                    baseAttributes.uiKit.foregroundColor = textColor
-                    #elseif canImport(AppKit)
-                    baseAttributes.appKit.foregroundColor = textColor
-                    #endif
+                    baseAttributes[.foregroundColor] = textColor
                 }
             }
 
@@ -99,11 +83,7 @@ public struct DefaultBlockRenderer: BlockRendering, Sendable {
             paragraphStyle.headIndent = resolved.indent
             paragraphStyle.firstLineHeadIndent = resolved.indent
             if let textColor = resolved.textColor {
-                #if canImport(UIKit)
-                baseAttributes.uiKit.foregroundColor = textColor
-                #elseif canImport(AppKit)
-                baseAttributes.appKit.foregroundColor = textColor
-                #endif
+                baseAttributes[.foregroundColor] = textColor
             }
 
         case .listItem(let isOrdered, let indentLevel):
@@ -144,12 +124,7 @@ public struct DefaultBlockRenderer: BlockRendering, Sendable {
             let resolved = theme.preformatted.resolved(for: block, context: context)
             let preformattedFont = resolved.font
                 ?? XMFont.monospacedSystemFont(ofSize: theme.baseFont.pointSize, weight: .regular)
-            #if canImport(UIKit)
-            paragraphStyle.lineBreakMode = .byCharWrapping
-            baseAttributes.uiKit.font = preformattedFont
-            #elseif canImport(AppKit)
-            baseAttributes.appKit.font = preformattedFont
-            #endif
+            baseAttributes[.font] = preformattedFont
 
         case .horizontalRule:
             break
@@ -157,30 +132,22 @@ public struct DefaultBlockRenderer: BlockRendering, Sendable {
         default:
             // 普通段落：应用段落级 textColor（如有配置）
             if let textColor = resolvedParagraph.textColor {
-                #if canImport(UIKit)
-                baseAttributes.uiKit.foregroundColor = textColor
-                #elseif canImport(AppKit)
-                baseAttributes.appKit.foregroundColor = textColor
-                #endif
+                baseAttributes[.foregroundColor] = textColor
             }
         }
 
-        #if canImport(UIKit)
-        baseAttributes.uiKit.paragraphStyle = paragraphStyle
-        #elseif canImport(AppKit)
-        baseAttributes.appKit.paragraphStyle = paragraphStyle
-        #endif
+        baseAttributes[.paragraphStyle] = paragraphStyle
 
-        // 4. 设置自定义 XMarkupScope 属性
+        // 4. 设置自定义 key 属性
         let blockKindName = blockKindName(for: block.kind)
-        baseAttributes[XMarkupTagKey.self] = blockKindName
-        baseAttributes[XMarkupBlockKindKey.self] = blockKindName
+        baseAttributes[.xmarkupTag] = blockKindName
+        baseAttributes[.xmarkupBlockKind] = blockKindName
 
         switch block.kind {
         case let .heading(level):
-            baseAttributes[XMarkupHeadingLevelKey.self] = level.rawValue
+            baseAttributes[.xmarkupHeadingLevel] = level.rawValue
         case let .listItem(isOrdered, indentLevel):
-            baseAttributes[XMarkupListItemInfoKey.self] = "\(isOrdered ? "ordered" : "unordered"):\(indentLevel)"
+            baseAttributes[.xmarkupListItemInfo] = "\(isOrdered ? "ordered" : "unordered"):\(indentLevel)"
         default:
             break
         }
@@ -208,14 +175,14 @@ public struct DefaultBlockRenderer: BlockRendering, Sendable {
             let nsAttr = NSMutableAttributedString(attachment: attachment)
             nsAttr.addAttribute(.paragraphStyle, value: paragraphStyle,
                                 range: NSRange(location: 0, length: nsAttr.length))
-            nsAttr.addAttribute(NSAttributedString.Key(XMarkupBlockKindKey.name),
+            nsAttr.addAttribute(.xmarkupBlockKind,
                                 value: "horizontalRule",
                                 range: NSRange(location: 0, length: nsAttr.length))
-            return AttributedString(nsAttr)
+            return nsAttr
         }
 
-        // 6. 构建段落 AttributedString（不含 inline 渲染）
+        // 6. 构建段落 NSMutableAttributedString（不含 inline 渲染）
         let blockText = block.text
-        return AttributedString(blockText, attributes: baseAttributes)
+        return NSMutableAttributedString(string: blockText, attributes: baseAttributes)
     }
 }

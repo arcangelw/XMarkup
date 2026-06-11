@@ -13,22 +13,16 @@ import AppKit
 public struct DefaultTableRenderer: BlockRendering, Sendable {
     public init() {}
 
-    public func render(block: MarkupBlock, context: RenderingContext) -> AttributedString? {
+    public func render(block: MarkupBlock, context: RenderingContext) -> NSMutableAttributedString? {
         guard case .table(let structure) = block.kind else { return nil }
         return renderTable(structure, theme: context.theme)
     }
 
     // MARK: - Table Rendering
 
-    private func renderTable(_ structure: TableStructure, theme: MarkupTheme) -> AttributedString {
+    private func renderTable(_ structure: TableStructure, theme: MarkupTheme) -> NSMutableAttributedString {
         let result = NSMutableAttributedString()
-        guard !structure.rows.isEmpty else { return AttributedString(result) }
-
-        let blockKindKey = NSAttributedString.Key(XMarkupBlockKindKey.name)
-        let tagKey = NSAttributedString.Key(XMarkupTagKey.name)
-        let tableColumnCountKey = NSAttributedString.Key("XMarkup.TableColumnCount")
-        let tableHeaderCountKey = NSAttributedString.Key("XMarkup.TableHeaderRowCount")
-        let tableRowIndexKey = NSAttributedString.Key("XMarkup.TableRowIndex")
+        guard !structure.rows.isEmpty else { return result }
 
         for (rowIdx, row) in structure.rows.enumerated() {
             if rowIdx > 0 { result.append(NSAttributedString(string: "\n")) }
@@ -37,11 +31,11 @@ public struct DefaultTableRenderer: BlockRendering, Sendable {
             let isHeader = rowIdx < structure.headerRowCount
 
             var attrs: [NSAttributedString.Key: Any] = [
-                blockKindKey: "tableRow",
-                tagKey: "tableRow",
-                tableColumnCountKey: structure.columnCount,
-                tableHeaderCountKey: structure.headerRowCount,
-                tableRowIndexKey: rowIdx,
+                .xmarkupBlockKind: "tableRow",
+                .xmarkupTag: "tableRow",
+                NSAttributedString.Key("XMarkup.TableColumnCount"): structure.columnCount,
+                NSAttributedString.Key("XMarkup.TableHeaderRowCount"): structure.headerRowCount,
+                NSAttributedString.Key("XMarkup.TableRowIndex"): rowIdx,
             ]
             if isHeader {
                 attrs[.font] = deriveFont(from: theme.baseFont, addTraits: traitBold)
@@ -49,6 +43,6 @@ public struct DefaultTableRenderer: BlockRendering, Sendable {
 
             result.append(NSAttributedString(string: line, attributes: attrs))
         }
-        return AttributedString(result)
+        return result
     }
 }

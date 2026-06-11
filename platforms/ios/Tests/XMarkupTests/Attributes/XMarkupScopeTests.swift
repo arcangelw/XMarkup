@@ -3,97 +3,109 @@ import XCTest
 
 final class XMarkupScopeTests: XCTestCase {
 
-    // MARK: - AttributedString 直接使用
+    // MARK: - NSAttributedString.Key 扩展存在性
 
-    func testCustomKeyInAttributedString() {
-        var attr = AttributedString("Hello World")
-        attr[XMarkupTagKey.self] = "heading1"
-        XCTAssertEqual(attr[XMarkupTagKey.self], "heading1")
+    func testNSAttributedStringKeyExtensionsExist() {
+        XCTAssertEqual(NSAttributedString.Key.xmarkupTag.rawValue, "XMarkup.Tag")
+        XCTAssertEqual(NSAttributedString.Key.xmarkupBlockKind.rawValue, "XMarkup.BlockKind")
+        XCTAssertEqual(NSAttributedString.Key.xmarkupLinkURL.rawValue, "XMarkup.LinkURL")
+        XCTAssertEqual(NSAttributedString.Key.xmarkupHeadingLevel.rawValue, "XMarkup.HeadingLevel")
+        XCTAssertEqual(NSAttributedString.Key.xmarkupListItemInfo.rawValue, "XMarkup.ListItemInfo")
+        XCTAssertEqual(NSAttributedString.Key.xmarkupAttachmentRef.rawValue, "XMarkup.AttachmentRef")
     }
 
-    func testCustomKeyInAttributedStringRange() {
-        var attr = AttributedString("Hello World")
-        let range = attr.range(of: "Hello")!
-        attr[range][XMarkupTagKey.self] = "bold"
-        XCTAssertEqual(attr[range][XMarkupTagKey.self], "bold")
+    // MARK: - NSAttributedString 上设置/读取自定义 key
+
+    func testCustomKeyOnNSAttributedString() {
+        let nsAttr = NSMutableAttributedString(string: "Hello")
+        nsAttr.addAttribute(.xmarkupTag, value: "bold", range: NSRange(location: 0, length: 5))
+
+        let value = nsAttr.attribute(.xmarkupTag, at: 0, effectiveRange: nil) as? String
+        XCTAssertEqual(value, "bold")
     }
 
-    func testMultipleCustomKeysCoexist() {
-        var attr = AttributedString("Title")
-        attr[XMarkupTagKey.self] = "heading"
-        attr[XMarkupBlockKindKey.self] = "heading"
-        attr[XMarkupHeadingLevelKey.self] = 1
-        XCTAssertEqual(attr[XMarkupTagKey.self], "heading")
-        XCTAssertEqual(attr[XMarkupBlockKindKey.self], "heading")
-        XCTAssertEqual(attr[XMarkupHeadingLevelKey.self], 1)
+    func testMultipleCustomKeysOnNSAttributedString() {
+        let nsAttr = NSMutableAttributedString(string: "Title")
+        let fullRange = NSRange(location: 0, length: 5)
+        nsAttr.addAttribute(.xmarkupTag, value: "heading", range: fullRange)
+        nsAttr.addAttribute(.xmarkupBlockKind, value: "heading", range: fullRange)
+        nsAttr.addAttribute(.xmarkupHeadingLevel, value: 1, range: fullRange)
+
+        XCTAssertEqual(nsAttr.attribute(.xmarkupTag, at: 0, effectiveRange: nil) as? String, "heading")
+        XCTAssertEqual(nsAttr.attribute(.xmarkupBlockKind, at: 0, effectiveRange: nil) as? String, "heading")
+        XCTAssertEqual(nsAttr.attribute(.xmarkupHeadingLevel, at: 0, effectiveRange: nil) as? Int, 1)
     }
 
-    func testCustomKeyWithUIKitAttributes() {
-        var attr = AttributedString("Colored")
+    func testCustomKeyWithUIKitAttributes() throws {
+        let nsAttr = NSMutableAttributedString(string: "Colored")
+        let fullRange = NSRange(location: 0, length: 7)
+        nsAttr.addAttribute(.xmarkupTag, value: "span", range: fullRange)
+        nsAttr.addAttribute(.foregroundColor, value: XMColor.red, range: fullRange)
+        nsAttr.addAttribute(.font, value: XMFont.systemFont(ofSize: 16), range: fullRange)
+
+        XCTAssertEqual(nsAttr.attribute(.xmarkupTag, at: 0, effectiveRange: nil) as? String, "span")
+        let color = nsAttr.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? XMColor
         #if canImport(UIKit)
-        attr.uiKit.foregroundColor = .red
-        attr.uiKit.font = .systemFont(ofSize: 16)
+        XCTAssertEqual(color, UIColor.red)
         #elseif canImport(AppKit)
-        attr.appKit.foregroundColor = .red
-        attr.appKit.font = .systemFont(ofSize: 16)
-        #endif
-        attr[XMarkupTagKey.self] = "span"
-
-        XCTAssertEqual(attr[XMarkupTagKey.self], "span")
-        #if canImport(UIKit)
-        XCTAssertEqual(attr.uiKit.foregroundColor, .red)
-        #elseif canImport(AppKit)
-        XCTAssertEqual(attr.appKit.foregroundColor, .red)
+        XCTAssertEqual(color, NSColor.red)
         #endif
     }
 
     func testListItemInfoKey() {
-        var attr = AttributedString("Item 1")
-        attr[XMarkupListItemInfoKey.self] = "ordered:0"
-        XCTAssertEqual(attr[XMarkupListItemInfoKey.self], "ordered:0")
+        let nsAttr = NSMutableAttributedString(string: "Item 1")
+        nsAttr.addAttribute(.xmarkupListItemInfo, value: "ordered:0", range: NSRange(location: 0, length: 6))
+        let value = nsAttr.attribute(.xmarkupListItemInfo, at: 0, effectiveRange: nil) as? String
+        XCTAssertEqual(value, "ordered:0")
     }
 
     func testAttachmentRefKey() {
-        var attr = AttributedString("\u{FFFC}")
-        attr[XMarkupAttachmentRefKey.self] = "img-0"
-        XCTAssertEqual(attr[XMarkupAttachmentRefKey.self], "img-0")
+        let nsAttr = NSMutableAttributedString(string: "\u{FFFC}")
+        nsAttr.addAttribute(.xmarkupAttachmentRef, value: "img-0", range: NSRange(location: 0, length: 1))
+        let value = nsAttr.attribute(.xmarkupAttachmentRef, at: 0, effectiveRange: nil) as? String
+        XCTAssertEqual(value, "img-0")
     }
 
-    // MARK: - NS 桥接（手动 transfer）
+    // MARK: - renderAttributed() 包装（标准属性可通过 AttributedString API 访问）
 
-    func testCustomKeyManualNSBridge() {
-        var attr = AttributedString("Test")
-        attr[XMarkupTagKey.self] = "link"
-        attr[XMarkupLinkURLKey.self] = "https://example.com"
+    func testRenderAttributedWrapsStandardAttributes() throws {
+        let parser = try XMarkupParser()
+        let result = try parser.parse("<b>Bold</b>")
+        let doc = MarkupDocument.from(result)
+        let attr = doc.renderAttributed()
 
-        // 通过 NSMutableAttributedString 手动转移自定义 key
-        let nsAttr = NSMutableAttributedString(attributedString: NSAttributedString(attr))
-        let fullRange = NSRange(location: 0, length: nsAttr.length)
-        // 自定义 key 通过 raw key 名手动添加到 NS 层
-        if let tag = attr[XMarkupTagKey.self] {
-            nsAttr.addAttribute(NSAttributedString.Key(XMarkupTagKey.name), value: tag, range: fullRange)
+        var foundFont = false
+        for run in attr.runs {
+            #if canImport(UIKit)
+            if let font = run.uiKit.font {
+                if font.fontDescriptor.symbolicTraits.contains(.traitBold) {
+                    foundFont = true
+                }
+            }
+            #elseif canImport(AppKit)
+            if let font = run.appKit.font {
+                if font.fontDescriptor.symbolicTraits.contains(.bold) {
+                    foundFont = true
+                }
+            }
+            #endif
         }
-        if let url = attr[XMarkupLinkURLKey.self] {
-            nsAttr.addAttribute(NSAttributedString.Key(XMarkupLinkURLKey.name), value: url, range: fullRange)
-        }
-
-        XCTAssertEqual(nsAttr.attribute(NSAttributedString.Key("XMarkup.Tag"), at: 0, effectiveRange: nil) as? String, "link")
-        XCTAssertEqual(nsAttr.attribute(NSAttributedString.Key("XMarkup.LinkURL"), at: 0, effectiveRange: nil) as? String, "https://example.com")
+        XCTAssertTrue(foundFont, "bold 字体的 trait 应通过 AttributedString wrapping 可读")
     }
 
-    // MARK: - 通过 runs 遍历自定义 key
+    // MARK: - NSAttributedString 通过 enumerateAttribute 读取自定义 key
 
-    func testCustomKeyAccessibleViaRuns() {
-        var attr = AttributedString("Hello World")
-        let range = attr.range(of: "Hello")!
-        attr[range][XMarkupTagKey.self] = "bold"
+    func testCustomKeyAccessibleViaEnumeration() {
+        let nsAttr = NSMutableAttributedString(string: "Hello World")
+        let helloRange = (nsAttr.string as NSString).range(of: "Hello")
+        nsAttr.addAttribute(.xmarkupTag, value: "bold", range: helloRange)
 
         var foundBold = false
-        for run in attr.runs {
-            if run[XMarkupTagKey.self] == "bold" {
+        nsAttr.enumerateAttribute(.xmarkupTag, in: NSRange(location: 0, length: nsAttr.length)) { value, _, _ in
+            if let tag = value as? String, tag == "bold" {
                 foundBold = true
             }
         }
-        XCTAssertTrue(foundBold, "自定义 key 应通过 runs 遍历可访问")
+        XCTAssertTrue(foundBold, "自定义 key 应通过 enumerateAttribute 可访问")
     }
 }

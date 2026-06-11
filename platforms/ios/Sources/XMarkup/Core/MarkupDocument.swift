@@ -66,18 +66,12 @@ public struct MarkupDocument: Sendable, Equatable {
         pipeline.render(self, theme: theme)
     }
 
-    /// 渲染为 AttributedString（AttributedString 层输出）
+    /// 渲染为 AttributedString（便利包装）
     ///
     /// - Parameters:
     ///   - theme: 渲染主题，默认 `.default`
     ///   - pipeline: 渲染管线，默认 `RenderPipeline.default`
     /// - Returns: 渲染后的 AttributedString
-    ///
-    /// ```swift
-    /// let attr = doc.renderAttributed()                     // 默认
-    /// let attr = doc.renderAttributed(theme: .dark)         // 自定义主题
-    /// // 可在 AttributedString 层做进一步处理
-    /// ```
     public func renderAttributed(
         theme: MarkupTheme = .default,
         pipeline: RenderPipeline = .default

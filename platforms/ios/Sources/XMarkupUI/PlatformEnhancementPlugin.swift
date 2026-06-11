@@ -19,7 +19,7 @@ public struct PlatformEnhancementPlugin: NSAttributedStringProcessing, Sendable 
 
     public func enhance(_ nsAttr: NSMutableAttributedString, context: RenderingContext) {
         #if canImport(AppKit) && !canImport(UIKit)
-        let key = NSAttributedString.Key(XMarkupBlockKindKey.name)
+        let key = NSAttributedString.Key.xmarkupBlockKind
         let fullRange = NSRange(location: 0, length: nsAttr.length)
         nsAttr.enumerateAttribute(key, in: fullRange) { value, range, _ in
             guard let kind = value as? String else { return }

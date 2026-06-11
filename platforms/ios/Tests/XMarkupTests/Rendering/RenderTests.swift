@@ -8,28 +8,28 @@ final class RenderTests: XCTestCase {
         return try parser.parse(html)
     }
 
-    private func parseAndRender(_ html: String, theme: MarkupTheme = .default) throws -> AttributedString {
+    private func parseAndRender(_ html: String, theme: MarkupTheme = .default) throws -> NSAttributedString {
         let result = try parse(html)
         let doc = MarkupDocument.from(result)
-        return doc.renderAttributed(theme: theme)
+        return doc.render(theme: theme)
     }
 
     // MARK: - 基础渲染
 
     func testRenderEmptyDocument() {
         let doc = MarkupDocument(blocks: [])
-        let attr = doc.renderAttributed()
-        XCTAssertTrue(String(attr.characters).isEmpty)
+        let nsAttr = doc.render()
+        XCTAssertTrue(nsAttr.string.isEmpty)
     }
 
     func testRenderSingleParagraph() throws {
-        let attr = try parseAndRender("<p>Hello</p>")
-        XCTAssertEqual(String(attr.characters), "Hello")
+        let nsAttr = try parseAndRender("<p>Hello</p>")
+        XCTAssertEqual(nsAttr.string, "Hello")
     }
 
     func testRenderTwoParagraphs() throws {
-        let attr = try parseAndRender("<p>First</p><p>Second</p>")
-        let text = String(attr.characters)
+        let nsAttr = try parseAndRender("<p>First</p><p>Second</p>")
+        let text = nsAttr.string
         XCTAssertTrue(text.contains("First"))
         XCTAssertTrue(text.contains("Second"))
         // 块之间应有换行
@@ -39,8 +39,7 @@ final class RenderTests: XCTestCase {
     // MARK: - 字体属性
 
     func testRenderBoldFontTrait() throws {
-        let attr = try parseAndRender("<b>bold</b>")
-        let nsAttr = NSAttributedString(attr)
+        let nsAttr = try parseAndRender("<b>bold</b>")
         let font = nsAttr.attribute(.font, at: 0, effectiveRange: nil) as? XMFont
         XCTAssertNotNil(font)
         #if canImport(UIKit)
@@ -51,8 +50,7 @@ final class RenderTests: XCTestCase {
     }
 
     func testRenderItalicFontDiffers() throws {
-        let attr = try parseAndRender("<i>italic</i>")
-        let nsAttr = NSAttributedString(attr)
+        let nsAttr = try parseAndRender("<i>italic</i>")
         let font = nsAttr.attribute(.font, at: 0, effectiveRange: nil) as? XMFont
         XCTAssertNotNil(font)
         #if canImport(UIKit)
@@ -65,8 +63,7 @@ final class RenderTests: XCTestCase {
     }
 
     func testRenderBoldItalicMerged() throws {
-        let attr = try parseAndRender("<b><i>both</i></b>")
-        let nsAttr = NSAttributedString(attr)
+        let nsAttr = try parseAndRender("<b><i>both</i></b>")
         let font = nsAttr.attribute(.font, at: 0, effectiveRange: nil) as? XMFont
         XCTAssertNotNil(font)
         #if canImport(UIKit)
@@ -81,29 +78,25 @@ final class RenderTests: XCTestCase {
     // MARK: - 非字体属性
 
     func testRenderUnderline() throws {
-        let attr = try parseAndRender("<u>under</u>")
-        let nsAttr = NSAttributedString(attr)
+        let nsAttr = try parseAndRender("<u>under</u>")
         let style = nsAttr.attribute(.underlineStyle, at: 0, effectiveRange: nil) as? Int
         XCTAssertEqual(style, NSUnderlineStyle.single.rawValue)
     }
 
     func testRenderStrikethrough() throws {
-        let attr = try parseAndRender("<s>strike</s>")
-        let nsAttr = NSAttributedString(attr)
+        let nsAttr = try parseAndRender("<s>strike</s>")
         let style = nsAttr.attribute(.strikethroughStyle, at: 0, effectiveRange: nil) as? Int
         XCTAssertEqual(style, NSUnderlineStyle.single.rawValue)
     }
 
     func testRenderLink() throws {
-        let attr = try parseAndRender("<a href=\"https://example.com\">click</a>")
-        let nsAttr = NSAttributedString(attr)
+        let nsAttr = try parseAndRender("<a href=\"https://example.com\">click</a>")
         let link = nsAttr.attribute(.link, at: 0, effectiveRange: nil) as? URL
         XCTAssertEqual(link?.absoluteString, "https://example.com")
     }
 
     func testRenderCodeHasMonospaceFont() throws {
-        let attr = try parseAndRender("<code>print()</code>")
-        let nsAttr = NSAttributedString(attr)
+        let nsAttr = try parseAndRender("<code>print()</code>")
         let font = nsAttr.attribute(.font, at: 0, effectiveRange: nil) as? XMFont
         XCTAssertNotNil(font)
         #if canImport(UIKit)
@@ -114,44 +107,36 @@ final class RenderTests: XCTestCase {
     }
 
     func testRenderCodeHasBackgroundColor() throws {
-        let attr = try parseAndRender("<code>code</code>", theme: .default)
-        let nsAttr = NSAttributedString(attr)
+        let nsAttr = try parseAndRender("<code>code</code>", theme: .default)
         let bg = nsAttr.attribute(.backgroundColor, at: 0, effectiveRange: nil) as? XMColor
         XCTAssertNotNil(bg, "<code> 使用默认主题应有背景色")
     }
 
-    // MARK: - 自定义 XMarkupScope 属性
+    // MARK: - 自定义 key 属性
 
     func testRenderCarriesXMarkupTag() throws {
-        let attr = try parseAndRender("<b>bold</b>")
-        // 在 AttributedString 内部检查
+        let nsAttr = try parseAndRender("<b>bold</b>")
         var found = false
-        for run in attr.runs {
-            if run[XMarkupTagKey.self] == "bold" {
-                found = true
-            }
+        nsAttr.enumerateAttribute(.xmarkupTag, in: NSRange(location: 0, length: nsAttr.length)) { value, _, _ in
+            if let tag = value as? String, tag == "bold" { found = true }
         }
         XCTAssertTrue(found, "应包含 XMarkupTagKey = bold")
     }
 
     func testRenderCarriesHeadingLevel() throws {
-        let attr = try parseAndRender("<h1>Title</h1>")
+        let nsAttr = try parseAndRender("<h1>Title</h1>")
         var found = false
-        for run in attr.runs {
-            if run[XMarkupHeadingLevelKey.self] == 1 {
-                found = true
-            }
+        nsAttr.enumerateAttribute(.xmarkupHeadingLevel, in: NSRange(location: 0, length: nsAttr.length)) { value, _, _ in
+            if let level = value as? Int, level == 1 { found = true }
         }
         XCTAssertTrue(found, "应包含 XMarkupHeadingLevelKey = 1")
     }
 
     func testRenderCarriesLinkURL() throws {
-        let attr = try parseAndRender("<a href=\"https://example.com\">click</a>")
+        let nsAttr = try parseAndRender("<a href=\"https://example.com\">click</a>")
         var found = false
-        for run in attr.runs {
-            if run[XMarkupLinkURLKey.self] == "https://example.com" {
-                found = true
-            }
+        nsAttr.enumerateAttribute(.xmarkupLinkURL, in: NSRange(location: 0, length: nsAttr.length)) { value, _, _ in
+            if let url = value as? String, url == "https://example.com" { found = true }
         }
         XCTAssertTrue(found, "应包含 XMarkupLinkURLKey")
     }
@@ -159,8 +144,7 @@ final class RenderTests: XCTestCase {
     // MARK: - 主题覆盖
 
     func testRenderWithCustomTheme() throws {
-        let attr = try parseAndRender("<p>Hello</p>", theme: MarkupTheme(baseFont: XMFont.systemFont(ofSize: 20)))
-        let nsAttr = NSAttributedString(attr)
+        let nsAttr = try parseAndRender("<p>Hello</p>", theme: MarkupTheme(baseFont: XMFont.systemFont(ofSize: 20)))
         let font = nsAttr.attribute(.font, at: 0, effectiveRange: nil) as? XMFont
         XCTAssertEqual(font?.pointSize, 20)
     }
@@ -168,8 +152,7 @@ final class RenderTests: XCTestCase {
     // MARK: - CSS 样式
 
     func testRenderCSSForegroundColor() throws {
-        let attr = try parseAndRender("<span style=\"color:#FF0000\">red</span>")
-        let nsAttr = NSAttributedString(attr)
+        let nsAttr = try parseAndRender("<span style=\"color:#FF0000\">red</span>")
         let color = nsAttr.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? XMColor
         XCTAssertNotNil(color)
     }
@@ -177,13 +160,10 @@ final class RenderTests: XCTestCase {
     // MARK: - 媒体附件
 
     func testRenderImageAttachment() throws {
-        let attr = try parseAndRender("<img src=\"photo.jpg\">")
-        let nsAttr = NSAttributedString(attr)
+        let nsAttr = try parseAndRender("<img src=\"photo.jpg\">")
         var foundAttachment = false
         nsAttr.enumerateAttribute(.attachment, in: NSRange(location: 0, length: nsAttr.length)) { value, _, _ in
-            if value is NSTextAttachment {
-                foundAttachment = true
-            }
+            if value is NSTextAttachment { foundAttachment = true }
         }
         XCTAssertTrue(foundAttachment)
     }
@@ -191,13 +171,13 @@ final class RenderTests: XCTestCase {
     // MARK: - 边界情况
 
     func testRenderUnknownTagNoCrash() throws {
-        let attr = try parseAndRender("<custom>text</custom>")
-        XCTAssertFalse(String(attr.characters).isEmpty)
+        let nsAttr = try parseAndRender("<custom>text</custom>")
+        XCTAssertFalse(nsAttr.string.isEmpty)
     }
 
     func testRenderEmptyInput() throws {
-        let attr = try parseAndRender("")
-        XCTAssertTrue(String(attr.characters).isEmpty)
+        let nsAttr = try parseAndRender("")
+        XCTAssertTrue(nsAttr.string.isEmpty)
     }
 
     // MARK: - 端到端集成
@@ -217,10 +197,8 @@ final class RenderTests: XCTestCase {
 
         // 验证自定义 key 通过渲染器传递到 NS 层
         var foundHeadingLevel = false
-        nsAttr.enumerateAttribute(NSAttributedString.Key(XMarkupHeadingLevelKey.name), in: NSRange(location: 0, length: nsAttr.length)) { value, _, _ in
-            if let level = value as? Int, level == 1 {
-                foundHeadingLevel = true
-            }
+        nsAttr.enumerateAttribute(.xmarkupHeadingLevel, in: NSRange(location: 0, length: nsAttr.length)) { value, _, _ in
+            if let level = value as? Int, level == 1 { foundHeadingLevel = true }
         }
         XCTAssertTrue(foundHeadingLevel, "标题级别应通过渲染器传递到 NS 层")
     }
@@ -230,8 +208,7 @@ final class RenderTests: XCTestCase {
         let parser = try XMarkupParser()
         let result = try parser.parse(html)
         let doc = MarkupDocument.from(result)
-        let attr = doc.renderAttributed(theme: .article)
-        let nsAttr = NSAttributedString(attr)
+        let nsAttr = doc.render(theme: .article)
 
         // 验证文章主题的 base font（段落区域，非标题）
         let font = nsAttr.attribute(.font, at: 0, effectiveRange: nil) as? XMFont
@@ -244,9 +221,8 @@ final class RenderTests: XCTestCase {
         let parser = try XMarkupParser()
         let result = try parser.parse(html)
         let doc = MarkupDocument.from(result)
-        let attr = doc.renderAttributed()
+        let nsAttr = doc.render()
 
-        let nsAttr = NSAttributedString(attr)
         let size = nsAttr.boundingRect(
             with: CGSize(width: 300, height: 1e9),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
@@ -266,8 +242,7 @@ final class RenderTests: XCTestCase {
         let customTheme = MarkupTheme {
             BaseFont(XMFont.systemFont(ofSize: 18))
         }
-        let attr = doc.renderAttributed(theme: customTheme)
-        let nsAttr = NSAttributedString(attr)
+        let nsAttr = doc.render(theme: customTheme)
 
         // 基础字体应为 18pt（纯段落，无标题缩放）
         let font = nsAttr.attribute(.font, at: 0, effectiveRange: nil) as? XMFont
@@ -283,8 +258,7 @@ final class RenderTests: XCTestCase {
         // h4 的 scale=1.0 字号与默认相同，跳过
         let levels = ["h1", "h2", "h3", "h5", "h6"]
         for level in levels {
-            let attr = try parseAndRender("<\(level)>Title</\(level)>")
-            let nsAttr = NSAttributedString(attr)
+            let nsAttr = try parseAndRender("<\(level)>Title</\(level)>")
             let font = nsAttr.attribute(.font, at: 0, effectiveRange: nil) as? XMFont
             XCTAssertNotNil(font, "\(level) 应有字体")
             XCTAssertNotEqual(font?.pointSize, 16, "\(level) 字号不应为默认 16pt")
@@ -292,16 +266,14 @@ final class RenderTests: XCTestCase {
     }
 
     func testRenderHeadingH2Scale() throws {
-        let attr = try parseAndRender("<h2>Sub</h2>")
-        let nsAttr = NSAttributedString(attr)
+        let nsAttr = try parseAndRender("<h2>Sub</h2>")
         let font = nsAttr.attribute(.font, at: 0, effectiveRange: nil) as? XMFont
         XCTAssertNotNil(font)
         XCTAssertEqual(font!.pointSize, 16 * 1.5, accuracy: 0.5)
     }
 
     func testRenderHeadingH6Scale() throws {
-        let attr = try parseAndRender("<h6>Small</h6>")
-        let nsAttr = NSAttributedString(attr)
+        let nsAttr = try parseAndRender("<h6>Small</h6>")
         let font = nsAttr.attribute(.font, at: 0, effectiveRange: nil) as? XMFont
         XCTAssertNotNil(font)
         XCTAssertEqual(font!.pointSize, 16 * 0.67, accuracy: 0.5)
@@ -310,8 +282,7 @@ final class RenderTests: XCTestCase {
     // MARK: - 更多渲染场景
 
     func testRenderPreHasMonospaceFont() throws {
-        let attr = try parseAndRender("<pre>code block</pre>")
-        let nsAttr = NSAttributedString(attr)
+        let nsAttr = try parseAndRender("<pre>code block</pre>")
         let font = nsAttr.attribute(.font, at: 0, effectiveRange: nil) as? XMFont
         XCTAssertNotNil(font)
         #if canImport(UIKit)
@@ -322,29 +293,27 @@ final class RenderTests: XCTestCase {
     }
 
     func testRenderBlockquoteBlock() throws {
-        let attr = try parseAndRender("<blockquote>quote text</blockquote>")
-        let text = String(attr.characters)
+        let nsAttr = try parseAndRender("<blockquote>quote text</blockquote>")
+        let text = nsAttr.string
         XCTAssertTrue(text.contains("quote text"))
     }
 
     func testRenderCSSBackgroundColor() throws {
-        let attr = try parseAndRender("<span style=\"background-color:#00FF00\">green</span>")
-        let nsAttr = NSAttributedString(attr)
+        let nsAttr = try parseAndRender("<span style=\"background-color:#00FF00\">green</span>")
         let bg = nsAttr.attribute(.backgroundColor, at: 0, effectiveRange: nil) as? XMColor
         XCTAssertNotNil(bg, "background-color 应生效")
     }
 
     func testRenderCSSFontSize() throws {
-        let attr = try parseAndRender("<span style=\"font-size:20px\">big</span>")
-        let nsAttr = NSAttributedString(attr)
+        let nsAttr = try parseAndRender("<span style=\"font-size:20px\">big</span>")
         let font = nsAttr.attribute(.font, at: 0, effectiveRange: nil) as? XMFont
         XCTAssertNotNil(font)
         XCTAssertEqual(font!.pointSize, 20, accuracy: 0.5)
     }
 
     func testRenderMultipleBlocksSeparation() throws {
-        let attr = try parseAndRender("<h1>T</h1><p>P</p><p>Q</p>")
-        let text = String(attr.characters)
+        let nsAttr = try parseAndRender("<h1>T</h1><p>P</p><p>Q</p>")
+        let text = nsAttr.string
         XCTAssertTrue(text.contains("T"))
         XCTAssertTrue(text.contains("P"))
         XCTAssertTrue(text.contains("Q"))
@@ -352,19 +321,18 @@ final class RenderTests: XCTestCase {
     }
 
     func testRenderListItemBlock() throws {
-        let attr = try parseAndRender("<ul><li>Item</li></ul>")
-        let text = String(attr.characters)
+        let nsAttr = try parseAndRender("<ul><li>Item</li></ul>")
+        let text = nsAttr.string
         XCTAssertTrue(text.contains("Item"))
     }
 
     func testRenderHorizontalRule() throws {
-        let attr = try parseAndRender("<hr>")
-        XCTAssertFalse(String(attr.characters).isEmpty)
+        let nsAttr = try parseAndRender("<hr>")
+        XCTAssertFalse(nsAttr.string.isEmpty)
     }
 
     func testRenderVideoAttachment() throws {
-        let attr = try parseAndRender("<video src=\"v.mp4\"></video>")
-        let nsAttr = NSAttributedString(attr)
+        let nsAttr = try parseAndRender("<video src=\"v.mp4\"></video>")
         var foundAttachment = false
         nsAttr.enumerateAttribute(.attachment, in: NSRange(location: 0, length: nsAttr.length)) { value, _, _ in
             if value is NSTextAttachment { foundAttachment = true }
@@ -373,8 +341,7 @@ final class RenderTests: XCTestCase {
     }
 
     func testRenderAudioAttachment() throws {
-        let attr = try parseAndRender("<audio src=\"a.mp3\"></audio>")
-        let nsAttr = NSAttributedString(attr)
+        let nsAttr = try parseAndRender("<audio src=\"a.mp3\"></audio>")
         var foundAttachment = false
         nsAttr.enumerateAttribute(.attachment, in: NSRange(location: 0, length: nsAttr.length)) { value, _, _ in
             if value is NSTextAttachment { foundAttachment = true }
@@ -385,8 +352,7 @@ final class RenderTests: XCTestCase {
     // MARK: - Ordered List Numbering
 
     func testRenderOrderedListItems() throws {
-        let attr = try parseAndRender("<ol><li>First</li><li>Second</li></ol>")
-        let nsAttr = NSAttributedString(attr)
+        let nsAttr = try parseAndRender("<ol><li>First</li><li>Second</li></ol>")
         // 验证每个 listItem 的 paragraphStyle.textLists 包含 NSTextList
         nsAttr.enumerateAttribute(.paragraphStyle, in: NSRange(location: 0, length: nsAttr.length)) { value, _, _ in
             guard let paraStyle = value as? NSParagraphStyle else { return }
@@ -400,8 +366,7 @@ final class RenderTests: XCTestCase {
     // MARK: - Subscript / Superscript
 
     func testRenderSubscript() throws {
-        let attr = try parseAndRender("<p>H<sub>2</sub>O</p>")
-        let nsAttr = NSAttributedString(attr)
+        let nsAttr = try parseAndRender("<p>H<sub>2</sub>O</p>")
         // 查找下标字符的 baselineOffset
         let subRange = (nsAttr.string as NSString).range(of: "2")
         guard subRange.location != NSNotFound else { XCTFail("应包含 '2'"); return }
@@ -411,8 +376,7 @@ final class RenderTests: XCTestCase {
     }
 
     func testRenderSuperscript() throws {
-        let attr = try parseAndRender("<p>10<sup>th</sup></p>")
-        let nsAttr = NSAttributedString(attr)
+        let nsAttr = try parseAndRender("<p>10<sup>th</sup></p>")
         let supRange = (nsAttr.string as NSString).range(of: "th")
         guard supRange.location != NSNotFound else { XCTFail("应包含 'th'"); return }
         let offset = nsAttr.attribute(.baselineOffset, at: supRange.location, effectiveRange: nil) as? Double
@@ -423,24 +387,21 @@ final class RenderTests: XCTestCase {
     // MARK: - CSS 行内样式渲染
 
     func testRenderCSSTextAlign() throws {
-        let attr = try parseAndRender("<p style=\"text-align:center\">Centered</p>")
-        let nsAttr = NSAttributedString(attr)
+        let nsAttr = try parseAndRender("<p style=\"text-align:center\">Centered</p>")
         let paraStyle = nsAttr.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle
         XCTAssertNotNil(paraStyle)
         XCTAssertEqual(paraStyle?.alignment, .center)
     }
 
     func testRenderCSSLineHeight() throws {
-        let attr = try parseAndRender("<span style=\"line-height:2.0\">text</span>")
-        let nsAttr = NSAttributedString(attr)
+        let nsAttr = try parseAndRender("<span style=\"line-height:2.0\">text</span>")
         let paraStyle = nsAttr.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle
         XCTAssertNotNil(paraStyle)
         XCTAssertGreaterThan(paraStyle?.minimumLineHeight ?? 0, 1.0)
     }
 
     func testRenderCSSLetterSpacing() throws {
-        let attr = try parseAndRender("<span style=\"letter-spacing:2px\">spaced</span>")
-        let nsAttr = NSAttributedString(attr)
+        let nsAttr = try parseAndRender("<span style=\"letter-spacing:2px\">spaced</span>")
         let kern = nsAttr.attribute(.kern, at: 0, effectiveRange: nil) as? Double
         XCTAssertEqual(kern ?? 0, 2.0, accuracy: 0.1)
     }
@@ -448,18 +409,19 @@ final class RenderTests: XCTestCase {
     // MARK: - Inline Presentation Intent
 
     func testRenderInlinePresentationIntent() throws {
-        let attr = try parseAndRender("<b>Bold</b> <i>Italic</i> <code>Code</code> <s>Strike</s>")
-        // 通过 AttributedString run 检测 inlinePresentationIntent
+        let nsAttr = try parseAndRender("<b>Bold</b> <i>Italic</i> <code>Code</code> <s>Strike</s>")
+        // 通过 enumerateAttribute 检测 inlinePresentationIntent
         var foundStrong = false
         var foundEmphasized = false
         var foundCode = false
         var foundStrikethrough = false
-        for run in attr.runs {
-            let intent = run.inlinePresentationIntent
-            if intent == .stronglyEmphasized { foundStrong = true }
-            if intent == .emphasized { foundEmphasized = true }
-            if intent == .code { foundCode = true }
-            if intent == .strikethrough { foundStrikethrough = true }
+        nsAttr.enumerateAttribute(.inlinePresentationIntent, in: NSRange(location: 0, length: nsAttr.length)) { value, _, _ in
+            if let intent = value as? InlinePresentationIntent {
+                if intent == .stronglyEmphasized { foundStrong = true }
+                if intent == .emphasized { foundEmphasized = true }
+                if intent == .code { foundCode = true }
+                if intent == .strikethrough { foundStrikethrough = true }
+            }
         }
         XCTAssertTrue(foundStrong, "<b> 应有 stronglyEmphasized intent")
         XCTAssertTrue(foundEmphasized, "<i> 应有 emphasized intent")
@@ -470,16 +432,16 @@ final class RenderTests: XCTestCase {
     // MARK: - 表格渲染（纯文本近似）
 
     func testRenderTableAsText() throws {
-        let attr = try parseAndRender("<table><tr><td>A</td><td>B</td></tr></table>")
-        let text = String(attr.characters)
+        let nsAttr = try parseAndRender("<table><tr><td>A</td><td>B</td></tr></table>")
+        let text = nsAttr.string
         XCTAssertTrue(text.contains("A"))
         XCTAssertTrue(text.contains("B"))
         XCTAssertTrue(text.contains("\t"), "表格应以 tab 分隔")
     }
 
     func testRenderMultipleOrderedLists() throws {
-        let attr = try parseAndRender("<ol><li>X</li></ol><p>mid</p><ol><li>Y</li></ol>")
-        let text = String(attr.characters)
+        let nsAttr = try parseAndRender("<ol><li>X</li></ol><p>mid</p><ol><li>Y</li></ol>")
+        let text = nsAttr.string
         XCTAssertTrue(text.contains("X"))
         XCTAssertTrue(text.contains("mid"))
         XCTAssertTrue(text.contains("Y"))
@@ -490,8 +452,7 @@ final class RenderTests: XCTestCase {
     // MARK: - hr 分隔线
 
     func testRenderHorizontalRuleIsAttachment() throws {
-        let attr = try parseAndRender("<hr>")
-        let nsAttr = NSAttributedString(attr)
+        let nsAttr = try parseAndRender("<hr>")
         var foundAttachment = false
         nsAttr.enumerateAttribute(.attachment, in: NSRange(location: 0, length: nsAttr.length)) { value, _, _ in
             if value is NSTextAttachment { foundAttachment = true }
@@ -502,14 +463,10 @@ final class RenderTests: XCTestCase {
     // MARK: - 列表间距优化验证
 
     func testRenderListItemSpacingInGroup() throws {
-        let attr = try parseAndRender("<ul><li>A</li><li>B</li><li>C</li></ul>")
-        let nsAttr = NSAttributedString(attr)
-
+        let nsAttr = try parseAndRender("<ul><li>A</li><li>B</li><li>C</li></ul>")
         var paragraphStyles: [NSParagraphStyle] = []
         nsAttr.enumerateAttribute(.paragraphStyle, in: NSRange(location: 0, length: nsAttr.length)) { value, _, _ in
-            if let ps = value as? NSParagraphStyle {
-                paragraphStyles.append(ps)
-            }
+            if let ps = value as? NSParagraphStyle { paragraphStyles.append(ps) }
         }
         for ps in paragraphStyles {
             XCTAssertFalse(ps.textLists.isEmpty, "listItem 应有 textLists")
@@ -517,30 +474,23 @@ final class RenderTests: XCTestCase {
     }
 
     func testRenderListItemIndentTopLevel() throws {
-        let attr = try parseAndRender("<ul><li>Item</li></ul>")
-        let nsAttr = NSAttributedString(attr)
-
+        let nsAttr = try parseAndRender("<ul><li>Item</li></ul>")
         var foundHeadIndent: CGFloat?
         nsAttr.enumerateAttribute(.paragraphStyle, in: NSRange(location: 0, length: nsAttr.length)) { value, _, _ in
-            if let ps = value as? NSParagraphStyle {
-                foundHeadIndent = ps.headIndent
-            }
+            if let ps = value as? NSParagraphStyle { foundHeadIndent = ps.headIndent }
         }
         XCTAssertNotNil(foundHeadIndent)
         XCTAssertEqual(foundHeadIndent ?? 0, 24, accuracy: 0.1, "顶级列表 headIndent 应为 24pt")
     }
 
-    // MARK: - hr XMarkupBlockKindKey 验证
+    // MARK: - hr 自定义 key 验证
 
     func testRenderHorizontalRuleCarriesBlockKindKey() throws {
-        // hr 在 Core 层通过 NSMutableAttributedString 直接构建，
-        // XMarkupBlockKindKey 设置在 NS 层的原始输出中
         let result = try parse("<hr>")
         let doc = MarkupDocument.from(result)
-        let attr = doc.renderAttributed(theme: .default)
+        let nsAttr = doc.render(theme: .default)
 
-        // 验证 AttributedString 包含 attachment（hr 的载体）
-        let nsAttr = NSAttributedString(attr)
+        // 验证 NSAttributedString 包含 attachment（hr 的载体）
         var foundAttachment = false
         nsAttr.enumerateAttribute(.attachment, in: NSRange(location: 0, length: nsAttr.length)) { value, _, _ in
             if value is NSTextAttachment { foundAttachment = true }
@@ -551,8 +501,7 @@ final class RenderTests: XCTestCase {
     // MARK: - 表格 tab 分隔验证
 
     func testRenderTableUsesTabSeparation() throws {
-        let attr = try parseAndRender("<table><tr><td>A</td><td>B</td></tr><tr><td>C</td><td>D</td></tr></table>")
-        let nsAttr = NSAttributedString(attr)
+        let nsAttr = try parseAndRender("<table><tr><td>A</td><td>B</td></tr><tr><td>C</td><td>D</td></tr></table>")
         let text = nsAttr.string
 
         XCTAssertTrue(text.contains("\t"), "表格 cell 应以 tab 分隔")
@@ -561,20 +510,19 @@ final class RenderTests: XCTestCase {
     }
 
     func testRenderTableCarriesMetadata() throws {
-        let attr = try parseAndRender("<table><tr><td>A</td><td>B</td></tr></table>")
+        let nsAttr = try parseAndRender("<table><tr><td>A</td><td>B</td></tr></table>")
         // 表格元数据在 TableRenderer 的 NSMutableAttributedString 上设置
-        // 需要通过 table 路径验证（renderWithNSA 直接输出 NSMutableAttributedString）
-        // 验证 tab 分隔和文本内容
-        let text = String(attr.characters)
-        XCTAssertTrue(text.contains("A"), "应包含 cell A")
-        XCTAssertTrue(text.contains("B"), "应包含 cell B")
-        XCTAssertTrue(text.contains("\t"), "cell 应以 tab 分隔")
+        let key = NSAttributedString.Key("XMarkup.TableColumnCount")
+        var foundColumnCount = false
+        nsAttr.enumerateAttribute(key, in: NSRange(location: 0, length: nsAttr.length)) { value, _, _ in
+            if let count = value as? Int, count == 2 { foundColumnCount = true }
+        }
+        XCTAssertTrue(foundColumnCount, "表格应包含列数元数据")
     }
 
     // MARK: - Typed Theme 消费验证
 
     func testRenderCodeInlineConsumesThemeBackgroundColor() throws {
-        // 自定义 code 背景色，验证渲染器读取了 theme.codeInline.backgroundColor
         let customTheme = MarkupTheme {
             Code {
                 #if canImport(UIKit)
@@ -584,8 +532,7 @@ final class RenderTests: XCTestCase {
                 #endif
             }
         }
-        let attr = try parseAndRender("<code>test</code>", theme: customTheme)
-        let nsAttr = NSAttributedString(attr)
+        let nsAttr = try parseAndRender("<code>test</code>", theme: customTheme)
         let bg = nsAttr.attribute(.backgroundColor, at: 0, effectiveRange: nil) as? XMColor
         XCTAssertNotNil(bg, "code 内联应有背景色")
         #if canImport(UIKit)
@@ -605,8 +552,7 @@ final class RenderTests: XCTestCase {
                 #endif
             }
         }
-        let attr = try parseAndRender("<mark>hi</mark>", theme: customTheme)
-        let nsAttr = NSAttributedString(attr)
+        let nsAttr = try parseAndRender("<mark>hi</mark>", theme: customTheme)
         let bg = nsAttr.attribute(.backgroundColor, at: 0, effectiveRange: nil) as? XMColor
         XCTAssertNotNil(bg, "mark 内联应有背景色")
         #if canImport(UIKit)
@@ -626,8 +572,7 @@ final class RenderTests: XCTestCase {
                 #endif
             }
         }
-        let attr = try parseAndRender("<a href=\"https://example.com\">click</a>", theme: customTheme)
-        let nsAttr = NSAttributedString(attr)
+        let nsAttr = try parseAndRender("<a href=\"https://example.com\">click</a>", theme: customTheme)
         let color = nsAttr.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? XMColor
         XCTAssertNotNil(color, "link 内联应有前景色")
         #if canImport(UIKit)
@@ -647,8 +592,7 @@ final class RenderTests: XCTestCase {
                 #endif
             }
         }
-        let attr = try parseAndRender("<blockquote>quote</blockquote>", theme: customTheme)
-        let nsAttr = NSAttributedString(attr)
+        let nsAttr = try parseAndRender("<blockquote>quote</blockquote>", theme: customTheme)
         let color = nsAttr.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? XMColor
         XCTAssertNotNil(color, "blockquote 应有前景色")
         #if canImport(UIKit)
@@ -659,7 +603,6 @@ final class RenderTests: XCTestCase {
     }
 
     func testRenderHeadingConsumesResolvedTheme() throws {
-        // 验证 heading 使用 resolved() 消费主题
         let customTheme = MarkupTheme {
             Heading {
                 $0.bold = false  // 标题不加粗
@@ -671,8 +614,7 @@ final class RenderTests: XCTestCase {
                 #endif
             }
         }
-        let attr = try parseAndRender("<h1>Title</h1>", theme: customTheme)
-        let nsAttr = NSAttributedString(attr)
+        let nsAttr = try parseAndRender("<h1>Title</h1>", theme: customTheme)
 
         // 验证 textColor
         let color = nsAttr.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? XMColor
@@ -695,23 +637,20 @@ final class RenderTests: XCTestCase {
     func testRenderPreformattedConsumesThemeFont() throws {
         var customTheme = MarkupTheme()
         customTheme.preformatted.font = XMFont.monospacedSystemFont(ofSize: 20, weight: .regular)
-        let attr = try parseAndRender("<pre>code</pre>", theme: customTheme)
-        let nsAttr = NSAttributedString(attr)
+        let nsAttr = try parseAndRender("<pre>code</pre>", theme: customTheme)
         let font = nsAttr.attribute(NSAttributedString.Key.font, at: 0, effectiveRange: nil) as? XMFont
         XCTAssertNotNil(font)
         XCTAssertEqual(font?.pointSize, 20, "应使用主题指定的字号")
     }
 
     func testRenderHeadingPerLevelOverrideViaResolved() throws {
-        // 验证 HeadingTheme.LevelOverride 通过 resolved() 生效
         let customTheme = MarkupTheme {
             Heading {
                 $0.scale = .default
                 $0.h2 = .init(fontSize: 30, textColor: XMColor.red)
             }
         }
-        let attr = try parseAndRender("<h2>Sub</h2>", theme: customTheme)
-        let nsAttr = NSAttributedString(attr)
+        let nsAttr = try parseAndRender("<h2>Sub</h2>", theme: customTheme)
 
         // 验证 per-level textColor
         let color = nsAttr.attribute(NSAttributedString.Key.foregroundColor, at: 0, effectiveRange: nil) as? XMColor
