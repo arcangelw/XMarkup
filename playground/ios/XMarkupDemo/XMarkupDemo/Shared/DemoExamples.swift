@@ -44,6 +44,7 @@ struct DemoExample: Identifiable {
         case semantic = "语义标签"
         case boundary = "边界用例"
         case spacing = "段落排版"
+        case themeCustom = "主题定制"
         case longform = "长内容"
         case apiTest = "API 测试"
     }
@@ -756,6 +757,115 @@ extension DemoExample {
             """,
             category: .spacing,
             customTheme: .spacingNone
+        ),
+
+        // MARK: - 主题定制
+
+        DemoExample(
+            id: "theme-dark",
+            title: "深色主题",
+            description: ".dark 预设主题，适合暗色模式",
+            html: """
+            <h2>深色主题演示</h2>
+            <p>这是使用 <code>.dark</code> 预设主题渲染的效果。深色主题对 <mark>高亮标记</mark> 和 <code>行内代码</code> 使用了不同的配色方案。</p>
+            <blockquote>引用块在深色主题下也有独特的视觉效果。</blockquote>
+            <p>点击下方「WebView」标签对比浏览器渲染的差异。</p>
+            """,
+            category: .themeCustom,
+            customTheme: .dark
+        ),
+        DemoExample(
+            id: "theme-custom-code",
+            title: "自定义代码样式",
+            description: "深色背景 + 绿色文字 + 等宽中粗体",
+            html: """
+            <h3>自定义代码主题</h3>
+            <p>XMarkup 的 typed theme 系统允许你精确控制每种内联元素的样式。</p>
+            <p>使用 <code>Code { $0.backgroundColor = ... }</code> DSL 配置代码样式：</p>
+            <ul>
+            <li>背景色：<code>深色灰底</code></li>
+            <li>文字色：<code>绿色文字</code></li>
+            <li>字体：<code>等宽中粗体</code></li>
+            </ul>
+            <p>对比默认主题下的 <code>行内代码</code> 样式差异。</p>
+            """,
+            category: .themeCustom,
+            customTheme: .customCodeTheme
+        ),
+        DemoExample(
+            id: "theme-mark-link",
+            title: "自定义标记 + 链接",
+            description: "橙色高亮 + 紫色链接",
+            html: """
+            <h3>自定义内联样式</h3>
+            <p>通过 <code>Mark {}</code> 和 <code>Link {}</code> DSL 可以独立控制每种内联元素的视觉。</p>
+            <p>这是一段包含<mark>橙色高亮标记</mark>的文字。</p>
+            <p>这是一个 <a href="https://example.com">紫色链接</a>，不再是默认的蓝色。</p>
+            <p>还可以<mark>标记</mark>和 <a href="https://example.com">链接</a>同时出现在同一段落中。</p>
+            """,
+            category: .themeCustom,
+            customTheme: .customMarkLinkTheme
+        ),
+        DemoExample(
+            id: "theme-heading-override",
+            title: "标题级别覆盖",
+            description: "h1 红/h2 蓝/h3 绿 — LevelOverride 三级精度",
+            html: """
+            <h1>H1 红色标题</h1>
+            <h2>H2 蓝色标题</h2>
+            <h3>H3 绿色标题</h3>
+            <h4>H4 橙色标题</h4>
+            <h5>H5 紫色标题</h5>
+            <h6>H6 青色标题</h6>
+            <p>这是通过 HeadingTheme 的 <b>LevelOverride</b> 实现的：每个标题级别可以独立设置 textColor、fontSize、spacingBefore 等属性。</p>
+            <blockquote>三级精度：base 默认 → per-level 覆盖 → 动态 resolve 闭包</blockquote>
+            """,
+            category: .themeCustom,
+            customTheme: .headingLevelOverrideTheme
+        ),
+        DemoExample(
+            id: "theme-dynamic-resolve",
+            title: "动态 resolve 闭包",
+            description: "标题含 ⚠️ 自动变红",
+            html: """
+            <h2>正常标题</h2>
+            <p>这个标题使用默认颜色。</p>
+            <h2>⚠️ 警告标题</h2>
+            <p>这个标题包含 ⚠️，通过 resolve 闭包自动变红。</p>
+            <h2>另一个正常标题</h2>
+            <p>不包含特殊符号的标题保持默认样式。</p>
+            <h3>⚠️ 注意事项</h3>
+            <p>H3 标题含 ⚠️ 也会触发 resolve 闭包。</p>
+            """,
+            category: .themeCustom,
+            customTheme: .dynamicResolveTheme
+        ),
+        DemoExample(
+            id: "theme-custom-prefor",
+            title: "自定义代码块 + 引用",
+            description: "Preformatted 字体 + Blockquote 文字色",
+            html: """
+            <h3>自定义 Preformatted 和 Blockquote</h3>
+            <p>通过 typed theme 精确控制每种块级元素的样式：</p>
+            <pre>let theme = MarkupTheme { Preformatted { $0.font = .monospacedSystemFont(ofSize: 14, weight: .light) } }</pre>
+            <blockquote>引用块使用了 secondaryLabel 文字色 + 增大缩进（20pt）。typed theme 让每个属性都可以独立配置，无需全局影响其他元素。</blockquote>
+            <p>对比默认主题下的效果差异。</p>
+            """,
+            category: .themeCustom,
+            customTheme: .customPreforBlockquoteTheme
+        ),
+        DemoExample(
+            id: "theme-pipeline",
+            title: "自定义管线",
+            description: "多主题对比 — default / dark / article",
+            html: """
+            <h2>XMarkup 渲染引擎</h2>
+            <p>XMarkup 是一个高性能的 <b>HTML 富文本解析引擎</b>，支持多种格式和样式。</p>
+            <p>它使用 <code>render(theme:)</code> 方法将解析结果转换为 <code>AttributedString</code>。</p>
+            <p>通过不同的 <a href="https://example.com/themes">MarkupTheme</a> 配置，同一内容可以有截然不同的呈现效果。</p>
+            <blockquote>试试切换不同的主题，感受排版的差异。</blockquote>
+            """,
+            category: .themeCustom
         ),
 
         // MARK: - 长内容

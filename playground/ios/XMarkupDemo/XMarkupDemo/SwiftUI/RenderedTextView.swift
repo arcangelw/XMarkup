@@ -46,7 +46,7 @@ struct RenderedTextView: View {
     /// 多主题对比：每个主题一个标题 + 渲染结果
     @ViewBuilder
     private func multiThemeContent(_ result: RenderResult) -> some View {
-        let themeNames = ["默认主题", "聊天主题", "文章主题"]
+        let themeNames = ["默认主题", "深色主题", "文章主题"]
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 ForEach(0..<result.documents.count, id: \.self) { index in
@@ -119,7 +119,7 @@ struct RenderedTextView: View {
                 // 多主题对比
                 let result = try parser.parse(example.html)
                 let document = MarkupDocument.from(result)
-                let themes: [MarkupTheme] = [.default, .chat, .article]
+                let themes: [MarkupTheme] = [.default, .dark, .article]
                 renderResult = RenderResult(
                     documents: [document, document, document],
                     themes: themes,
