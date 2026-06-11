@@ -7,18 +7,27 @@ import AppKit
 /// XMarkup 标记文档的文本视图（macOS）
 ///
 /// macOS 上 XMarkupTextView 是 NSTextView 的子类，
-/// 使用 XMarkupEnhancedRenderer 应用 NSTextBlock 视觉增强。
+/// 使用 RenderPipeline + PlatformEnhancementPlugin 应用 NSTextBlock 视觉增强。
 /// 主要用于 hr 自适应和 AsyncMediaLoader 集成。
 open class XMarkupTextView: NSTextView {
 
     public var mediaLoader: AsyncMediaLoader?
 
-    /// 渲染器（可通过注入自定义渲染器替换默认行为）
-    public var renderer: any MarkupRenderer<NSAttributedString> = XMarkupEnhancedRenderer()
+    /// 渲染管线（可通过注入自定义管线替换默认行为）
+    public var pipeline: RenderPipeline = {
+        RenderPipeline(
+            blockRenderers: [
+                DefaultTableRenderer(),
+                DefaultAttachmentRenderer(),
+                DefaultBlockRenderer(),
+            ],
+            inlineRenderers: [DefaultInlineRenderer()],
+            enhancers: [PlatformEnhancementPlugin()]
+        )
+    }()
 
     public func load(_ document: MarkupDocument, theme: MarkupTheme = .default) {
-        let attr = document.render(theme: theme)
-        let nsAttr = renderer.render(attr)
+        let nsAttr = pipeline.render(document, theme: theme)
         textStorage?.setAttributedString(nsAttr)
         loadMedia(nsAttr)
     }

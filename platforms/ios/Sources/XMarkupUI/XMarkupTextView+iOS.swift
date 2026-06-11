@@ -10,7 +10,7 @@ import UIKit
 /// - 注入 BlockquoteLayoutManager 绘制 blockquote 左侧竖线
 /// - 布局时更新 hr 分隔线宽度
 /// - 可选运行 AsyncMediaLoader 异步加载附件图片
-/// - 使用 XMarkupEnhancedRenderer 做平台视觉增强
+/// - 使用 RenderPipeline 渲染（含平台增强插件）
 ///
 /// 用法：
 /// ```swift
@@ -22,16 +22,25 @@ open class XMarkupTextView: UITextView {
     /// 可替换的媒体加载器（默认新建 AsyncMediaLoader）
     public var mediaLoader: AsyncMediaLoader?
 
-    /// 渲染器（可通过注入自定义渲染器替换默认行为）
-    public var renderer: any MarkupRenderer<NSAttributedString> = XMarkupEnhancedRenderer()
+    /// 渲染管线（可通过注入自定义管线替换默认行为）
+    public var pipeline: RenderPipeline = {
+        RenderPipeline(
+            blockRenderers: [
+                DefaultTableRenderer(),
+                DefaultAttachmentRenderer(),
+                DefaultBlockRenderer(),
+            ],
+            inlineRenderers: [DefaultInlineRenderer()],
+            enhancers: [PlatformEnhancementPlugin()]
+        )
+    }()
 
     /// 加载 MarkupDocument
     /// - Parameters:
     ///   - document: 标记文档
     ///   - theme: 主题配置
     public func load(_ document: MarkupDocument, theme: MarkupTheme = .default) {
-        let attr = document.render(theme: theme)
-        let nsAttr = renderer.render(attr)
+        let nsAttr = pipeline.render(document, theme: theme)
         load(nsAttr: nsAttr)
     }
 
