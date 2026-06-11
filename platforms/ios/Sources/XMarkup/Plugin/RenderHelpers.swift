@@ -107,12 +107,16 @@ func makeSyntheticItalicFont(from font: XMFont) -> XMFont {
 /// - Parameters:
 ///   - font: 当前字体
 ///   - addTraits: 需要追加的 symbolic traits（与已有 traits 合并）
+///   - removeTraits: 需要移除的 symbolic traits（如 CSS font-weight:normal 清除 bold）
+///   - clearMatrix: 是否清除 italic 矩阵倾斜（用于 CSS font-style:normal 恢复正体）
 ///   - size: 新字号（nil 保留当前）
 ///   - weight: 新字重（nil 保留当前）
 /// - Returns: 派生后的新字体
 func deriveFont(
     from font: XMFont,
-    addTraits traits: XMFontDescriptor.SymbolicTraits? = nil,
+    addTraits add: XMFontDescriptor.SymbolicTraits? = nil,
+    removeTraits remove: XMFontDescriptor.SymbolicTraits? = nil,
+    clearMatrix: Bool = false,
     size: CGFloat? = nil,
     weight: XMFont.Weight? = nil
 ) -> XMFont {
@@ -123,14 +127,16 @@ func deriveFont(
     // 保存原始 matrix（italic 通过 matrix 实现，withSymbolicTraits 会丢弃）
     let originalMatrix = descriptor.matrix
 
-    // 追加 traits（与已有合并）
-    if let traits {
-        var currentTraits = descriptor.symbolicTraits
-        currentTraits.insert(traits)
-        if let newDesc = descriptor.withSymbolicTraits(currentTraits) {
-            descriptor = newDesc
-        }
+    // 合并 symbolic traits（添加 + 移除，总是执行以确保 remove 生效）
+    var currentTraits = descriptor.symbolicTraits
+    if let add { currentTraits.insert(add) }
+    if let remove { currentTraits.remove(remove) }
+    if let newDesc = descriptor.withSymbolicTraits(currentTraits) {
+        descriptor = newDesc
     }
+    // withSymbolicTraits 返回 nil 时保留原 descriptor（trait 组合不可用）
+    // 后续 matrix/weight 设置仍会生效
+
     // 设置字重（通过 traits 属性）
     if let weight {
         descriptor = descriptor.addingAttributes([
@@ -138,7 +144,7 @@ func deriveFont(
         ])
     }
     // 恢复 matrix（确保 italic 的矩阵变换不因 withSymbolicTraits 丢失）
-    if originalMatrix.b != 0 {
+    if !clearMatrix, originalMatrix.b != 0 {
         descriptor = descriptor.withMatrix(originalMatrix)
     }
     return UIFont(descriptor: descriptor, size: newSize)
@@ -146,12 +152,12 @@ func deriveFont(
     // 保存原始 matrix
     let originalMatrix = descriptor.matrix
 
-    // 追加 traits（NSFontDescriptor.withSymbolicTraits 返回非 Optional）
-    if let traits {
-        var currentTraits = descriptor.symbolicTraits
-        currentTraits.insert(traits)
-        descriptor = descriptor.withSymbolicTraits(currentTraits)
-    }
+    // 合并 symbolic traits
+    var currentTraits = descriptor.symbolicTraits
+    if let add { currentTraits.insert(add) }
+    if let remove { currentTraits.remove(remove) }
+    descriptor = descriptor.withSymbolicTraits(currentTraits)
+
     // 设置字重
     if let weight {
         descriptor = descriptor.addingAttributes([
@@ -159,7 +165,7 @@ func deriveFont(
         ])
     }
     // 恢复 matrix
-    if let matrix = originalMatrix {
+    if !clearMatrix, let matrix = originalMatrix {
         descriptor = descriptor.withMatrix(matrix)
     }
     return NSFont(descriptor: descriptor, size: newSize) ?? font

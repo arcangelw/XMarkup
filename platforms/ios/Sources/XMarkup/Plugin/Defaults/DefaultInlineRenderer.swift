@@ -43,13 +43,19 @@ public struct DefaultInlineRenderer: InlineRendering, Sendable {
                 let currentFont = value as? XMFont ?? context.theme.baseFont
                 attributed.addAttribute(.font, value: codeTheme.font
                     ?? deriveMonospacedFont(from: currentFont), range: subrange)
-                let bg = codeTheme.backgroundColor
-                #if canImport(UIKit)
-                attributed.addAttribute(.backgroundColor, value: bg ?? UIColor.systemGray6, range: subrange)
-                #elseif canImport(AppKit)
-                attributed.addAttribute(.backgroundColor, value: bg
-                    ?? NSColor.systemGray.withAlphaComponent(0.2), range: subrange)
-                #endif
+                // 只在没有已有 backgroundColor（如 mark/span 背景色）时才设置 code 背景色
+                var effectiveRange = NSRange()
+                let existing = attributed.attribute(.backgroundColor, at: subrange.location,
+                                                    longestEffectiveRange: &effectiveRange, in: subrange)
+                if existing == nil {
+                    let bg = codeTheme.backgroundColor
+                    #if canImport(UIKit)
+                    attributed.addAttribute(.backgroundColor, value: bg ?? UIColor.systemGray6, range: subrange)
+                    #elseif canImport(AppKit)
+                    attributed.addAttribute(.backgroundColor, value: bg
+                        ?? NSColor.systemGray.withAlphaComponent(0.2), range: subrange)
+                    #endif
+                }
             }
 
         case .mark:
@@ -166,6 +172,12 @@ public struct DefaultInlineRenderer: InlineRendering, Sendable {
             if fontStyle == "italic" {
                 applyFontTrait(traitItalic, to: range, in: attributed, context: context)
                 mergeInlinePresentationIntent(.emphasized, into: range, in: attributed)
+            } else if fontStyle == "normal" {
+                // 清除 italic matrix 倾斜
+                attributed.enumerateAttribute(.font, in: range, options: []) { value, subrange, _ in
+                    let currentFont = value as? XMFont ?? baseFont
+                    attributed.addAttribute(.font, value: deriveFont(from: currentFont, clearMatrix: true), range: subrange)
+                }
             }
 
         case .textDecoration(let decoration):
@@ -183,11 +195,11 @@ public struct DefaultInlineRenderer: InlineRendering, Sendable {
                 if weight == "bold" || weight == "700" {
                     newFont = deriveFont(from: currentFont, addTraits: traitBold)
                 } else if weight == "normal" || weight == "400" {
-                    newFont = deriveFont(from: currentFont, weight: .regular)
+                    newFont = deriveFont(from: currentFont, removeTraits: traitBold, weight: .regular)
                 } else if let w = Float(weight), w >= 600 {
                     newFont = deriveFont(from: currentFont, addTraits: traitBold)
                 } else if let w = Float(weight), w <= 300 {
-                    newFont = deriveFont(from: currentFont, weight: .light)
+                    newFont = deriveFont(from: currentFont, removeTraits: traitBold, weight: .light)
                 } else {
                     return
                 }
