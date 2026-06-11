@@ -14,12 +14,14 @@ open class XMarkupLabel: UILabel {
 
     public var mediaLoader: AsyncMediaLoader?
 
+    /// 渲染管线（可通过注入自定义管线替换默认行为）
+    public var pipeline: RenderPipeline = .default
+
     /// 持有可变引用，hr 更新和媒体加载修改同一份数据
     private var currentMutableAttr: NSMutableAttributedString?
 
     public func load(_ document: MarkupDocument, theme: MarkupTheme = .default) {
-        let attr = document.render(theme: theme)
-        let nsAttr = NSAttributedStringRenderer().render(attr)
+        let nsAttr = pipeline.render(document, theme: theme)
         load(nsAttr: nsAttr)
     }
 

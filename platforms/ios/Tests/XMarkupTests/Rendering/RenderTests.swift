@@ -205,9 +205,7 @@ final class RenderTests: XCTestCase {
         let parser = try XMarkupParser()
         let result = try parser.parse(html)
         let doc = MarkupDocument.from(result)
-        let attr = doc.render(theme: .default)
-        let renderer = NSAttributedStringRenderer()
-        let nsAttr = renderer.render(attr)
+        let nsAttr = RenderPipeline.default.render(doc, theme: .default)
 
         // 验证包含所有文本
         XCTAssertTrue(nsAttr.string.contains("Title"))

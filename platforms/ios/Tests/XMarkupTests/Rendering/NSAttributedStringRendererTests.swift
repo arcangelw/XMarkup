@@ -16,7 +16,7 @@ final class NSAttributedStringRendererTests: XCTestCase {
         XCTAssertEqual(result.string, "Hello World")
     }
 
-    func testRenderPreservesAttributes() {
+    func testRenderPreservesStandardAttributes() {
         var attr = AttributedString("Hello")
         #if canImport(UIKit)
         attr.uiKit.font = .boldSystemFont(ofSize: 20)
@@ -25,17 +25,26 @@ final class NSAttributedStringRendererTests: XCTestCase {
         attr.appKit.font = .boldSystemFont(ofSize: 20)
         attr.appKit.foregroundColor = .red
         #endif
-        attr[XMarkupTagKey.self] = "bold"
 
         let renderer = NSAttributedStringRenderer()
         let result = renderer.render(attr)
 
-        // UIKit/AppKit 属性保留
+        // UIKit/AppKit 标准属性保留
         let font = result.attribute(.font, at: 0, effectiveRange: nil) as? XMFont
         XCTAssertEqual(font?.pointSize, 20)
+    }
 
-        // 自定义 key 通过手动桥接保留
-        let tagValue = result.attribute(NSAttributedString.Key(XMarkupTagKey.name), at: 0, effectiveRange: nil) as? String
+    func testKeyTransferViaPipeline() {
+        var attr = AttributedString("Hello")
+        attr[XMarkupTagKey.self] = "bold"
+
+        // 通过 Pipeline 完整流程：标准转换 + key 转移
+        let nsAttr = NSMutableAttributedString(attributedString: NSAttributedStringRenderer().render(attr))
+        let transfer = XMarkupKeyTransfer()
+        let ctx = RenderingContext(theme: .default, blockIndex: 0, totalBlocks: 1)
+        transfer.transfer(from: attr, to: nsAttr, context: ctx)
+
+        let tagValue = nsAttr.attribute(NSAttributedString.Key(XMarkupTagKey.name), at: 0, effectiveRange: nil) as? String
         XCTAssertEqual(tagValue, "bold")
     }
 
