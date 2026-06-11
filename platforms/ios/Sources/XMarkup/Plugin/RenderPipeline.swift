@@ -70,6 +70,35 @@ public struct RenderPipeline: @unchecked Sendable {
         self.bridge = bridge
     }
 
+    // MARK: - 派生方法
+
+    /// 基于当前管线追加增强器，返回新管线实例
+    ///
+    /// 用于 XMarkupUI 等上层模块在默认管线基础上添加平台增强插件：
+    /// ```swift
+    /// let pipeline = RenderPipeline.default.addingEnhancers([PlatformEnhancementPlugin()])
+    /// ```
+    public func addingEnhancers(_ newEnhancers: [any NSAttributedStringProcessing]) -> RenderPipeline {
+        RenderPipeline(
+            blockRenderers: blockRenderers,
+            inlineRenderers: inlineRenderers,
+            postProcessors: postProcessors,
+            enhancers: enhancers + newEnhancers,
+            bridge: bridge
+        )
+    }
+
+    /// 基于当前管线追加后处理器，返回新管线实例
+    public func addingPostProcessors(_ newProcessors: [any AttributedStringProcessing]) -> RenderPipeline {
+        RenderPipeline(
+            blockRenderers: blockRenderers,
+            inlineRenderers: inlineRenderers,
+            postProcessors: postProcessors + newProcessors,
+            enhancers: enhancers,
+            bridge: bridge
+        )
+    }
+
     // MARK: - 主渲染入口
 
     /// 完整渲染：MarkupDocument → NSAttributedString

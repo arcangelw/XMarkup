@@ -14,17 +14,8 @@ open class XMarkupTextView: NSTextView {
     public var mediaLoader: AsyncMediaLoader?
 
     /// 渲染管线（可通过注入自定义管线替换默认行为）
-    public var pipeline: RenderPipeline = {
-        RenderPipeline(
-            blockRenderers: [
-                DefaultTableRenderer(),
-                DefaultAttachmentRenderer(),
-                DefaultBlockRenderer(),
-            ],
-            inlineRenderers: [DefaultInlineRenderer()],
-            enhancers: [PlatformEnhancementPlugin()]
-        )
-    }()
+    public var pipeline: RenderPipeline = RenderPipeline.default
+        .addingEnhancers([PlatformEnhancementPlugin()])
 
     public func load(_ document: MarkupDocument, theme: MarkupTheme = .default) {
         let nsAttr = pipeline.render(document, theme: theme)
