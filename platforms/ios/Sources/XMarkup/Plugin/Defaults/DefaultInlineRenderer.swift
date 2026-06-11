@@ -56,18 +56,22 @@ public struct DefaultInlineRenderer: InlineRendering, Sendable {
             #endif
 
         case .code:
-            // 从 typed theme 读取字体和背景色，fallback 从 baseFont 派生等宽字体
+            // 从 typed theme 读取字体和背景色，fallback 从当前 run 的字号派生等宽字体
             let codeTheme = context.theme.codeInline
-            #if canImport(UIKit)
-            attributed[attrRange].uiKit.font = codeTheme.font
-                ?? UIFont.monospacedSystemFont(ofSize: context.theme.baseFont.pointSize, weight: .regular)
-            attributed[attrRange].uiKit.backgroundColor = codeTheme.backgroundColor ?? UIColor.systemGray6
-            #elseif canImport(AppKit)
-            attributed[attrRange].appKit.font = codeTheme.font
-                ?? NSFont.monospacedSystemFont(ofSize: context.theme.baseFont.pointSize, weight: .regular)
-            attributed[attrRange].appKit.backgroundColor = codeTheme.backgroundColor
-                ?? NSColor.systemGray.withAlphaComponent(0.2)
-            #endif
+            for run in attributed[attrRange].runs {
+                #if canImport(UIKit)
+                let currentSize = run.uiKit.font?.pointSize ?? context.theme.baseFont.pointSize
+                attributed[run.range].uiKit.font = codeTheme.font
+                    ?? UIFont.monospacedSystemFont(ofSize: currentSize, weight: .regular)
+                attributed[run.range].uiKit.backgroundColor = codeTheme.backgroundColor ?? UIColor.systemGray6
+                #elseif canImport(AppKit)
+                let currentSize = run.appKit.font?.pointSize ?? context.theme.baseFont.pointSize
+                attributed[run.range].appKit.font = codeTheme.font
+                    ?? NSFont.monospacedSystemFont(ofSize: currentSize, weight: .regular)
+                attributed[run.range].appKit.backgroundColor = codeTheme.backgroundColor
+                    ?? NSColor.systemGray.withAlphaComponent(0.2)
+                #endif
+            }
 
         case .mark:
             // 从 typed theme 读取背景色，fallback 到系统黄色
@@ -136,18 +140,9 @@ public struct DefaultInlineRenderer: InlineRendering, Sendable {
         let tagName = inlineKindName(for: inline.kind)
         attributed[attrRange][XMarkupTagKey.self] = tagName
 
-        // 设置 inlinePresentationIntent 语义标注
-        switch inline.kind {
-        case .bold:
-            attributed[attrRange].inlinePresentationIntent = .stronglyEmphasized
-        case .italic:
-            attributed[attrRange].inlinePresentationIntent = .emphasized
-        case .code:
-            attributed[attrRange].inlinePresentationIntent = .code
-        case .strikethrough:
-            attributed[attrRange].inlinePresentationIntent = .strikethrough
-        default:
-            break
+        // 设置 inlinePresentationIntent 语义标注（合并模式，支持 bold+italic 等重叠场景）
+        if let intent = inlinePresentationIntent(for: inline.kind) {
+            mergeInlinePresentationIntent(intent, into: attrRange, in: &attributed)
         }
 
         return true
@@ -224,6 +219,7 @@ public struct DefaultInlineRenderer: InlineRendering, Sendable {
         case .fontStyle(let fontStyle):
             if fontStyle == "italic" {
                 applyFontTrait(traitItalic, to: range, in: &attributed, context: context)
+                mergeInlinePresentationIntent(.emphasized, into: range, in: &attributed)
             }
         case .textDecoration(let decoration):
             if decoration == "underline" {
@@ -238,6 +234,7 @@ public struct DefaultInlineRenderer: InlineRendering, Sendable {
                 #elseif canImport(AppKit)
                 attributed[range].appKit.strikethroughStyle = .single
                 #endif
+                mergeInlinePresentationIntent(.strikethrough, into: range, in: &attributed)
             }
         case .fontWeight(let weight):
             for run in attributed[range].runs {
@@ -263,6 +260,10 @@ public struct DefaultInlineRenderer: InlineRendering, Sendable {
                 #elseif canImport(AppKit)
                 attributed[run.range].appKit.font = newFont
                 #endif
+            }
+            // CSS fontWeight bold → 语义标注
+            if weight == "bold" || weight == "700" || (Float(weight).map { $0 >= 600 } ?? false) {
+                mergeInlinePresentationIntent(.stronglyEmphasized, into: range, in: &attributed)
             }
         case .lineHeight(let height):
             for run in attributed[range].runs {
@@ -324,6 +325,44 @@ public struct DefaultInlineRenderer: InlineRendering, Sendable {
                 attributed[run.range].appKit.paragraphStyle = paraStyle
                 #endif
             }
+        }
+    }
+
+    // MARK: - InlinePresentationIntent Helpers
+
+    /// 将 InlineKind 映射到 InlinePresentationIntent 语义标注
+    ///
+    /// 所有 case 显式列出，新增 InlineKind 时编译器会提醒补全。
+    /// 无直接对应的 case（underline/mark/link/subscriptText/superscript）返回 nil，
+    /// span 的语义标注在 applyInlineStyle 中按 CSS 属性单独处理。
+    private func inlinePresentationIntent(for kind: InlineKind) -> InlinePresentationIntent? {
+        switch kind {
+        case .bold:           return .stronglyEmphasized
+        case .italic:         return .emphasized
+        case .underline:      return nil   // 无直接对应（Apple 未提供 underline intent）
+        case .strikethrough:  return .strikethrough
+        case .code:           return .code
+        case .mark:           return nil   // 无直接对应
+        case .link:           return nil   // 链接语义通过 attributed[range].link 属性表达
+        case .subscriptText:  return nil   // 无直接对应
+        case .superscript:    return nil   // 无直接对应
+        case .span:           return nil   // 语义标注在 applyInlineStyle 中按 CSS 属性单独合并
+        case .lineBreak:      return .lineBreak
+        }
+    }
+
+    /// 合并 InlinePresentationIntent（支持 bold+italic 等重叠场景）
+    ///
+    /// 读取 range 内每个 run 的现有 intent，用 OptionSet 合并后写回，
+    /// 避免直接赋值覆盖之前 inline 已设置的语义标注。
+    private func mergeInlinePresentationIntent(
+        _ newIntent: InlinePresentationIntent,
+        into range: Range<AttributedString.Index>,
+        in attributed: inout AttributedString
+    ) {
+        for run in attributed[range].runs {
+            let existing = run.inlinePresentationIntent ?? []
+            attributed[run.range].inlinePresentationIntent = existing.union(newIntent)
         }
     }
 }

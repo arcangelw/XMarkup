@@ -42,6 +42,7 @@ final class LogViewController: UIViewController {
             guard let self else { return }
             let levels: [XMarkupLogLevel] = [.error, .warn, .info, .trace]
             self.collector.logLevel = levels[self.segmentedControl.selectedSegmentIndex]
+            self.collector.reparse()
         }, for: .valueChanged)
 
         // 状态栏
@@ -129,6 +130,7 @@ final class LogViewController: UIViewController {
     private func startParsing() {
         collector.html = example.html
         collector.secondHTML = example.secondHTML
+        // 只调用一次 reparse，避免并发 parse 导致 crash
         collector.reparse()
         updateStatus()
     }

@@ -17,7 +17,8 @@ extension MarkupTheme {
                 $0.bold = true
             }
             Code {
-                $0.font = XMFont.monospacedSystemFont(ofSize: 16, weight: .regular)
+                // font 不硬编码 — 由 inline renderer 从当前 run 的字号动态派生等宽字体，
+                // 确保 code 在 heading 等场景下正确继承块级字号
                 #if canImport(UIKit)
                 $0.backgroundColor = .systemGray6
                 #elseif canImport(AppKit)
@@ -47,7 +48,6 @@ extension MarkupTheme {
                 $0.bold = true
             }
             Code {
-                $0.font = XMFont.monospacedSystemFont(ofSize: 16, weight: .regular)
                 #if canImport(UIKit)
                 $0.backgroundColor = .systemGray
                 #elseif canImport(AppKit)
@@ -94,7 +94,6 @@ extension MarkupTheme {
                 #endif
             }
             Code {
-                $0.font = XMFont.monospacedSystemFont(ofSize: 17, weight: .regular)
                 #if canImport(UIKit)
                 $0.backgroundColor = .systemGray6
                 #elseif canImport(AppKit)

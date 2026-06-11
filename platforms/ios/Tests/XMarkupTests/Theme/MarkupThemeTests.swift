@@ -231,14 +231,17 @@ final class PresetThemesTests: XCTestCase {
     func testDefaultTheme() {
         let theme = MarkupTheme.default
         XCTAssertEqual(theme.baseFont.pointSize, 16)
-        XCTAssertNotNil(theme.codeInline.font)
+        // codeInline.font 为 nil — 字号由 inline renderer 从当前 run 动态派生
+        XCTAssertNil(theme.codeInline.font)
+        XCTAssertNotNil(theme.codeInline.backgroundColor)
         XCTAssertNotNil(theme.mark.backgroundColor)
     }
 
     func testDarkTheme() {
         let theme = MarkupTheme.dark
         XCTAssertEqual(theme.baseFont.pointSize, 16)
-        XCTAssertNotNil(theme.codeInline.font)
+        XCTAssertNil(theme.codeInline.font)
+        XCTAssertNotNil(theme.codeInline.backgroundColor)
         XCTAssertNotNil(theme.mark.backgroundColor)
     }
 
@@ -252,7 +255,8 @@ final class PresetThemesTests: XCTestCase {
         let theme = MarkupTheme.article
         XCTAssertEqual(theme.baseFont.pointSize, 17)
         XCTAssertNotNil(theme.blockquote.textColor)
-        XCTAssertNotNil(theme.codeInline.font)
+        XCTAssertNil(theme.codeInline.font)
+        XCTAssertNotNil(theme.codeInline.backgroundColor)
     }
 
     func testDefaultThemeHasPlaceholderStrategy() {

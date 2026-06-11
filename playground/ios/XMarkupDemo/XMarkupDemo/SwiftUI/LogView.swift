@@ -17,6 +17,10 @@ struct LogView: View {
         .onAppear {
             collector.html = example.html
             collector.secondHTML = example.secondHTML
+            collector.reparse()
+        }
+        .onChange(of: collector.logLevel) { _, _ in
+            collector.reparse()
         }
     }
 

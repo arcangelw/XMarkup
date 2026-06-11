@@ -81,4 +81,99 @@ final class BugInvestigationTests: XCTestCase {
         XCTAssertNotEqual(font!.fontName, NSFont.systemFont(ofSize: 16).fontName, "斜体字体应与系统字体不同")
         #endif
     }
+
+    // MARK: - 标题内嵌样式字体继承
+
+    /// 验证 <h1>含<code>代码</code></h1> 中 code 字号继承 h1 的字号而非 baseFont
+    func testHeadingCodeFontSizeInheritsHeading() throws {
+        let parser = try XMarkupParser()
+        let html = "<h1>标题含<code>代码</code></h1>"
+        let result = try parser.parse(html)
+        let doc = MarkupDocument.from(result)
+        let nsAttr = doc.render()
+
+        let text = nsAttr.string
+        // 找到 "代码" 的位置
+        let codeRange = (text as NSString).range(of: "代码")
+        XCTAssertGreaterThan(codeRange.length, 0, "应找到'代码'文本")
+
+        // 同时获取 "标题含" 的字体作为参照
+        let headingRange = (text as NSString).range(of: "标题含")
+        let headingFont = nsAttr.attribute(.font, at: headingRange.location, effectiveRange: nil) as? XMFont
+
+        let codeFont = nsAttr.attribute(.font, at: codeRange.location, effectiveRange: nil) as? XMFont
+        XCTAssertNotNil(codeFont, "code 应有字体设置")
+        XCTAssertNotNil(headingFont, "标题应有字体设置")
+
+        // code 的字号应与 heading 相近（允许等宽字体略有差异），但不应是 baseFont 的 16pt
+        let baseFontSize = MarkupTheme.default.baseFont.pointSize
+        XCTAssertGreaterThan(codeFont!.pointSize, baseFontSize,
+            "code 在 heading 内应继承 heading 的字号(\(headingFont!.pointSize))，而非 baseFont(\(baseFontSize))")
+    }
+
+    /// 验证 <h3>含<b>粗体</b></h3> 中 bold 字号保持 h3 的字号
+    func testHeadingBoldFontSizePreserved() throws {
+        let parser = try XMarkupParser()
+        let html = "<h3>标题含<b>粗体</b></h3>"
+        let result = try parser.parse(html)
+        let doc = MarkupDocument.from(result)
+        let nsAttr = doc.render()
+
+        let text = nsAttr.string
+        let boldRange = (text as NSString).range(of: "粗体")
+        let headingRange = (text as NSString).range(of: "标题含")
+        let headingFont = nsAttr.attribute(.font, at: headingRange.location, effectiveRange: nil) as? XMFont
+        let boldFont = nsAttr.attribute(.font, at: boldRange.location, effectiveRange: nil) as? XMFont
+
+        XCTAssertNotNil(boldFont, "bold 应有字体设置")
+        XCTAssertNotNil(headingFont, "标题应有字体设置")
+
+        // bold 在 heading 内应保持 heading 的字号
+        XCTAssertEqual(boldFont!.pointSize, headingFont!.pointSize, accuracy: 0.5,
+            "bold 在 heading 内应保持 heading 字号(\(headingFont!.pointSize))")
+    }
+
+    /// 验证 <h1>含<i>斜体</i></h1> 中 italic 保持 h1 字号
+    func testHeadingItalicFontSizePreserved() throws {
+        let parser = try XMarkupParser()
+        let html = "<h1>标题含<i>斜体</i></h1>"
+        let result = try parser.parse(html)
+        let doc = MarkupDocument.from(result)
+        let nsAttr = doc.render()
+
+        let text = nsAttr.string
+        let italicRange = (text as NSString).range(of: "斜体")
+        let headingRange = (text as NSString).range(of: "标题含")
+        let headingFont = nsAttr.attribute(.font, at: headingRange.location, effectiveRange: nil) as? XMFont
+        let italicFont = nsAttr.attribute(.font, at: italicRange.location, effectiveRange: nil) as? XMFont
+
+        XCTAssertNotNil(italicFont, "italic 应有字体设置")
+        XCTAssertNotNil(headingFont, "标题应有字体设置")
+
+        XCTAssertEqual(italicFont!.pointSize, headingFont!.pointSize, accuracy: 0.5,
+            "italic 在 heading 内应保持 heading 字号(\(headingFont!.pointSize))")
+    }
+
+    /// 验证 <h2>含<span style="color:#FF0000">红色</span></h2> 颜色生效且字号不变
+    func testHeadingSpanColorPreserved() throws {
+        let parser = try XMarkupParser()
+        let html = "<h2>标题含<span style=\"color:#FF0000\">红色</span></h2>"
+        let result = try parser.parse(html)
+        let doc = MarkupDocument.from(result)
+        let nsAttr = doc.render()
+
+        let text = nsAttr.string
+        let spanRange = (text as NSString).range(of: "红色")
+        let headingRange = (text as NSString).range(of: "标题含")
+
+        let spanFont = nsAttr.attribute(.font, at: spanRange.location, effectiveRange: nil) as? XMFont
+        let headingFont = nsAttr.attribute(.font, at: headingRange.location, effectiveRange: nil) as? XMFont
+
+        XCTAssertNotNil(spanFont, "span 应有字体设置")
+        XCTAssertNotNil(headingFont, "标题应有字体设置")
+
+        // span 不应改变字号
+        XCTAssertEqual(spanFont!.pointSize, headingFont!.pointSize, accuracy: 0.5,
+            "span 在 heading 内应保持 heading 字号")
+    }
 }

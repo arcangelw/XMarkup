@@ -172,6 +172,7 @@ final class LogViewController: NSViewController {
         let index = segmentedControl.selectedSegment
         guard index >= 0, index < levels.count else { return }
         collector.logLevel = levels[index]
+        collector.reparse()
     }
 }
 
