@@ -5,6 +5,7 @@ import UIKit
 import CoreText
 #elseif canImport(AppKit)
 import AppKit
+import CoreText
 #endif
 
 // MARK: - 跨平台字体 Trait 常量
@@ -83,11 +84,12 @@ func deriveFont(
         let ctMatrix = CTFontGetMatrix(font as CTFont)
         if ctMatrix.b != 0 {
             var m = ctMatrix
-            return CTFontCreateWithFontDescriptor(
+            let ctFont = CTFontCreateWithFontDescriptor(
                 descriptor as CTFontDescriptor,
                 newSize,
                 &m
-            ) as! XMFont
+            )
+            return ctFont as? XMFont ?? UIFont(descriptor: descriptor, size: newSize)
         }
     }
     return UIFont(descriptor: descriptor, size: newSize)
@@ -108,6 +110,21 @@ func deriveFont(
 
     if !clearMatrix, let matrix = originalMatrix {
         descriptor = descriptor.withMatrix(matrix)
+        return NSFont(descriptor: descriptor, size: newSize) ?? font
+    }
+
+    // CTFont 渲染级 matrix 检测（与 UIKit 分支对齐）
+    if !clearMatrix {
+        let ctMatrix = CTFontGetMatrix(font as CTFont)
+        if ctMatrix.b != 0 {
+            var m = ctMatrix
+            let ctFont = CTFontCreateWithFontDescriptor(
+                descriptor as CTFontDescriptor,
+                newSize,
+                &m
+            )
+            return ctFont as XMFont
+        }
     }
     return NSFont(descriptor: descriptor, size: newSize) ?? font
     #endif

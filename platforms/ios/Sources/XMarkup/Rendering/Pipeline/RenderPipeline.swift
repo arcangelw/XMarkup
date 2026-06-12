@@ -89,9 +89,9 @@ public struct RenderPipeline: @unchecked Sendable {
         // Phase 1 & 2: Block 渲染（含列表组分析 + inline 渲染）
         let result = renderBlocks(flatBlocks, theme: theme)
 
-        // Phase 3: NSAttributedString 增强
+        // Phase 3: NSAttributedString 增强（blockIndex = -1 表示全局上下文，非单块）
         for enhancer in enhancers {
-            let ctx = RenderingContext(theme: theme, blockIndex: 0, totalBlocks: totalBlocks)
+            let ctx = RenderingContext(theme: theme, blockIndex: -1, totalBlocks: totalBlocks)
             enhancer.enhance(result, context: ctx)
         }
 

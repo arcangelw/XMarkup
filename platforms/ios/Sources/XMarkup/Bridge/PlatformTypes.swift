@@ -16,4 +16,6 @@
     public typealias XMColor = NSColor
     public typealias XMFontDescriptor = NSFontDescriptor
     public typealias XMImage = NSImage
+#else
+    #error("XMarkup requires UIKit (iOS/tvOS) or AppKit (macOS)")
 #endif

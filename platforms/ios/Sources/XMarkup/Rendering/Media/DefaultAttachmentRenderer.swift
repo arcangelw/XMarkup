@@ -45,7 +45,7 @@ public struct DefaultAttachmentRenderer: BlockRendering, Sendable {
             )
         case .imageProvider(let provider):
             let src = extractSrc(from: attachment.content)
-            if let image = provider(src) {
+            if let image = provider(src), image.size.width > 0, image.size.height > 0 {
                 let attach = NSTextAttachment()
                 attach.image = image
                 let aspectRatio = image.size.height / max(image.size.width, 1)
@@ -122,18 +122,18 @@ public struct DefaultAttachmentRenderer: BlockRendering, Sendable {
         }
         #elseif canImport(AppKit)
         let symbol = NSImage(systemSymbolName: systemName, accessibilityDescription: nil) ?? NSImage(size: size)
-        let image = NSImage(size: size)
-        image.lockFocus()
-        NSColor.systemGray.withAlphaComponent(0.1).setFill()
-        NSRect(origin: NSPoint.zero, size: size).fill()
-        let symbolSize = symbol.size
-        symbol.draw(
-            at: NSPoint(x: (size.width - symbolSize.width) / 2, y: (size.height - symbolSize.height) / 2),
-            from: NSRect.zero,
-            operation: .sourceOver,
-            fraction: 1.0
-        )
-        image.unlockFocus()
+        let image = NSImage(size: size, flipped: false) { rect in
+            NSColor.systemGray.withAlphaComponent(0.1).setFill()
+            rect.fill()
+            let symbolSize = symbol.size
+            symbol.draw(
+                at: NSPoint(x: (size.width - symbolSize.width) / 2, y: (size.height - symbolSize.height) / 2),
+                from: NSRect.zero,
+                operation: .sourceOver,
+                fraction: 1.0
+            )
+            return true
+        }
         return image
         #endif
     }

@@ -1,4 +1,5 @@
 import CXMarkup
+import Foundation
 
 /// XMarkup 解析错误
 public enum XMarkupError: Error, Sendable, Equatable {
@@ -41,3 +42,7 @@ public enum XMarkupError: Error, Sendable, Equatable {
 }
 
 extension XMarkupError: CustomStringConvertible {}
+
+extension XMarkupError: LocalizedError {
+    public var errorDescription: String? { description }
+}

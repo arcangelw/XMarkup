@@ -32,12 +32,12 @@ public struct HorizontalRuleRenderer: BlockRendering, Sendable {
             ctx.fill(CGRect(x: 0, y: 0, width: lineWidth, height: lineHeight))
         }
         #elseif canImport(AppKit)
-        let image = NSImage(size: NSSize(width: lineWidth, height: lineHeight))
         let lineColor = theme.horizontalRule.color ?? NSColor.separatorColor
-        image.lockFocus()
-        lineColor.setFill()
-        NSRect(x: 0, y: 0, width: lineWidth, height: lineHeight).fill()
-        image.unlockFocus()
+        let image = NSImage(size: NSSize(width: lineWidth, height: lineHeight), flipped: false) { rect in
+            lineColor.setFill()
+            rect.fill()
+            return true
+        }
         attachment.image = image
         #endif
 

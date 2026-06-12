@@ -22,7 +22,8 @@ public struct DefaultInlineRenderer: InlineRendering, Sendable {
     public func apply(inline: MarkupInline, to attributed: NSMutableAttributedString,
                       context: RenderingContext) -> Bool {
         let nsRange = inline.range.nsRange
-        guard nsRange.length > 0 else { return true }
+        guard nsRange.length > 0,
+              nsRange.upperBound <= attributed.length else { return true }
 
         switch inline.kind {
         case .bold:
@@ -128,7 +129,8 @@ public struct DefaultInlineRenderer: InlineRendering, Sendable {
             break  // <br> 已在文本中为 \n，无需额外样式处理
         }
 
-        // 为所有内联元素设置自定义 tag
+        // xmarkupTag 语义：重叠 inline 场景下保留最内层（最后应用的）inline 类型。
+        // 如需保留完整嵌套信息，使用 .inlinePresentationIntent（OptionSet 合并模式）。
         attributed.addAttribute(.xmarkupTag, value: inlineKindName(for: inline.kind), range: nsRange)
 
         // 设置 inlinePresentationIntent 语义标注（合并模式，支持 bold+italic 等重叠场景）

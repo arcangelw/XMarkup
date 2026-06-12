@@ -32,7 +32,6 @@ extension MarkupTheme {
     /// }
     /// ```
     public init(@MarkupThemeBuilder builder: () -> [ThemeComponent]) {
-        self.init()
         var theme = MarkupTheme()
         for component in builder() {
             component.apply(to: &theme)

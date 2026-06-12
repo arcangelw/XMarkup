@@ -36,8 +36,11 @@ public struct XMarkupResult: Sendable {
             for i in 0 ..< count {
                 let s = cSpans[i]
                 let value: String? = s.value.map { String(cString: $0) }
+                let start = Int(s.range.start)
+                let end = Int(s.range.end)
+                let length = max(0, end - start)
                 spans.append(XMarkupSpan(
-                    range: NSRange(location: Int(s.range.start), length: Int(s.range.end - s.range.start)),
+                    range: NSRange(location: start, length: length),
                     tag: XMarkupTag(cValue: s.tag),
                     style: XMarkupStyle(cValue: s.style),
                     value: value

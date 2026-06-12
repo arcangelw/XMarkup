@@ -44,6 +44,9 @@ public struct HeadingBlockRenderer: BlockRendering, Sendable {
             if let textColor = resolved.textColor {
                 attributes[.foregroundColor] = textColor
             }
+        } else {
+            // 兜底：resolved 返回 nil 时仍需设置 font，避免回退到系统 12pt 默认字体
+            attributes[.font] = deriveFont(from: baseFont, addTraits: traitBold)
         }
         attributes[.paragraphStyle] = paragraphStyle
 

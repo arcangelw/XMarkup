@@ -36,6 +36,8 @@ public struct RenderingContext: @unchecked Sendable {
     /// 当前主题配置
     public let theme: MarkupTheme
     /// 当前块在文档中的位置（0-based）
+    ///
+    /// - Note: enhancer 阶段（Phase 3）传入 `-1`，表示全局上下文而非单块渲染。
     public let blockIndex: Int
     /// 文档总块数
     public let totalBlocks: Int
