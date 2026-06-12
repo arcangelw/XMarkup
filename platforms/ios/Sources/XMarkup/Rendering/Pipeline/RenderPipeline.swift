@@ -108,7 +108,7 @@ public struct RenderPipeline: @unchecked Sendable {
     /// 渲染块列表，合并为单个 NSMutableAttributedString
     private func renderBlocks(_ blocks: [MarkupBlock], theme: MarkupTheme) -> NSMutableAttributedString {
         let totalBlocks = blocks.count
-        let groups = analyzeBlockGroups(blocks)
+        let groups = analyzeBlockGroups(blocks, theme: theme)
         let result = NSMutableAttributedString()
 
         for (i, block) in blocks.enumerated() {
@@ -116,19 +116,20 @@ public struct RenderPipeline: @unchecked Sendable {
 
             var ctx = RenderingContext(theme: theme, blockIndex: i, totalBlocks: totalBlocks)
 
-            // 传递列表组信息（类型安全的 listContext，优先使用）
+            // 列表项：传递共享 NSTextList + 组边界 + 有序序号
             if let lists = groups.listTextLists[i] {
                 ctx.listContext = ListContext(
                     textLists: lists,
                     isFirstInGroup: groups.listGroupFirst.contains(i),
-                    isLastInGroup: groups.listGroupLast.contains(i)
+                    isLastInGroup: groups.listGroupLast.contains(i),
+                    orderedItemIndex: groups.orderedItemIndices[i]
                 )
             }
 
             // 按顺序询问 blockRenderers
             var rendered: NSMutableAttributedString?
             for renderer in blockRenderers {
-                rendered = renderer.render(block: block, context: ctx)
+                rendered = renderer.render(block: block, context: &ctx)
                 if rendered != nil { break }
             }
 
@@ -151,8 +152,21 @@ public struct RenderPipeline: @unchecked Sendable {
             }
 
             if let rendered {
+                // 渲染器通过 context.textPrefixLength 显式声明了文本前缀长度
+                // （如有序列表 "1.\t" = 3），管线据此偏移 inline 范围
+                let prefixLength = ctx.textPrefixLength
                 // 调度 inlineRenderers：对每个 inline 按注册顺序询问
-                for inline in block.inlines {
+                for originalInline in block.inlines {
+                    let inline: MarkupInline
+                    if prefixLength > 0 {
+                        inline = MarkupInline(
+                            range: TextRange(start: originalInline.range.start + prefixLength,
+                                             length: originalInline.range.length),
+                            kind: originalInline.kind
+                        )
+                    } else {
+                        inline = originalInline
+                    }
                     for inlineRenderer in inlineRenderers {
                         if inlineRenderer.apply(inline: inline, to: rendered, context: ctx) {
                             break
@@ -184,10 +198,11 @@ public struct RenderPipeline: @unchecked Sendable {
         var listTextLists: [Int: [NSTextList]] = [:]
         var listGroupFirst: Set<Int> = []
         var listGroupLast: Set<Int> = []
+        var orderedItemIndices: [Int: Int] = [:]
     }
 
-    /// 分析连续的 list item 组，为同组项共享 NSTextList 实例
-    private func analyzeBlockGroups(_ blocks: [MarkupBlock]) -> BlockGroups {
+    /// 分析连续的 list item 组 — 共享 NSTextList 实例 + 有序列表序号
+    private func analyzeBlockGroups(_ blocks: [MarkupBlock], theme: MarkupTheme) -> BlockGroups {
         var groups = BlockGroups()
         var currentIdx: [Int] = []
         var currentOrdered: Bool?
@@ -195,7 +210,7 @@ public struct RenderPipeline: @unchecked Sendable {
 
         for (i, block) in blocks.enumerated() {
             guard case .listItem(let isOrdered, let indent) = block.kind else {
-                finalizeGroup(&currentIdx, &groups, ordered: currentOrdered, indent: currentIndent)
+                finalizeGroup(&currentIdx, &groups, ordered: currentOrdered, indent: currentIndent, theme: theme)
                 currentIdx = []; currentOrdered = nil; currentIndent = nil
                 continue
             }
@@ -204,30 +219,43 @@ public struct RenderPipeline: @unchecked Sendable {
             } else if isOrdered == currentOrdered && indent == currentIndent {
                 currentIdx.append(i)
             } else {
-                finalizeGroup(&currentIdx, &groups, ordered: currentOrdered, indent: currentIndent)
+                finalizeGroup(&currentIdx, &groups, ordered: currentOrdered, indent: currentIndent, theme: theme)
                 currentIdx = [i]; currentOrdered = isOrdered; currentIndent = indent
             }
         }
-        finalizeGroup(&currentIdx, &groups, ordered: currentOrdered, indent: currentIndent)
+        finalizeGroup(&currentIdx, &groups, ordered: currentOrdered, indent: currentIndent, theme: theme)
         return groups
     }
 
     private func finalizeGroup(_ idx: inout [Int], _ groups: inout BlockGroups,
-                                ordered: Bool?, indent: Int?) {
+                                ordered: Bool?, indent: Int?, theme: MarkupTheme) {
         guard !idx.isEmpty, let ord = ordered, let ind = indent else { return }
-        let lists = buildTextLists(isOrdered: ord, indentLevel: ind)
+        let lists = buildTextLists(isOrdered: ord, indentLevel: ind, theme: theme)
         groups.listGroupFirst.insert(idx.first!)
         groups.listGroupLast.insert(idx.last!)
         for i in idx { groups.listTextLists[i] = lists }
+        if ord {
+            for (itemIndex, blockIndex) in idx.enumerated() {
+                groups.orderedItemIndices[blockIndex] = itemIndex + 1
+            }
+        }
         idx = []
     }
 
-    private func buildTextLists(isOrdered: Bool, indentLevel: Int) -> [NSTextList] {
+    private func buildTextLists(isOrdered: Bool, indentLevel: Int, theme: MarkupTheme) -> [NSTextList] {
+        let resolvedList = theme.list.resolved(
+            for: MarkupBlock(kind: .listItem(isOrdered: isOrdered, indentLevel: 0), text: "", inlines: [], attachment: nil),
+            context: RenderingContext(theme: theme)
+        )
         var lists: [NSTextList] = []
         for level in 0...indentLevel {
-            let fmt: NSTextList.MarkerFormat = (level == 0)
-                ? (isOrdered ? .decimal : .disc)
-                : (isOrdered ? .decimal : .circle)
+            let markerType: ListTheme.MarkerType
+            if level == 0 {
+                markerType = isOrdered ? resolvedList.orderedMarker : resolvedList.unorderedMarker
+            } else {
+                markerType = isOrdered ? resolvedList.nestedOrderedMarker : resolvedList.nestedUnorderedMarker
+            }
+            let fmt = ListTheme.markerFormat(for: markerType)
             lists.append(NSTextList(markerFormat: fmt, options: 0))
         }
         return lists

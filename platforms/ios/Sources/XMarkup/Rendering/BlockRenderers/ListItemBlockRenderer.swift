@@ -5,52 +5,101 @@ import UIKit
 import AppKit
 #endif
 
-/// 列表项渲染器 — 处理 listItem 的 NSTextList、缩进、间距
+/// 列表项渲染器 — 处理 listItem 的标记、缩进、间距
 ///
-/// 通过 `context.listContext` 获取共享的 NSTextList 实例（同一组自动编号）。
+/// 支持两种标记渲染模式（由 `ListTheme.markerMode` 控制）：
+///
+/// - **`.automatic`（默认）**：使用 NSTextList 原生标记，文本干净。
+///   XMarkupUI 层通过自定义 NSLayoutManager 修正 NSTextList 的绘制行为
+///   （如 bullet-code 背景重叠）。
+///
+/// - **`.manual`**：标记作为文本前缀插入（"•\t" / "1.\t"）。
+///   管线通过 `context.textPrefixLength` 自动偏移 inline 范围。
+///   适用于 UILabel 等无 TextKit 的场景。
 public struct ListItemBlockRenderer: BlockRendering, Sendable {
     public init() {}
 
-    public func render(block: MarkupBlock, context: RenderingContext) -> NSMutableAttributedString? {
+    public func render(block: MarkupBlock, context: inout RenderingContext) -> NSMutableAttributedString? {
         guard case .listItem(let isOrdered, let indentLevel) = block.kind else { return nil }
 
         let theme = context.theme
         let listCtx = context.listContext
-        let resolvedParagraph = theme.paragraph.resolved(for: block, context: context)
+        let resolvedList = theme.list.resolved(for: block, context: context)
+
+        let indentUnit = resolvedList.indentUnit
+        let markerPadding = resolvedList.markerPadding
+        let useManual = resolvedList.markerMode == .manual
 
         let paragraphStyle = NSMutableParagraphStyle()
+        let displayText: String
 
-        // NSTextList
-        if let shared = listCtx?.textLists {
-            paragraphStyle.textLists = shared
-        } else {
-            let format: NSTextList.MarkerFormat = isOrdered ? .decimal : .disc
-            var lists: [NSTextList] = []
-            for level in 0...indentLevel {
-                let fmt: NSTextList.MarkerFormat = (level == 0) ? format : (isOrdered ? .decimal : .circle)
-                lists.append(NSTextList(markerFormat: fmt, options: 0))
+        if useManual {
+            // ── 手动模式：文本前缀 ──
+            let prefix: String
+            if isOrdered {
+                let index = listCtx?.orderedItemIndex ?? 1
+                prefix = "\(index)\(resolvedList.orderedMarkerSuffix)\t"
+            } else {
+                prefix = "\(bulletChar(for: resolvedList.unorderedMarker))\t"
             }
-            paragraphStyle.textLists = lists
+            displayText = prefix + block.text
+            context.textPrefixLength = prefix.utf16.count
+
+            // 直接用 headIndent 控制缩进
+            let baseIndent = CGFloat(indentLevel) * indentUnit + markerPadding
+            paragraphStyle.firstLineHeadIndent = baseIndent
+            paragraphStyle.headIndent = baseIndent + indentUnit
+            paragraphStyle.tabStops = [
+                NSTextTab(textAlignment: .left, location: baseIndent + indentUnit, options: [:])
+            ]
+        } else {
+            // ── 自动模式：NSTextList 原生标记 ──
+            displayText = block.text
+
+            // 共享 NSTextList 实例（同一组内保持连续编号）
+            if let shared = listCtx?.textLists {
+                paragraphStyle.textLists = shared
+            } else {
+                let markerType = isOrdered ? resolvedList.orderedMarker : resolvedList.unorderedMarker
+                let format = ListTheme.markerFormat(for: markerType)
+                var lists: [NSTextList] = []
+                for level in 0...indentLevel {
+                    let fmt: NSTextList.MarkerFormat
+                    if level == 0 {
+                        fmt = format
+                    } else {
+                        let nestedType = isOrdered ? resolvedList.nestedOrderedMarker : resolvedList.nestedUnorderedMarker
+                        fmt = ListTheme.markerFormat(for: nestedType)
+                    }
+                    lists.append(NSTextList(markerFormat: fmt, options: 0))
+                }
+                paragraphStyle.textLists = lists
+            }
+
+            // NSTextList 自行管理缩进，此处仅做微调
+            let visualLevel = max(0, indentLevel - 1)
+            paragraphStyle.firstLineHeadIndent = CGFloat(visualLevel) * indentUnit + markerPadding
+            paragraphStyle.headIndent = CGFloat(visualLevel + 1) * indentUnit + markerPadding
+            paragraphStyle.tabStops = [
+                NSTextTab(textAlignment: .left, location: CGFloat(visualLevel + 1) * indentUnit + markerPadding, options: [:])
+            ]
         }
 
-        let visualLevel = max(0, indentLevel - 1)
-        let indentUnit = theme.list.indentUnit
+        // 行间距
+        paragraphStyle.lineSpacing = theme.paragraph.lineSpacing
 
-        paragraphStyle.firstLineHeadIndent = CGFloat(visualLevel) * indentUnit
-        paragraphStyle.headIndent = CGFloat(visualLevel + 1) * indentUnit
-        paragraphStyle.tabStops = [
-            NSTextTab(textAlignment: .left, location: CGFloat(visualLevel + 1) * indentUnit, options: [:])
-        ]
-
+        // 组间距
         if listCtx?.isFirstInGroup ?? true {
-            paragraphStyle.paragraphSpacingBefore = theme.paragraph.spacingBefore
+            paragraphStyle.paragraphSpacingBefore = resolvedList.groupSpacingBefore
+                ?? theme.paragraph.resolved(for: block, context: context).spacingBefore
         } else {
             paragraphStyle.paragraphSpacingBefore = 0
         }
         if listCtx?.isLastInGroup ?? true {
-            paragraphStyle.paragraphSpacing = theme.paragraph.spacingAfter
+            paragraphStyle.paragraphSpacing = resolvedList.groupSpacingAfter
+                ?? theme.paragraph.resolved(for: block, context: context).spacingAfter
         } else {
-            paragraphStyle.paragraphSpacing = 2
+            paragraphStyle.paragraphSpacing = resolvedList.itemSpacing
         }
 
         var attributes: [NSAttributedString.Key: Any] = [
@@ -63,6 +112,21 @@ public struct ListItemBlockRenderer: BlockRendering, Sendable {
         attributes[.xmarkupBlockKind] = blockKindName
         attributes[.xmarkupListItemInfo] = "\(isOrdered ? "ordered" : "unordered"):\(indentLevel)"
 
-        return NSMutableAttributedString(string: block.text, attributes: attributes)
+        return NSMutableAttributedString(string: displayText, attributes: attributes)
+    }
+
+    // MARK: - Bullet Characters (仅 `.manual` 模式使用)
+
+    private func bulletChar(for type: ListTheme.MarkerType) -> String {
+        switch type {
+        case .disc:    return "\u{2022}"   // •
+        case .circle:  return "\u{25E6}"   // ◦
+        case .square:  return "\u{25AA}"   // ▪
+        case .hyphen:  return "\u{2013}"   // –
+        case .check:   return "\u{2713}"   // ✓
+        case .box:     return "\u{2610}"   // ☐
+        case .diamond: return "\u{25C6}"   // ◆
+        default:       return "\u{2022}"   // • (fallback)
+        }
     }
 }

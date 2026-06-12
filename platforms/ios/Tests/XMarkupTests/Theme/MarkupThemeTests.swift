@@ -69,12 +69,14 @@ final class MarkupThemeTests: XCTestCase {
         let theme = MarkupTheme()
         XCTAssertEqual(theme.paragraph.spacingBefore, 8)
         XCTAssertEqual(theme.paragraph.spacingAfter, 8)
-        XCTAssertEqual(theme.paragraph.lineSpacing, 0)
+        XCTAssertEqual(theme.paragraph.lineSpacing, 3)
     }
 
     func testDefaultBlockquoteTheme() {
         let theme = MarkupTheme()
-        XCTAssertEqual(theme.blockquote.indent, 12)
+        XCTAssertEqual(theme.blockquote.indent, 20)
+        // 默认 muted 文字色，对标 Web 实践
+        XCTAssertNotNil(theme.blockquote.textColor, "blockquote 默认应有 muted textColor")
     }
 
     func testDefaultListTheme() {

@@ -15,8 +15,9 @@ public struct ParagraphTheme: @unchecked Sendable, Equatable {
     public var spacingBefore: CGFloat = 8
     /// 段后间距（pt）
     public var spacingAfter: CGFloat = 8
-    /// 行间距（pt）
-    public var lineSpacing: CGFloat = 0
+    /// 行间距（pt，行与行之间的额外间距）
+    /// 默认 3pt，对齐 Web `line-height: normal` 的视觉呼吸感
+    public var lineSpacing: CGFloat = 3
     /// 文本颜色（nil = 跟随系统默认）
     public var textColor: XMColor?
     /// 文本对齐（nil = 跟随系统默认 .natural）
@@ -28,7 +29,7 @@ public struct ParagraphTheme: @unchecked Sendable, Equatable {
     public init(
         spacingBefore: CGFloat = 8,
         spacingAfter: CGFloat = 8,
-        lineSpacing: CGFloat = 0,
+        lineSpacing: CGFloat = 3,
         textColor: XMColor? = nil,
         alignment: NSTextAlignment? = nil
     ) {

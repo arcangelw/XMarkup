@@ -353,15 +353,63 @@ final class RenderTests: XCTestCase {
     // MARK: - Ordered List Numbering
 
     func testRenderOrderedListItems() throws {
+        // 默认 `.automatic` 模式：NSTextList 原生标记
         let nsAttr = try parseAndRender("<ol><li>First</li><li>Second</li></ol>")
-        // 验证每个 listItem 的 paragraphStyle.textLists 包含 NSTextList
+        let text = nsAttr.string
+        XCTAssertTrue(text.contains("First"), "文本应包含 'First'")
+        // 默认使用 NSTextList，文本干净无前缀
+        XCTAssertFalse(text.contains("1.\t"), "automatic 模式不应有手动标记前缀")
+        // 验证 paragraphStyle 有 textLists
         nsAttr.enumerateAttribute(.paragraphStyle, in: NSRange(location: 0, length: nsAttr.length)) { value, _, _ in
-            guard let paraStyle = value as? NSParagraphStyle else { return }
-            XCTAssertFalse(paraStyle.textLists.isEmpty, "listItem 应有 textLists")
-            if let firstList = paraStyle.textLists.first {
-                XCTAssertEqual(firstList.markerFormat, .decimal)
+            guard let ps = value as? NSParagraphStyle else { return }
+            XCTAssertFalse(ps.textLists.isEmpty, "应有 NSTextList")
+            XCTAssertEqual(ps.textLists.first?.markerFormat, .decimal)
+        }
+    }
+
+    func testRenderOrderedListManualMode() throws {
+        // `.manual` 模式：文本前缀
+        let theme = MarkupTheme {
+            List { $0.markerMode = .manual }
+        }
+        let nsAttr = try parseAndRender("<ol><li>First</li></ol>", theme: theme)
+        XCTAssertTrue(nsAttr.string.hasPrefix("1.\t"), "manual 模式应有 '1.\\t' 前缀")
+    }
+
+    func testRenderOrderedListWithoutSuffix() throws {
+        // 手动模式 + 空后缀
+        let theme = MarkupTheme {
+            List {
+                $0.markerMode = .manual
+                $0.orderedMarkerSuffix = ""
             }
         }
+        let nsAttr = try parseAndRender("<ol><li>First</li></ol>", theme: theme)
+        XCTAssertTrue(nsAttr.string.hasPrefix("1\t"), "空后缀时标记应为 '1\\t'")
+    }
+
+    func testRenderUnorderedListDefaultMode() throws {
+        // 默认 `.automatic` 模式：NSTextList 原生 bullet，文本干净
+        let nsAttr = try parseAndRender("<ul><li>Item A</li></ul>")
+        XCTAssertTrue(nsAttr.string.contains("Item A"), "应包含文本")
+        // 验证 NSTextList
+        var foundTextList = false
+        nsAttr.enumerateAttribute(.paragraphStyle, in: NSRange(location: 0, length: nsAttr.length)) { value, _, _ in
+            guard let ps = value as? NSParagraphStyle, !ps.textLists.isEmpty else { return }
+            foundTextList = true
+            XCTAssertEqual(ps.textLists.first?.markerFormat, .disc)
+        }
+        XCTAssertTrue(foundTextList, "默认应有 NSTextList(.disc)")
+    }
+
+    func testRenderUnorderedListManualMode() throws {
+        // `.manual` 模式：文本 bullet 前缀
+        let theme = MarkupTheme {
+            List { $0.markerMode = .manual }
+        }
+        let nsAttr = try parseAndRender("<ul><li>Item A</li></ul>", theme: theme)
+        XCTAssertTrue(nsAttr.string.contains("\u{2022}\t"), "manual 模式应有 bullet 前缀")
+        XCTAssertTrue(nsAttr.string.contains("Item A"), "应包含文本")
     }
 
     // MARK: - Subscript / Superscript
@@ -464,13 +512,15 @@ final class RenderTests: XCTestCase {
     // MARK: - 列表间距优化验证
 
     func testRenderListItemSpacingInGroup() throws {
+        // 默认 `.automatic`：NSTextList + 组共享实例
         let nsAttr = try parseAndRender("<ul><li>A</li><li>B</li><li>C</li></ul>")
         var paragraphStyles: [NSParagraphStyle] = []
         nsAttr.enumerateAttribute(.paragraphStyle, in: NSRange(location: 0, length: nsAttr.length)) { value, _, _ in
             if let ps = value as? NSParagraphStyle { paragraphStyles.append(ps) }
         }
+        XCTAssertEqual(paragraphStyles.count, 3, "三个列表项应各有一个 paragraphStyle")
         for ps in paragraphStyles {
-            XCTAssertFalse(ps.textLists.isEmpty, "listItem 应有 textLists")
+            XCTAssertFalse(ps.textLists.isEmpty, "automatic 模式应有 NSTextList")
         }
     }
 
@@ -481,7 +531,7 @@ final class RenderTests: XCTestCase {
             if let ps = value as? NSParagraphStyle { foundHeadIndent = ps.headIndent }
         }
         XCTAssertNotNil(foundHeadIndent)
-        XCTAssertEqual(foundHeadIndent ?? 0, 24, accuracy: 0.1, "顶级列表 headIndent 应为 24pt")
+        XCTAssertEqual(foundHeadIndent ?? 0, 28, accuracy: 0.1, "headIndent = indentUnit(24) + markerPadding(4) = 28pt")
     }
 
     // MARK: - hr 自定义 key 验证
@@ -741,5 +791,48 @@ final class RenderTests: XCTestCase {
         XCTAssertTrue(text.contains("&"), "&amp; 应解码为 &")
         XCTAssertTrue(text.contains("<"), "&lt; 应解码为 <")
         XCTAssertTrue(text.contains(">"), "&gt; 应解码为 >")
+    }
+
+    // MARK: - Code in List (bullet 与 code background 重叠问题)
+
+    func testCodeAtStartOfUnorderedList() throws {
+        // `.manual` 模式：验证 bullet 与 code 背景不重叠
+        let theme = MarkupTheme {
+            List { $0.markerMode = .manual }
+        }
+        let nsAttr = try parseAndRender("<ul><li><code>MainActor</code> text</li></ul>", theme: theme)
+        let text = nsAttr.string
+        XCTAssertTrue(text.contains("•\t"), "无序列表应包含 bullet 前缀 '•\\t'")
+        XCTAssertTrue(text.contains("MainActor"), "文本应包含 'MainActor'")
+
+        // headIndent 将文本推离 bullet 区域
+        var foundHeadIndent = false
+        nsAttr.enumerateAttribute(.paragraphStyle, in: NSRange(location: 0, length: nsAttr.length)) { v, _, _ in
+            guard let p = v as? NSParagraphStyle else { return }
+            XCTAssertGreaterThan(p.headIndent, 0, "无序列表 headIndent 应 > 0 防止 bullet-code 重叠")
+            foundHeadIndent = true
+        }
+        XCTAssertTrue(foundHeadIndent)
+
+        // 验证 code inline 有背景色
+        var foundCodeBG = false
+        nsAttr.enumerateAttribute(.backgroundColor, in: NSRange(location: 0, length: nsAttr.length)) { v, _, _ in
+            if v != nil { foundCodeBG = true }
+        }
+        XCTAssertTrue(foundCodeBG, "code 应有背景色")
+
+        // 验证背景色不变覆盖 bullet：bullet "•\t" 是前缀文本的一部分
+        // 确认背景色范围在 bullet 之后
+        let fullRange = NSRange(location: 0, length: nsAttr.length)
+        var bgRanges: [NSRange] = []
+        nsAttr.enumerateAttribute(.backgroundColor, in: fullRange) { v, range, _ in
+            if v != nil { bgRanges.append(range) }
+        }
+        for bgRange in bgRanges {
+            let bgText = (text as NSString).substring(with: bgRange)
+            // 背景色应在 code 文本 "MainActor" 范围，不应包含 bullet
+            XCTAssertTrue(bgText.contains("MainActor"), "背景色应仅在 code 文本范围: \(bgText)")
+            XCTAssertFalse(bgText.contains("•"), "背景色不应包含 bullet 字符")
+        }
     }
 }

@@ -17,7 +17,7 @@ import AppKit
 public struct DefaultBlockRenderer: BlockRendering, Sendable {
     public init() {}
 
-    public func render(block: MarkupBlock, context: RenderingContext) -> NSMutableAttributedString? {
+    public func render(block: MarkupBlock, context: inout RenderingContext) -> NSMutableAttributedString? {
         // 这些类型由专门的子渲染器处理
         if case .table = block.kind { return nil }
         if block.attachment != nil { return nil }

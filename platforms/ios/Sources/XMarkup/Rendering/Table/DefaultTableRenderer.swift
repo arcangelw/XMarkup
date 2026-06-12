@@ -14,7 +14,7 @@ import AppKit
 public struct DefaultTableRenderer: BlockRendering, Sendable {
     public init() {}
 
-    public func render(block: MarkupBlock, context: RenderingContext) -> NSMutableAttributedString? {
+    public func render(block: MarkupBlock, context: inout RenderingContext) -> NSMutableAttributedString? {
         guard case .table(let structure) = block.kind else { return nil }
         return renderTable(structure, theme: context.theme)
     }
@@ -26,10 +26,15 @@ public struct DefaultTableRenderer: BlockRendering, Sendable {
         guard !structure.rows.isEmpty else { return result }
 
         let columnCount = max(structure.columnCount, 1)
-        let columnPadding: CGFloat = 16
+        let resolved = theme.table.resolved(
+            for: MarkupBlock(kind: .table(structure), text: "", inlines: [], attachment: nil),
+            context: RenderingContext(theme: theme)
+        )
+        let columnPadding = resolved.columnPadding
 
         // 预计算 body 和 header 字体
-        let monoFont = theme.preformatted.font
+        let monoFont = resolved.bodyFont
+            ?? theme.preformatted.font
             ?? XMFont.monospacedSystemFont(ofSize: theme.baseFont.pointSize, weight: .regular)
         let boldMonoFont = deriveFont(from: monoFont, addTraits: traitBold)
 

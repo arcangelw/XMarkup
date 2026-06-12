@@ -12,7 +12,7 @@ import AppKit
 public struct DefaultAttachmentRenderer: BlockRendering, Sendable {
     public init() {}
 
-    public func render(block: MarkupBlock, context: RenderingContext) -> NSMutableAttributedString? {
+    public func render(block: MarkupBlock, context: inout RenderingContext) -> NSMutableAttributedString? {
         guard let attachment = block.attachment else { return nil }
 
         // 构建块级基础属性
@@ -41,7 +41,8 @@ public struct DefaultAttachmentRenderer: BlockRendering, Sendable {
         case .placeholder:
             nsAttachment = createPlaceholderAttachment(
                 content: attachment.content,
-                suggestedSize: attachment.suggestedSize
+                suggestedSize: attachment.suggestedSize,
+                theme: theme
             )
         case .imageProvider(let provider):
             let src = extractSrc(from: attachment.content)
@@ -56,7 +57,8 @@ public struct DefaultAttachmentRenderer: BlockRendering, Sendable {
             } else {
                 nsAttachment = createPlaceholderAttachment(
                     content: attachment.content,
-                    suggestedSize: attachment.suggestedSize
+                    suggestedSize: attachment.suggestedSize,
+                    theme: theme
                 )
             }
         case .customAttachment(let factory):
@@ -65,7 +67,8 @@ public struct DefaultAttachmentRenderer: BlockRendering, Sendable {
             } else {
                 nsAttachment = createPlaceholderAttachment(
                     content: attachment.content,
-                    suggestedSize: attachment.suggestedSize
+                    suggestedSize: attachment.suggestedSize,
+                    theme: theme
                 )
             }
         }
@@ -87,7 +90,8 @@ public struct DefaultAttachmentRenderer: BlockRendering, Sendable {
 
     private func createPlaceholderAttachment(
         content: AttachmentContent,
-        suggestedSize: CGSize
+        suggestedSize: CGSize,
+        theme: MarkupTheme
     ) -> NSTextAttachment {
         let symbolName: String
         switch content {
@@ -97,8 +101,8 @@ public struct DefaultAttachmentRenderer: BlockRendering, Sendable {
         case .custom: symbolName = "square"
         }
 
-        let size = suggestedSize.width > 0 ? suggestedSize : CGSize(width: 200, height: 150)
-        let image = createPlaceholderImage(systemName: symbolName, size: size)
+        let size = suggestedSize.width > 0 ? suggestedSize : theme.mediaTheme.defaultSize
+        let image = createPlaceholderImage(systemName: symbolName, size: size, theme: theme)
 
         let attachment = NSTextAttachment()
         attachment.image = image
@@ -106,26 +110,39 @@ public struct DefaultAttachmentRenderer: BlockRendering, Sendable {
         return attachment
     }
 
-    private func createPlaceholderImage(systemName: String, size: CGSize) -> XMImage {
+    private func createPlaceholderImage(systemName: String, size: CGSize, theme: MarkupTheme) -> XMImage {
+        let bgColor = theme.mediaTheme.placeholderBackgroundColor
+        let tintColor = theme.mediaTheme.placeholderTintColor
         #if canImport(UIKit)
         let symbolConfig = UIImage.SymbolConfiguration(pointSize: min(size.width, size.height) * 0.3)
         let symbol = UIImage(systemName: systemName, withConfiguration: symbolConfig) ?? UIImage()
         let renderer = UIGraphicsImageRenderer(size: size)
         return renderer.image { context in
-            UIColor.systemGray.withAlphaComponent(0.1).setFill()
+            (bgColor ?? UIColor.systemGray.withAlphaComponent(0.1)).setFill()
             context.fill(CGRect(origin: .zero, size: size))
             let symbolSize = symbol.size
-            symbol.draw(at: CGPoint(
-                x: (size.width - symbolSize.width) / 2,
-                y: (size.height - symbolSize.height) / 2
-            ))
+            if let tint = tintColor {
+                let tintedSymbol = symbol.withTintColor(tint, renderingMode: .alwaysOriginal)
+                tintedSymbol.draw(at: CGPoint(
+                    x: (size.width - symbolSize.width) / 2,
+                    y: (size.height - symbolSize.height) / 2
+                ))
+            } else {
+                symbol.draw(at: CGPoint(
+                    x: (size.width - symbolSize.width) / 2,
+                    y: (size.height - symbolSize.height) / 2
+                ))
+            }
         }
         #elseif canImport(AppKit)
         let symbol = NSImage(systemSymbolName: systemName, accessibilityDescription: nil) ?? NSImage(size: size)
         let image = NSImage(size: size, flipped: false) { rect in
-            NSColor.systemGray.withAlphaComponent(0.1).setFill()
+            (bgColor ?? NSColor.systemGray.withAlphaComponent(0.1)).setFill()
             rect.fill()
             let symbolSize = symbol.size
+            if let tint = tintColor {
+                tint.setFill()
+            }
             symbol.draw(
                 at: NSPoint(x: (size.width - symbolSize.width) / 2, y: (size.height - symbolSize.height) / 2),
                 from: NSRect.zero,

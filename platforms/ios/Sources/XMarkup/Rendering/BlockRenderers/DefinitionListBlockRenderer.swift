@@ -13,7 +13,7 @@ import AppKit
 public struct DefinitionListBlockRenderer: BlockRendering, Sendable {
     public init() {}
 
-    public func render(block: MarkupBlock, context: RenderingContext) -> NSMutableAttributedString? {
+    public func render(block: MarkupBlock, context: inout RenderingContext) -> NSMutableAttributedString? {
         let theme = context.theme
         let resolved = theme.definitionList.resolved(for: block, context: context)
 
@@ -25,11 +25,17 @@ public struct DefinitionListBlockRenderer: BlockRendering, Sendable {
             let resolvedParagraph = theme.paragraph.resolved(for: block, context: context)
             paragraphStyle.paragraphSpacingBefore = resolvedParagraph.spacingBefore
             paragraphStyle.paragraphSpacing = resolved.pairSpacing
+            paragraphStyle.lineSpacing = resolvedParagraph.lineSpacing
 
             var attributes: [NSAttributedString.Key: Any] = [
                 .font: theme.baseFont,
                 .paragraphStyle: paragraphStyle,
             ]
+
+            // 术语文字颜色
+            if let termTextColor = resolved.termTextColor {
+                attributes[.foregroundColor] = termTextColor
+            }
 
             // 术语字体：优先使用配置字体，否则正文 + bold
             if let termFont = resolved.termFont {
@@ -57,6 +63,7 @@ public struct DefinitionListBlockRenderer: BlockRendering, Sendable {
             let resolvedParagraph = theme.paragraph.resolved(for: block, context: context)
             paragraphStyle.paragraphSpacingBefore = resolvedParagraph.spacingBefore
             paragraphStyle.paragraphSpacing = resolvedParagraph.spacingAfter
+            paragraphStyle.lineSpacing = resolvedParagraph.lineSpacing
 
             var attributes: [NSAttributedString.Key: Any] = [
                 .font: theme.baseFont,

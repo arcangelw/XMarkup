@@ -15,24 +15,25 @@ import AppKit
 public struct HorizontalRuleRenderer: BlockRendering, Sendable {
     public init() {}
 
-    public func render(block: MarkupBlock, context: RenderingContext) -> NSMutableAttributedString? {
+    public func render(block: MarkupBlock, context: inout RenderingContext) -> NSMutableAttributedString? {
         guard case .horizontalRule = block.kind else { return nil }
 
         let theme = context.theme
+        let resolved = theme.horizontalRule.resolved(for: block, context: context)
 
         let attachment = NSTextAttachment()
-        let lineWidth: CGFloat = 300
-        let lineHeight: CGFloat = 1
+        let lineWidth: CGFloat = resolved.minWidth
+        let lineHeight: CGFloat = resolved.height
 
         #if canImport(UIKit)
         let renderer = UIGraphicsImageRenderer(size: CGSize(width: lineWidth, height: lineHeight))
-        let lineColor = theme.horizontalRule.color ?? UIColor.separator
+        let lineColor = resolved.color ?? UIColor.separator
         attachment.image = renderer.image { ctx in
             lineColor.setFill()
             ctx.fill(CGRect(x: 0, y: 0, width: lineWidth, height: lineHeight))
         }
         #elseif canImport(AppKit)
-        let lineColor = theme.horizontalRule.color ?? NSColor.separatorColor
+        let lineColor = resolved.color ?? NSColor.separatorColor
         let image = NSImage(size: NSSize(width: lineWidth, height: lineHeight), flipped: false) { rect in
             lineColor.setFill()
             rect.fill()
@@ -43,8 +44,13 @@ public struct HorizontalRuleRenderer: BlockRendering, Sendable {
 
         attachment.bounds = CGRect(x: 0, y: 0, width: lineWidth, height: lineHeight)
 
+        // 段落间距从 Theme 消费
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.paragraphSpacingBefore = resolved.spacingBefore
+        paragraphStyle.paragraphSpacing = resolved.spacingAfter
+
         let result = NSMutableAttributedString(attachment: attachment)
-        result.addAttribute(.paragraphStyle, value: NSMutableParagraphStyle(),
+        result.addAttribute(.paragraphStyle, value: paragraphStyle,
                             range: NSRange(location: 0, length: result.length))
         result.addAttribute(.xmarkupBlockKind, value: "horizontalRule",
                             range: NSRange(location: 0, length: result.length))

@@ -17,11 +17,14 @@ public struct ListContext: @unchecked Sendable, Equatable {
     public var isFirstInGroup: Bool
     /// 是否为列表组最后一项（控制段落间距）
     public var isLastInGroup: Bool
+    /// 有序列表项在组内的序号（1-based），非 nil 时使用手动标记渲染
+    public var orderedItemIndex: Int?
 
-    public init(textLists: [NSTextList], isFirstInGroup: Bool = false, isLastInGroup: Bool = false) {
+    public init(textLists: [NSTextList], isFirstInGroup: Bool = false, isLastInGroup: Bool = false, orderedItemIndex: Int? = nil) {
         self.textLists = textLists
         self.isFirstInGroup = isFirstInGroup
         self.isLastInGroup = isLastInGroup
+        self.orderedItemIndex = orderedItemIndex
     }
 }
 
@@ -45,6 +48,9 @@ public struct RenderingContext: @unchecked Sendable {
     public var listContext: ListContext?
     /// 插件间共享状态（[String: Any]，仅用于自定义插件间通信）
     public var sharedState: [String: Any]
+    /// 块渲染器在文本前插入的标记前缀 UTF-16 长度（如 "1.\t" = 3）
+    /// 管线据此自动偏移 inline 范围，无需启发式检测
+    public var textPrefixLength: Int = 0
 
     public init(theme: MarkupTheme, blockIndex: Int = 0, totalBlocks: Int = 0) {
         self.theme = theme

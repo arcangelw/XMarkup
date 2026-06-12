@@ -12,7 +12,7 @@ import AppKit
 public struct BlockquoteBlockRenderer: BlockRendering, Sendable {
     public init() {}
 
-    public func render(block: MarkupBlock, context: RenderingContext) -> NSMutableAttributedString? {
+    public func render(block: MarkupBlock, context: inout RenderingContext) -> NSMutableAttributedString? {
         guard case .blockquote = block.kind else { return nil }
 
         let theme = context.theme

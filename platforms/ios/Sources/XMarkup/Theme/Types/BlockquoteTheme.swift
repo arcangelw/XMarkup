@@ -8,8 +8,8 @@ import AppKit
 
 /// 引用块主题配置
 public struct BlockquoteTheme: @unchecked Sendable, Equatable {
-    /// 文本缩进量（pt）
-    public var indent: CGFloat = 12
+    /// 文本缩进量（pt），默认 20pt 对齐 Web `margin: 1em 40px` 的视觉效果
+    public var indent: CGFloat = 20
     /// 文本颜色
     public var textColor: XMColor?
     /// 左侧边框宽度（pt）
@@ -26,7 +26,13 @@ public struct BlockquoteTheme: @unchecked Sendable, Equatable {
     /// 动态 resolve
     public var resolve: (@Sendable (MarkupBlock, RenderingContext, ResolvedBlockquoteTheme) -> ResolvedBlockquoteTheme?)?
 
-    public init() {}
+    public init() {
+        #if canImport(UIKit)
+        self.textColor = .secondaryLabel
+        #elseif canImport(AppKit)
+        self.textColor = .secondaryLabelColor
+        #endif
+    }
 
     /// 最终解析结果
     public struct ResolvedBlockquoteTheme: @unchecked Sendable, Equatable {

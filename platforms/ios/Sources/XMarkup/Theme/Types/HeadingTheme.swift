@@ -35,9 +35,17 @@ public struct HeadingTheme: @unchecked Sendable, Equatable {
     public var bold: Bool = true
     /// 文本颜色（nil = 跟随 baseFont 颜色）
     public var textColor: XMColor?
-    /// 段前间距缩放系数（baseFont.pointSize × 此值）
-    public var spacingBeforeScale: CGFloat = 0.50
-    /// 段后间距缩放系数（baseFont.pointSize × spacingBeforeScale × 此值）
+    /// 段前间距全局缩放系数（默认 1.0 = 使用逐级内置比例）
+    ///
+    /// 内置逐级比例：h1=0.50, h2=0.60, h3=0.70, h4=0.80, h5=0.90, h6=1.00。
+    /// 设为 0.5 则所有级别的段前间距减半。
+    /// 需要精确 pt 值时使用 LevelOverride.spacingBefore。
+    public var spacingBeforeScale: CGFloat = 1.0
+    /// 段后间距与段前间距的比例（默认 0.50）
+    ///
+    /// 例如 h1 段前 = baseFont.pointSize × 0.50 × spacingBeforeScale，
+    /// 段后 = 段前 × spacingAfterRatio。
+    /// 需要精确 pt 值时使用 LevelOverride.spacingAfter。
     public var spacingAfterRatio: CGFloat = 0.50
 
     // MARK: Level 2 — 逐级别覆盖
@@ -122,15 +130,15 @@ public struct HeadingTheme: @unchecked Sendable, Equatable {
     public func resolved(for block: MarkupBlock, baseFont: XMFont, context: RenderingContext) -> ResolvedHeadingTheme? {
         guard case .heading(let level) = block.kind else { return nil }
 
-        // Step 1: 基础默认
-        let baseSpacing = baseFont.pointSize * spacingBeforeScale
+        // Step 1: 基础默认（段前间距 = baseFont.pointSize × 逐级因子 × 全局缩放）
+        let baseSpacingBefore = baseFont.pointSize * spacingFactor(for: level) * spacingBeforeScale
         var result = ResolvedHeadingTheme(
             level: level,
             fontSize: baseFont.pointSize * scaleForLevel(level),
             bold: bold,
             textColor: textColor,
-            spacingBefore: baseSpacing,
-            spacingAfter: baseSpacing * spacingAfterRatio
+            spacingBefore: baseSpacingBefore,
+            spacingAfter: baseSpacingBefore * spacingAfterRatio
         )
 
         // Step 2: 逐级别覆盖
@@ -171,6 +179,18 @@ public struct HeadingTheme: @unchecked Sendable, Equatable {
         case .h4: scale.h4
         case .h5: scale.h5
         case .h6: scale.h6
+        }
+    }
+
+    /// 逐级默认间距因子（对齐 Web 浏览器行为：级别越低间距越小）
+    private func spacingFactor(for level: Level) -> CGFloat {
+        switch level {
+        case .h1: 0.50
+        case .h2: 0.60
+        case .h3: 0.70
+        case .h4: 0.80
+        case .h5: 0.90
+        case .h6: 1.00
         }
     }
 

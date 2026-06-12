@@ -36,6 +36,8 @@ public struct MarkupTheme: @unchecked Sendable, Equatable {
     public var horizontalRule: HorizontalRuleTheme
     /// 定义列表主题
     public var definitionList: DefinitionListTheme
+    /// 媒体主题（占位图样式）
+    public var mediaTheme: MediaTheme
 
     // MARK: - 内联主题（按 kind 类型化）
 
@@ -73,15 +75,43 @@ public struct MarkupTheme: @unchecked Sendable, Equatable {
         self.table = .default
         self.horizontalRule = .default
         self.definitionList = .default
+        self.mediaTheme = .default
         self.bold = .default
         self.italic = .default
         self.underline = .default
         self.strikethrough = .default
-        self.codeInline = .default
-        self.mark = .default
+        // code 默认缩小 87.5% + 浅灰背景，对齐 Web 浏览器样式
+        self.codeInline = InlineTextTheme(
+            backgroundColor: {
+                #if canImport(UIKit)
+                return UIColor.systemGray6
+                #elseif canImport(AppKit)
+                return NSColor.systemGray.withAlphaComponent(0.15)
+                #endif
+            }(),
+            sizeScale: 0.875
+        )
+        // mark 默认黄色背景（Web 标准 #FFFF00 → systemYellow）
+        self.mark = InlineTextTheme(
+            backgroundColor: {
+                #if canImport(UIKit)
+                return UIColor.systemYellow.withAlphaComponent(0.3)
+                #elseif canImport(AppKit)
+                return NSColor.systemYellow.withAlphaComponent(0.3)
+                #endif
+            }()
+        )
         self.link = .default
-        self.subscriptText = .default
-        self.superscript = .default
+        // subscript 默认 65% 字号 + 下移 20% baseline
+        self.subscriptText = InlineTextTheme(
+            fontScale: 0.65,
+            baselineOffset: -baseFont.pointSize * 0.2
+        )
+        // superscript 默认 65% 字号 + 上移 35% baseline
+        self.superscript = InlineTextTheme(
+            fontScale: 0.65,
+            baselineOffset: baseFont.pointSize * 0.35
+        )
         self.media = .placeholder
     }
 
@@ -97,6 +127,7 @@ public struct MarkupTheme: @unchecked Sendable, Equatable {
             && lhs.table == rhs.table
             && lhs.horizontalRule == rhs.horizontalRule
             && lhs.definitionList == rhs.definitionList
+            && lhs.mediaTheme == rhs.mediaTheme
             && lhs.bold == rhs.bold
             && lhs.italic == rhs.italic
             && lhs.underline == rhs.underline

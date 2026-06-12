@@ -14,6 +14,8 @@ import AppKit
 public struct DefinitionListTheme: @unchecked Sendable, Equatable {
     /// 术语字体（nil = 继承正文字体 + bold trait）
     public var termFont: XMFont?
+    /// 术语文字颜色（nil = 继承正文颜色）
+    public var termTextColor: XMColor?
     /// 描述左侧缩进（pt），默认 24pt
     public var descriptionIndent: CGFloat = 24
     /// 描述文字颜色（nil = 继承正文颜色）
@@ -28,6 +30,7 @@ public struct DefinitionListTheme: @unchecked Sendable, Equatable {
 
     public struct ResolvedDefinitionListTheme: @unchecked Sendable, Equatable {
         public var termFont: XMFont?
+        public var termTextColor: XMColor?
         public var descriptionIndent: CGFloat
         public var descriptionColor: XMColor?
         public var pairSpacing: CGFloat
@@ -42,6 +45,7 @@ public struct DefinitionListTheme: @unchecked Sendable, Equatable {
     public func resolved(for block: MarkupBlock, context: RenderingContext) -> ResolvedDefinitionListTheme {
         var result = ResolvedDefinitionListTheme(
             termFont: termFont,
+            termTextColor: termTextColor,
             descriptionIndent: descriptionIndent,
             descriptionColor: descriptionColor,
             pairSpacing: pairSpacing
@@ -56,6 +60,7 @@ public struct DefinitionListTheme: @unchecked Sendable, Equatable {
 
     public static func == (lhs: DefinitionListTheme, rhs: DefinitionListTheme) -> Bool {
         lhs.termFont == rhs.termFont
+            && lhs.termTextColor == rhs.termTextColor
             && lhs.descriptionIndent == rhs.descriptionIndent
             && lhs.descriptionColor == rhs.descriptionColor
             && lhs.pairSpacing == rhs.pairSpacing

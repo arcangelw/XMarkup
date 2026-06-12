@@ -9,6 +9,9 @@ import AppKit
 extension MarkupTheme {
 
     /// 通用主题
+    ///
+    /// 所有默认值已在 `MarkupTheme.init()` 中设置，此预设仅显式声明
+    /// 与 init() 不同或需要强调的配置项。
     public static let `default`: MarkupTheme = {
         MarkupTheme {
             BaseFont(.systemFont(ofSize: 16))
@@ -16,25 +19,7 @@ extension MarkupTheme {
                 $0.scale = .default
                 $0.bold = true
             }
-            Code {
-                // 字号缩小约 87.5% 以对齐 Web 中 code 的视觉比例
-                // font 不硬编码 — 由 inline renderer 从当前 run 的字号动态派生等宽字体
-                $0.sizeScale = 0.875
-                #if canImport(UIKit)
-                $0.backgroundColor = .systemGray6
-                #elseif canImport(AppKit)
-                $0.backgroundColor = .systemGray.withAlphaComponent(0.15)
-                #endif
-            }
-            Mark {
-                // Web 标准 background-color: yellow（#FFFF00）
-                #if canImport(UIKit)
-                $0.backgroundColor = .systemYellow
-                #elseif canImport(AppKit)
-                $0.backgroundColor = .systemYellow
-                #endif
-            }
-            // Pre 默认浅灰背景，对齐 Web 浏览器样式
+            // Pre 浅灰背景，对齐 Web 浏览器样式
             Preformatted {
                 #if canImport(UIKit)
                 $0.backgroundColor = .systemGray6
@@ -115,21 +100,6 @@ extension MarkupTheme {
                 $0.scale = .default
                 $0.bold = true
             }
-            Code {
-                $0.sizeScale = 0.875
-                #if canImport(UIKit)
-                $0.backgroundColor = .systemGray6
-                #elseif canImport(AppKit)
-                $0.backgroundColor = .systemGray.withAlphaComponent(0.15)
-                #endif
-            }
-            Mark {
-                #if canImport(UIKit)
-                $0.backgroundColor = .systemYellow
-                #elseif canImport(AppKit)
-                $0.backgroundColor = .systemYellow
-                #endif
-            }
             Preformatted {
                 #if canImport(UIKit)
                 $0.backgroundColor = .systemGray6
@@ -158,14 +128,6 @@ extension MarkupTheme {
                 $0.textColor = .secondaryLabel
                 #elseif canImport(AppKit)
                 $0.textColor = .secondaryLabelColor
-                #endif
-            }
-            Code {
-                $0.sizeScale = 0.875
-                #if canImport(UIKit)
-                $0.backgroundColor = .systemGray6
-                #elseif canImport(AppKit)
-                $0.backgroundColor = .textBackgroundColor
                 #endif
             }
             Preformatted {

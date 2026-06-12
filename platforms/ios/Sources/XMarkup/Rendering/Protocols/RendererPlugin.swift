@@ -6,7 +6,7 @@ import Foundation
 ///
 /// ```swift
 /// struct MyPlugin: RendererPlugin {
-///     func render(block: MarkupBlock, context: RenderingContext) -> NSMutableAttributedString? {
+///     func render(block: MarkupBlock, context: inout RenderingContext) -> NSMutableAttributedString? {
 ///         // 只处理 blockquote，其余交由默认渲染器
 ///         guard case .blockquote = block.kind else { return nil }
 ///         // 自定义渲染逻辑...
@@ -18,7 +18,7 @@ public protocol RendererPlugin: BlockRendering, InlineRendering,
 
 extension RendererPlugin {
     /// 默认不处理任何 block
-    public func render(block: MarkupBlock, context: RenderingContext) -> NSMutableAttributedString? { nil }
+    public func render(block: MarkupBlock, context: inout RenderingContext) -> NSMutableAttributedString? { nil }
 
     /// 默认不处理任何 inline
     public func apply(inline: MarkupInline, to attributed: NSMutableAttributedString,

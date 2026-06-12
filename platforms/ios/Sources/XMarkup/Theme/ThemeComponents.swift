@@ -105,6 +105,14 @@ public func HorizontalRule(_ configure: @escaping @Sendable (inout HorizontalRul
     TypedThemeComponent(field: \.horizontalRule, configure: configure)
 }
 
+/// 配置媒体主题（占位图样式）
+///
+/// 注意：`Media(...)` 函数配置 `MediaRenderingStrategy`（加载策略），
+/// 此函数配置 `MediaTheme`（占位图视觉效果）。
+public func MediaAppearance(_ configure: @escaping @Sendable (inout MediaTheme) -> Void) -> TypedThemeComponent<MediaTheme> {
+    TypedThemeComponent(field: \.mediaTheme, configure: configure)
+}
+
 // MARK: - 内联主题 DSL 入口（9 个）
 
 /// 配置粗体主题

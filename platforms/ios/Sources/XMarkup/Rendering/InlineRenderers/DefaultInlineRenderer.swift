@@ -28,6 +28,7 @@ public struct DefaultInlineRenderer: InlineRendering, Sendable {
         switch inline.kind {
         case .bold:
             applyFontTrait(traitBold, to: nsRange, in: attributed, context: context)
+            applyInlineTextTheme(context.theme.bold, to: nsRange, in: attributed, context: context)
 
         case .italic:
             applyFontTrait(traitItalic, to: nsRange, in: attributed, context: context)
@@ -37,12 +38,15 @@ public struct DefaultInlineRenderer: InlineRendering, Sendable {
                 attributed.addAttribute(.kern, value: overlapKern,
                                         range: NSRange(location: nsRange.upperBound - 1, length: 1))
             }
+            applyInlineTextTheme(context.theme.italic, to: nsRange, in: attributed, context: context)
 
         case .underline:
             attributed.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: nsRange)
+            applyInlineTextTheme(context.theme.underline, to: nsRange, in: attributed, context: context)
 
         case .strikethrough:
             attributed.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: nsRange)
+            applyInlineTextTheme(context.theme.strikethrough, to: nsRange, in: attributed, context: context)
 
         case .code:
             let codeTheme = context.theme.codeInline
@@ -61,31 +65,23 @@ public struct DefaultInlineRenderer: InlineRendering, Sendable {
                     }
                 }
                 attributed.addAttribute(.font, value: codeFont, range: subrange)
-                // 只在没有已有 backgroundColor（如 mark/span 背景色）时才设置 code 背景色
+                // 背景色：只在没有已有 backgroundColor（如 mark/span 背景色）时才设置
                 var effectiveRange = NSRange()
                 let existing = attributed.attribute(.backgroundColor, at: subrange.location,
                                                     longestEffectiveRange: &effectiveRange, in: subrange)
-                if existing == nil {
-                    let bg = codeTheme.backgroundColor
-                    #if canImport(UIKit)
-                    attributed.addAttribute(.backgroundColor, value: bg ?? UIColor.systemGray6, range: subrange)
-                    #elseif canImport(AppKit)
-                    attributed.addAttribute(.backgroundColor, value: bg
-                        ?? NSColor.systemGray.withAlphaComponent(0.2), range: subrange)
-                    #endif
+                if existing == nil, let bg = codeTheme.backgroundColor {
+                    attributed.addAttribute(.backgroundColor, value: bg, range: subrange)
                 }
             }
 
         case .mark:
             let markTheme = context.theme.mark
-            let bg = markTheme.backgroundColor
-            #if canImport(UIKit)
-            attributed.addAttribute(.backgroundColor, value: bg
-                ?? UIColor.systemYellow.withAlphaComponent(0.3), range: nsRange)
-            #elseif canImport(AppKit)
-            attributed.addAttribute(.backgroundColor, value: bg
-                ?? NSColor.systemYellow.withAlphaComponent(0.3), range: nsRange)
-            #endif
+            if let bg = markTheme.backgroundColor {
+                attributed.addAttribute(.backgroundColor, value: bg, range: nsRange)
+            }
+            if let fg = markTheme.textColor {
+                attributed.addAttribute(.foregroundColor, value: fg, range: nsRange)
+            }
 
         case .link(let url):
             let linkTheme = context.theme.link
@@ -103,20 +99,22 @@ public struct DefaultInlineRenderer: InlineRendering, Sendable {
             attributed.addAttribute(.xmarkupLinkURL, value: url, range: nsRange)
 
         case .subscriptText:
+            let subTheme = context.theme.subscriptText
             attributed.enumerateAttribute(.font, in: nsRange, options: []) { value, subrange, _ in
                 if let font = value as? XMFont {
-                    let smallFont = deriveFont(from: font, size: font.pointSize * 0.65)
+                    let smallFont = deriveFont(from: font, size: font.pointSize * subTheme.fontScale)
                     attributed.addAttribute(.font, value: smallFont, range: subrange)
-                    attributed.addAttribute(.baselineOffset, value: -font.pointSize * 0.2, range: subrange)
+                    attributed.addAttribute(.baselineOffset, value: subTheme.baselineOffset, range: subrange)
                 }
             }
 
         case .superscript:
+            let supTheme = context.theme.superscript
             attributed.enumerateAttribute(.font, in: nsRange, options: []) { value, subrange, _ in
                 if let font = value as? XMFont {
-                    let smallFont = deriveFont(from: font, size: font.pointSize * 0.65)
+                    let smallFont = deriveFont(from: font, size: font.pointSize * supTheme.fontScale)
                     attributed.addAttribute(.font, value: smallFont, range: subrange)
-                    attributed.addAttribute(.baselineOffset, value: font.pointSize * 0.35, range: subrange)
+                    attributed.addAttribute(.baselineOffset, value: supTheme.baselineOffset, range: subrange)
                 }
             }
 
@@ -141,6 +139,42 @@ public struct DefaultInlineRenderer: InlineRendering, Sendable {
         return true
     }
 
+    // MARK: - InlineTextTheme 应用
+
+    /// 将 InlineTextTheme 的 textColor / backgroundColor / font / sizeScale 应用到 range
+    ///
+    /// 仅当各自属性非 nil / 非默认时才设置，避免覆盖已有属性。
+    private func applyInlineTextTheme(
+        _ theme: InlineTextTheme,
+        to range: NSRange,
+        in attributed: NSMutableAttributedString,
+        context: RenderingContext
+    ) {
+        if let fg = theme.textColor {
+            attributed.addAttribute(.foregroundColor, value: fg, range: range)
+        }
+        if let bg = theme.backgroundColor {
+            // 只在没有已有背景色时才设置，避免覆盖嵌套内联的背景
+            var effectiveRange = NSRange()
+            let existing = attributed.attribute(.backgroundColor, at: range.location,
+                                                longestEffectiveRange: &effectiveRange, in: range)
+            if existing == nil {
+                attributed.addAttribute(.backgroundColor, value: bg, range: range)
+            }
+        }
+        if theme.sizeScale != 1.0 {
+            attributed.enumerateAttribute(.font, in: range, options: []) { value, subrange, _ in
+                let currentFont = value as? XMFont ?? context.theme.baseFont
+                attributed.addAttribute(.font,
+                    value: deriveFont(from: currentFont, size: currentFont.pointSize * theme.sizeScale),
+                    range: subrange)
+            }
+        }
+        if let font = theme.font {
+            attributed.addAttribute(.font, value: font, range: range)
+        }
+    }
+
     // MARK: - Font Trait
 
     /// 对指定 range 应用字体 trait（bold/italic）
@@ -150,7 +184,7 @@ public struct DefaultInlineRenderer: InlineRendering, Sendable {
     ///
     /// - Note: makeSyntheticItalicFont 通过 CTFontCreateWithFontDescriptor 创建字体，
     ///   matrix 是渲染级参数，不存储在 fontDescriptor 中。后续 deriveFont 读取 descriptor.matrix
-    ///   时得到 identity（b=0），会丢失斜体。此处非 italic 分支主动检测 CTFont 渲染级 matrix 并恢复。
+    ///   时得到 identity（b=0），会丢失斜体。此处非 italic 分支主动检测 CTFont 渲染级矩阵 并恢复。
     private func applyFontTrait(
         _ trait: XMFontDescriptor.SymbolicTraits,
         to range: NSRange,
