@@ -81,10 +81,12 @@ public struct RenderPipeline: @unchecked Sendable {
 
     /// 完整渲染：MarkupDocument → NSAttributedString
     public func render(_ document: MarkupDocument, theme: MarkupTheme = .default) -> NSAttributedString {
-        let totalBlocks = document.blocks.count
+        // BlockNode 树 → 扁平 MarkupBlock[]（供 NSAttributedString 管线使用）
+        let flatBlocks = Flattener.flatten(document.blocks)
+        let totalBlocks = flatBlocks.count
 
         // Phase 1 & 2: Block 渲染（含列表组分析 + inline 渲染）
-        let result = renderBlocks(document.blocks, theme: theme)
+        let result = renderBlocks(flatBlocks, theme: theme)
 
         // Phase 3: NSAttributedString 增强
         for enhancer in enhancers {

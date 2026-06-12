@@ -52,12 +52,16 @@ extension MarkupDocument {
         if blocks.isEmpty {
             let nsRange = NSRange(location: 0, length: (text as NSString).length)
             let inlines = convertToInlines(inlineSpans, in: text, parentRange: nsRange)
-            return MarkupDocument(blocks: [
-                MarkupBlock(kind: .paragraph, text: text.trimmingTrailingNewlines, inlines: inlines, attachment: nil),
-            ])
+            let node = BlockNode.flatBlock(kind: .paragraph, text: text.trimmingTrailingNewlines, inlines: inlines, attachment: nil)
+            return MarkupDocument(blocks: [node])
         }
 
-        return MarkupDocument(blocks: blocks)
+        // Phase 1：扁平 MarkupBlock[] → BlockNode.flatBlock 包装
+        // blocks 是 [MarkupBlock]，显式构造 BlockNode
+        let blockNodes: [BlockNode] = blocks.map { b in
+            BlockNode.flatBlock(kind: b.kind, text: b.text, inlines: b.inlines, attachment: b.attachment)
+        }
+        return MarkupDocument(blocks: blockNodes)
     }
 }
 

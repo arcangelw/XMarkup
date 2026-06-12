@@ -1,6 +1,16 @@
 import XCTest
 @testable import XMarkup
 
+// MARK: - BlockNode 测试辅助（Phase 1 flatBlock 暂存器）
+
+extension BlockNode {
+    /// 测试用 flatBlock 解包（测试中所有 block 都是 flatBlock）
+    fileprivate var fk: BlockKind { guard case .flatBlock(let k, _, _, _) = self else { return .paragraph }; return k }
+    fileprivate var ft: String { guard case .flatBlock(_, let t, _, _) = self else { return "" }; return t }
+    fileprivate var fi: [MarkupInline] { guard case .flatBlock(_, _, let i, _) = self else { return [] }; return i }
+    fileprivate var fa: MarkupAttachment? { guard case .flatBlock(_, _, _, let a) = self else { return nil }; return a }
+}
+
 final class MarkupDocumentBuilderTests: XCTestCase {
 
     private func parse(_ html: String) throws -> XMarkupResult {
@@ -20,16 +30,16 @@ final class MarkupDocumentBuilderTests: XCTestCase {
         let result = try parse("Hello World")
         let doc = MarkupDocument.from(result)
         XCTAssertEqual(doc.blocks.count, 1)
-        XCTAssertEqual(doc.blocks[0].kind, .paragraph)
-        XCTAssertEqual(doc.blocks[0].text, "Hello World")
+        XCTAssertEqual(doc.blocks[0].fk, .paragraph)
+        XCTAssertEqual(doc.blocks[0].ft, "Hello World")
     }
 
     func testSingleParagraph() throws {
         let result = try parse("<p>Hello</p>")
         let doc = MarkupDocument.from(result)
         XCTAssertEqual(doc.blocks.count, 1)
-        XCTAssertEqual(doc.blocks[0].kind, .paragraph)
-        XCTAssertEqual(doc.blocks[0].text, "Hello")
+        XCTAssertEqual(doc.blocks[0].fk, .paragraph)
+        XCTAssertEqual(doc.blocks[0].ft, "Hello")
     }
 
     // MARK: - 标题
@@ -38,18 +48,18 @@ final class MarkupDocumentBuilderTests: XCTestCase {
         let result = try parse("<h1>Title</h1>")
         let doc = MarkupDocument.from(result)
         XCTAssertEqual(doc.blocks.count, 1)
-        if case let .heading(level) = doc.blocks[0].kind {
+        if case let .heading(level) = doc.blocks[0].fk {
             XCTAssertEqual(level, .h1)
         } else {
             XCTFail("Expected .heading(.h1)")
         }
-        XCTAssertEqual(doc.blocks[0].text, "Title")
+        XCTAssertEqual(doc.blocks[0].ft, "Title")
     }
 
     func testHeading3() throws {
         let result = try parse("<h3>Subtitle</h3>")
         let doc = MarkupDocument.from(result)
-        if case let .heading(level) = doc.blocks[0].kind {
+        if case let .heading(level) = doc.blocks[0].fk {
             XCTAssertEqual(level, .h3)
         } else {
             XCTFail("Expected .heading(.h3)")
@@ -62,15 +72,15 @@ final class MarkupDocumentBuilderTests: XCTestCase {
         let result = try parse("<b>bold</b>")
         let doc = MarkupDocument.from(result)
         XCTAssertEqual(doc.blocks.count, 1)
-        XCTAssertEqual(doc.blocks[0].inlines.count, 1)
-        XCTAssertEqual(doc.blocks[0].inlines[0].kind, .bold)
+        XCTAssertEqual(doc.blocks[0].fi.count, 1)
+        XCTAssertEqual(doc.blocks[0].fi[0].kind, .bold)
     }
 
     func testBoldItalicInlines() throws {
         let result = try parse("<b><i>both</i></b>")
         let doc = MarkupDocument.from(result)
-        XCTAssertEqual(doc.blocks[0].inlines.count, 2)
-        let kinds = doc.blocks[0].inlines.map(\.kind)
+        XCTAssertEqual(doc.blocks[0].fi.count, 2)
+        let kinds = doc.blocks[0].fi.map(\.kind)
         XCTAssertTrue(kinds.contains(.bold))
         XCTAssertTrue(kinds.contains(.italic))
     }
@@ -78,8 +88,8 @@ final class MarkupDocumentBuilderTests: XCTestCase {
     func testLinkInline() throws {
         let result = try parse("<a href=\"https://example.com\">click</a>")
         let doc = MarkupDocument.from(result)
-        XCTAssertEqual(doc.blocks[0].inlines.count, 1)
-        if case let .link(url) = doc.blocks[0].inlines[0].kind {
+        XCTAssertEqual(doc.blocks[0].fi.count, 1)
+        if case let .link(url) = doc.blocks[0].fi[0].kind {
             XCTAssertEqual(url, "https://example.com")
         } else {
             XCTFail("Expected .link(url:)")
@@ -92,20 +102,20 @@ final class MarkupDocumentBuilderTests: XCTestCase {
         let result = try parse("<blockquote>quote</blockquote>")
         let doc = MarkupDocument.from(result)
         XCTAssertEqual(doc.blocks.count, 1)
-        XCTAssertEqual(doc.blocks[0].kind, .blockquote)
+        XCTAssertEqual(doc.blocks[0].fk, .blockquote)
     }
 
     func testPreformatted() throws {
         let result = try parse("<pre>code block</pre>")
         let doc = MarkupDocument.from(result)
         XCTAssertEqual(doc.blocks.count, 1)
-        XCTAssertEqual(doc.blocks[0].kind, .preformatted)
+        XCTAssertEqual(doc.blocks[0].fk, .preformatted)
     }
 
     func testHorizontalRule() throws {
         let result = try parse("<hr>")
         let doc = MarkupDocument.from(result)
-        let hrBlock = doc.blocks.first(where: { $0.kind == .horizontalRule })
+        let hrBlock = doc.blocks.first(where: { $0.fk == .horizontalRule })
         XCTAssertNotNil(hrBlock)
     }
 
@@ -115,8 +125,8 @@ final class MarkupDocumentBuilderTests: XCTestCase {
         let result = try parse("<p>First</p><p>Second</p>")
         let doc = MarkupDocument.from(result)
         XCTAssertEqual(doc.blocks.count, 2)
-        XCTAssertEqual(doc.blocks[0].text, "First")
-        XCTAssertEqual(doc.blocks[1].text, "Second")
+        XCTAssertEqual(doc.blocks[0].ft, "First")
+        XCTAssertEqual(doc.blocks[1].ft, "Second")
     }
 
     // MARK: - 列表
@@ -125,11 +135,11 @@ final class MarkupDocumentBuilderTests: XCTestCase {
         let result = try parse("<ul><li>Item</li></ul>")
         let doc = MarkupDocument.from(result)
         let liBlock = doc.blocks.first(where: {
-            if case .listItem = $0.kind { return true }
+            if case .listItem = $0.fk { return true }
             return false
         })
         XCTAssertNotNil(liBlock)
-        if case let .listItem(isOrdered, indentLevel) = liBlock!.kind {
+        if case let .listItem(isOrdered, indentLevel) = liBlock!.fk {
             XCTAssertFalse(isOrdered)
             XCTAssertEqual(indentLevel, 0)
         }
@@ -139,11 +149,11 @@ final class MarkupDocumentBuilderTests: XCTestCase {
         let result = try parse("<ol><li>Item</li></ol>")
         let doc = MarkupDocument.from(result)
         let liBlock = doc.blocks.first(where: {
-            if case .listItem = $0.kind { return true }
+            if case .listItem = $0.fk { return true }
             return false
         })
         XCTAssertNotNil(liBlock)
-        if case let .listItem(isOrdered, _) = liBlock!.kind {
+        if case let .listItem(isOrdered, _) = liBlock!.fk {
             XCTAssertTrue(isOrdered)
         }
     }
@@ -154,8 +164,8 @@ final class MarkupDocumentBuilderTests: XCTestCase {
         let result = try parse("<img src=\"photo.jpg\">")
         let doc = MarkupDocument.from(result)
         XCTAssertEqual(doc.blocks.count, 1)
-        XCTAssertNotNil(doc.blocks[0].attachment)
-        if case let .image(src) = doc.blocks[0].attachment?.content {
+        XCTAssertNotNil(doc.blocks[0].fa)
+        if case let .image(src) = doc.blocks[0].fa?.content {
             XCTAssertEqual(src, "photo.jpg")
         } else {
             XCTFail("Expected .image(src:)")
@@ -165,8 +175,8 @@ final class MarkupDocumentBuilderTests: XCTestCase {
     func testVideoAttachment() throws {
         let result = try parse("<video src=\"movie.mp4\"></video>")
         let doc = MarkupDocument.from(result)
-        XCTAssertNotNil(doc.blocks[0].attachment)
-        if case let .video(src) = doc.blocks[0].attachment?.content {
+        XCTAssertNotNil(doc.blocks[0].fa)
+        if case let .video(src) = doc.blocks[0].fa?.content {
             XCTAssertEqual(src, "movie.mp4")
         } else {
             XCTFail("Expected .video(src:)")
@@ -176,8 +186,8 @@ final class MarkupDocumentBuilderTests: XCTestCase {
     func testVideoWithSourceChild() throws {
         let result = try parse("<video><source src=\"a.mp4\" type=\"video/mp4\"></video>")
         let doc = MarkupDocument.from(result)
-        XCTAssertNotNil(doc.blocks[0].attachment)
-        if case let .video(src) = doc.blocks[0].attachment?.content {
+        XCTAssertNotNil(doc.blocks[0].fa)
+        if case let .video(src) = doc.blocks[0].fa?.content {
             XCTAssertEqual(src, "a.mp4")
         } else {
             XCTFail("Expected .video(src:)")
@@ -187,8 +197,8 @@ final class MarkupDocumentBuilderTests: XCTestCase {
     func testAudioAttachment() throws {
         let result = try parse("<audio src=\"song.mp3\"></audio>")
         let doc = MarkupDocument.from(result)
-        XCTAssertNotNil(doc.blocks[0].attachment)
-        if case let .audio(src) = doc.blocks[0].attachment?.content {
+        XCTAssertNotNil(doc.blocks[0].fa)
+        if case let .audio(src) = doc.blocks[0].fa?.content {
             XCTAssertEqual(src, "song.mp3")
         } else {
             XCTFail("Expected .audio(src:)")
@@ -200,8 +210,8 @@ final class MarkupDocumentBuilderTests: XCTestCase {
     func testCSSForegroundColor() throws {
         let result = try parse("<span style=\"color:#FF0000\">red</span>")
         let doc = MarkupDocument.from(result)
-        XCTAssertEqual(doc.blocks[0].inlines.count, 1)
-        if case let .span(styles) = doc.blocks[0].inlines[0].kind {
+        XCTAssertEqual(doc.blocks[0].fi.count, 1)
+        if case let .span(styles) = doc.blocks[0].fi[0].kind {
             XCTAssertTrue(styles.contains(.foregroundColor("#FF0000")))
         } else {
             XCTFail("Expected .span(styles:)")
@@ -212,7 +222,7 @@ final class MarkupDocumentBuilderTests: XCTestCase {
         let result = try parse("<custom>text</custom>")
         let doc = MarkupDocument.from(result)
         XCTAssertFalse(doc.blocks.isEmpty)
-        XCTAssertEqual(doc.blocks[0].text, "text")
+        XCTAssertEqual(doc.blocks[0].ft, "text")
     }
 
     // MARK: - 复合场景
@@ -221,19 +231,19 @@ final class MarkupDocumentBuilderTests: XCTestCase {
         let result = try parse("<h1><b>Bold</b> Title</h1>")
         let doc = MarkupDocument.from(result)
         XCTAssertEqual(doc.blocks.count, 1)
-        if case .heading(.h1) = doc.blocks[0].kind {
+        if case .heading(.h1) = doc.blocks[0].fk {
             // 正确
         } else {
             XCTFail("Expected .heading(.h1)")
         }
-        XCTAssertTrue(doc.blocks[0].inlines.contains(where: { $0.kind == .bold }))
+        XCTAssertTrue(doc.blocks[0].fi.contains(where: { $0.kind == .bold }))
     }
 
     func testParagraphWithMixedInlines() throws {
         let result = try parse("<p><b>bold</b> <i>italic</i> <a href=\"https://example.com\">link</a></p>")
         let doc = MarkupDocument.from(result)
         XCTAssertEqual(doc.blocks.count, 1)
-        let kinds = doc.blocks[0].inlines.map(\.kind)
+        let kinds = doc.blocks[0].fi.map(\.kind)
         XCTAssertTrue(kinds.contains(.bold))
         XCTAssertTrue(kinds.contains(.italic))
         XCTAssertTrue(kinds.contains(where: {
@@ -248,8 +258,8 @@ final class MarkupDocumentBuilderTests: XCTestCase {
         let result = try parse("<p><b>bold</b> text</p>")
         let doc = MarkupDocument.from(result)
         XCTAssertEqual(doc.blocks.count, 1)
-        XCTAssertEqual(doc.blocks[0].inlines.count, 1)
-        XCTAssertEqual(doc.blocks[0].inlines[0].kind, .bold)
+        XCTAssertEqual(doc.blocks[0].fi.count, 1)
+        XCTAssertEqual(doc.blocks[0].fi[0].kind, .bold)
     }
 
     func testInlineRangeRelativeToBlock() throws {
@@ -257,7 +267,7 @@ final class MarkupDocumentBuilderTests: XCTestCase {
         let result = try parse("<p>Hello <b>bold</b></p>")
         let doc = MarkupDocument.from(result)
         XCTAssertEqual(doc.blocks.count, 1)
-        guard let inline = doc.blocks[0].inlines.first else {
+        guard let inline = doc.blocks[0].fi.first else {
             XCTFail("Expected inline")
             return
         }
@@ -274,11 +284,11 @@ final class MarkupDocumentBuilderTests: XCTestCase {
         let result = try parse("<article>A</article><section>B</section>")
         let doc = MarkupDocument.from(result)
         XCTAssertFalse(doc.blocks.isEmpty)
-        let allText = doc.blocks.map(\.text).joined()
+        let allText = doc.blocks.map(\.ft).joined()
         XCTAssertTrue(allText.contains("A"))
         XCTAssertTrue(allText.contains("B"))
         // 关键：不应重复
-        let countA = doc.blocks.filter { $0.text.contains("A") }.count
+        let countA = doc.blocks.filter { $0.ft.contains("A") }.count
         XCTAssertEqual(countA, 1, "A 不应重复出现在多个 block 中")
     }
 
@@ -295,12 +305,12 @@ final class MarkupDocumentBuilderTests: XCTestCase {
         let result = try parse("<ol><li>outer<ul><li>inner</li></ul></li></ol>")
         let doc = MarkupDocument.from(result)
         let listItems = doc.blocks.filter {
-            if case .listItem = $0.kind { return true }
+            if case .listItem = $0.fk { return true }
             return false
         }
         XCTAssertGreaterThanOrEqual(listItems.count, 2)
         let innerItem = listItems.last!
-        if case let .listItem(isOrdered, _) = innerItem.kind {
+        if case let .listItem(isOrdered, _) = innerItem.fk {
             XCTAssertFalse(isOrdered, "内层 <ul><li> 应为无序")
         }
     }
@@ -308,7 +318,7 @@ final class MarkupDocumentBuilderTests: XCTestCase {
     func testCSSTextAlignInline() throws {
         let result = try parse("<p style=\"text-align:center\">centered</p>")
         let doc = MarkupDocument.from(result)
-        let inlines = doc.blocks.flatMap(\.inlines)
+        let inlines = doc.blocks.flatMap(\.fi)
         let hasTextAlign = inlines.contains {
             if case .span(let styles) = $0.kind {
                 return styles.contains(.textAlign("center"))
@@ -323,7 +333,7 @@ final class MarkupDocumentBuilderTests: XCTestCase {
     func testCSSBackgroundColor() throws {
         let result = try parse("<span style=\"background-color:#00FF00\">green</span>")
         let doc = MarkupDocument.from(result)
-        let hasStyle = doc.blocks.flatMap(\.inlines).contains {
+        let hasStyle = doc.blocks.flatMap(\.fi).contains {
             if case .span(let styles) = $0.kind {
                 return styles.contains(.backgroundColor("#00FF00"))
             }
@@ -335,7 +345,7 @@ final class MarkupDocumentBuilderTests: XCTestCase {
     func testCSSFontSize() throws {
         let result = try parse("<span style=\"font-size:20px\">big</span>")
         let doc = MarkupDocument.from(result)
-        let hasStyle = doc.blocks.flatMap(\.inlines).contains {
+        let hasStyle = doc.blocks.flatMap(\.fi).contains {
             if case .span(let styles) = $0.kind {
                 return styles.contains(.fontSize(20))
             }
@@ -347,7 +357,7 @@ final class MarkupDocumentBuilderTests: XCTestCase {
     func testCSSFontWeight() throws {
         let result = try parse("<span style=\"font-weight:bold\">bold</span>")
         let doc = MarkupDocument.from(result)
-        let hasStyle = doc.blocks.flatMap(\.inlines).contains {
+        let hasStyle = doc.blocks.flatMap(\.fi).contains {
             if case .span(let styles) = $0.kind {
                 return styles.contains(.fontWeight("bold"))
             }
@@ -359,7 +369,7 @@ final class MarkupDocumentBuilderTests: XCTestCase {
     func testCSSFontStyle() throws {
         let result = try parse("<span style=\"font-style:italic\">italic</span>")
         let doc = MarkupDocument.from(result)
-        let hasStyle = doc.blocks.flatMap(\.inlines).contains {
+        let hasStyle = doc.blocks.flatMap(\.fi).contains {
             if case .span(let styles) = $0.kind {
                 return styles.contains(.fontStyle("italic"))
             }
@@ -371,7 +381,7 @@ final class MarkupDocumentBuilderTests: XCTestCase {
     func testCSSTextDecoration() throws {
         let result = try parse("<span style=\"text-decoration:underline\">under</span>")
         let doc = MarkupDocument.from(result)
-        let hasStyle = doc.blocks.flatMap(\.inlines).contains {
+        let hasStyle = doc.blocks.flatMap(\.fi).contains {
             if case .span(let styles) = $0.kind {
                 return styles.contains(.textDecoration("underline"))
             }
@@ -383,7 +393,7 @@ final class MarkupDocumentBuilderTests: XCTestCase {
     func testCSSLineHeight() throws {
         let result = try parse("<span style=\"line-height:1.5\">text</span>")
         let doc = MarkupDocument.from(result)
-        let hasStyle = doc.blocks.flatMap(\.inlines).contains {
+        let hasStyle = doc.blocks.flatMap(\.fi).contains {
             if case .span(let styles) = $0.kind {
                 return styles.contains(.lineHeight(1.5))
             }
@@ -397,7 +407,7 @@ final class MarkupDocumentBuilderTests: XCTestCase {
         // 使用纯数字值测试
         let result = try parse("<span style=\"letter-spacing:2\">spaced</span>")
         let doc = MarkupDocument.from(result)
-        let hasStyle = doc.blocks.flatMap(\.inlines).contains {
+        let hasStyle = doc.blocks.flatMap(\.fi).contains {
             if case .span(let styles) = $0.kind {
                 return styles.contains(.letterSpacing(2))
             }
@@ -412,7 +422,7 @@ final class MarkupDocumentBuilderTests: XCTestCase {
         let result = try parse("<b>🎉hello</b>")
         let doc = MarkupDocument.from(result)
         XCTAssertEqual(doc.blocks.count, 1)
-        guard let inline = doc.blocks[0].inlines.first else {
+        guard let inline = doc.blocks[0].fi.first else {
             XCTFail("Expected bold inline")
             return
         }
@@ -425,7 +435,7 @@ final class MarkupDocumentBuilderTests: XCTestCase {
     func testChineseTextRange() throws {
         let result = try parse("<b>中文</b>测试")
         let doc = MarkupDocument.from(result)
-        guard let inline = doc.blocks[0].inlines.first else {
+        guard let inline = doc.blocks[0].fi.first else {
             XCTFail("Expected bold inline")
             return
         }
@@ -439,8 +449,8 @@ final class MarkupDocumentBuilderTests: XCTestCase {
         let result = try parse("<p><b>A</b><i>B</i><u>C</u></p>")
         let doc = MarkupDocument.from(result)
         XCTAssertEqual(doc.blocks.count, 1)
-        XCTAssertEqual(doc.blocks[0].inlines.count, 3)
-        let ranges = doc.blocks[0].inlines.map(\.range)
+        XCTAssertEqual(doc.blocks[0].fi.count, 3)
+        let ranges = doc.blocks[0].fi.map(\.range)
         for i in 0 ..< ranges.count - 1 {
             let end = ranges[i].start + ranges[i].length
             XCTAssertLessThanOrEqual(end, ranges[i + 1].start, "内联 range 不应重叠")
@@ -452,19 +462,19 @@ final class MarkupDocumentBuilderTests: XCTestCase {
     func testDivisionBlock() throws {
         let result = try parse("<div>text</div>")
         let doc = MarkupDocument.from(result)
-        let divBlocks = doc.blocks.filter { $0.kind == .division }
+        let divBlocks = doc.blocks.filter { $0.fk == .division }
         XCTAssertFalse(divBlocks.isEmpty)
-        XCTAssertEqual(divBlocks[0].text, "text")
+        XCTAssertEqual(divBlocks[0].ft, "text")
     }
 
     func testTableCellBlocks() throws {
         let result = try parse("<table><tr><td>A</td><td>B</td></tr></table>")
         let doc = MarkupDocument.from(result)
         // 现在表格作为一个块产出，内容在 TableStructure 中
-        let tableBlock = doc.blocks.first { if case .table = $0.kind { return true }; return false }
+        let tableBlock = doc.blocks.first { if case .table = $0.fk { return true }; return false }
         XCTAssertNotNil(tableBlock, "应产出 table 块")
 
-        if case .table(let structure) = tableBlock!.kind {
+        if case .table(let structure) = tableBlock!.fk {
             XCTAssertEqual(structure.rows.count, 1, "应为 1 行")
             XCTAssertEqual(structure.columnCount, 2, "应为 2 列")
             XCTAssertEqual(structure.rows[0][0].text, "A")
@@ -477,14 +487,14 @@ final class MarkupDocumentBuilderTests: XCTestCase {
     func testSubscriptTag() throws {
         let result = try parse("<p>H<sub>2</sub>O</p>")
         let doc = MarkupDocument.from(result)
-        let subInline = doc.blocks[0].inlines.first { $0.kind == .subscriptText }
+        let subInline = doc.blocks[0].fi.first { $0.kind == .subscriptText }
         XCTAssertNotNil(subInline, "<sub> 应解析为 .subscriptText")
     }
 
     func testSuperscriptTag() throws {
         let result = try parse("<p>10<sup>th</sup></p>")
         let doc = MarkupDocument.from(result)
-        let supInline = doc.blocks[0].inlines.first { $0.kind == .superscript }
+        let supInline = doc.blocks[0].fi.first { $0.kind == .superscript }
         XCTAssertNotNil(supInline, "<sup> 应解析为 .superscript")
     }
 
@@ -493,9 +503,9 @@ final class MarkupDocumentBuilderTests: XCTestCase {
     func testTableWithHeaders() throws {
         let result = try parse("<table><tr><th>H1</th><th>H2</th></tr><tr><td>A</td><td>B</td></tr></table>")
         let doc = MarkupDocument.from(result)
-        let tableBlock = doc.blocks.first { if case .table = $0.kind { return true }; return false }
+        let tableBlock = doc.blocks.first { if case .table = $0.fk { return true }; return false }
         XCTAssertNotNil(tableBlock)
-        if case .table(let structure) = tableBlock!.kind {
+        if case .table(let structure) = tableBlock!.fk {
             XCTAssertEqual(structure.rows.count, 2, "应为 2 行")
             XCTAssertEqual(structure.headerRowCount, 1, "第一行为表头")
             XCTAssertEqual(structure.rows[0][0].kind, .tableHeader)
@@ -506,9 +516,9 @@ final class MarkupDocumentBuilderTests: XCTestCase {
     func testEmptyTableRow() throws {
         let result = try parse("<table><tr></tr><tr><td>A</td></tr></table>")
         let doc = MarkupDocument.from(result)
-        let tableBlock = doc.blocks.first { if case .table = $0.kind { return true }; return false }
+        let tableBlock = doc.blocks.first { if case .table = $0.fk { return true }; return false }
         XCTAssertNotNil(tableBlock, "空行不应导致崩溃")
-        if case .table(let structure) = tableBlock!.kind {
+        if case .table(let structure) = tableBlock!.fk {
             XCTAssertEqual(structure.rows.count, 1, "空行应被跳过")
             XCTAssertEqual(structure.rows[0][0].text, "A")
         }
@@ -518,14 +528,14 @@ final class MarkupDocumentBuilderTests: XCTestCase {
         let html = "<table><tr><td>A</td></tr></table><p>sep</p><table><tr><td>B</td></tr></table>"
         let result = try parse(html)
         let doc = MarkupDocument.from(result)
-        let tableBlocks = doc.blocks.filter { if case .table = $0.kind { return true }; return false }
+        let tableBlocks = doc.blocks.filter { if case .table = $0.fk { return true }; return false }
         XCTAssertEqual(tableBlocks.count, 2, "两个 <table> 应产出两个 table 块")
     }
 
     func testTableRowAndCellKinds() throws {
         let result = try parse("<table><tr><td>Cell</td></tr></table>")
         let doc = MarkupDocument.from(result)
-        guard case .table(let structure) = doc.blocks.first?.kind else {
+        guard case .table(let structure) = doc.blocks.first?.fk else {
             XCTFail("应产出 table 块"); return
         }
         // 验证 table 内子节点的 resolvedKind
@@ -537,6 +547,6 @@ final class MarkupDocumentBuilderTests: XCTestCase {
         let result = try parse("<img src=\"photo.jpg\">")
         let doc = MarkupDocument.from(result)
         guard let block = doc.blocks.first else { XCTFail("应产出块"); return }
-        XCTAssertNotNil(block.attachment, "零文本 media 应生成附件块")
+        XCTAssertNotNil(block.fa, "零文本 media 应生成附件块")
     }
 }

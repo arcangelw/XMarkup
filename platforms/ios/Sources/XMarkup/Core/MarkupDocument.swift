@@ -1,22 +1,32 @@
 import Foundation
 
-/// 平台无关的标记文档，从 C++ 引擎的 flat spans 一次性构建
+/// 平台无关的标记文档，从 C++ 引擎的 flat spans 构建为 BlockNode 树
+///
+/// 两种渲染路径：
+/// - `render()` → NSAttributedString（Apple 平台，当前）
+/// - 未来：`makeView()` → UIView（通过 BlockNode 树直接构建）
 ///
 /// 使用方式：
 /// ```swift
 /// // 快速初始化：一行代码完成 parse → build
 /// let doc = try MarkupDocument.from(html: "<h1>Title</h1><p>Hello <b>world</b></p>")
 ///
-/// // 渲染 — 命名对齐 RenderPipeline
-/// let nsAttr = doc.render(theme: .default)           // → NSAttributedString
-/// let attr = doc.renderAttributed(theme: .default)   // → AttributedString
+/// // 渲染为 NSAttributedString
+/// let nsAttr = doc.render(theme: .default)
+/// textView.attributedText = nsAttr
 /// ```
 public struct MarkupDocument: Sendable, Equatable {
-    /// 段落级块列表
-    public let blocks: [MarkupBlock]
+    /// 块节点树（跨平台核心模型）
+    ///
+    /// 保留 HTML 的嵌套结构。通过 Flattener 压平后送入 NSAttributedString 管线。
+    public let blocks: [BlockNode]
 
-    public init(blocks: [MarkupBlock]) {
+    /// 文档元数据
+    public let metadata: DocumentMetadata
+
+    public init(blocks: [BlockNode], metadata: DocumentMetadata = DocumentMetadata()) {
         self.blocks = blocks
+        self.metadata = metadata
     }
 
     // MARK: - 便利初始化
@@ -39,26 +49,19 @@ public struct MarkupDocument: Sendable, Equatable {
         return from(result)
     }
 
-    /// 从 XMarkupResult 构建（实现见 MarkupDocumentBuilder.swift）
-    // public static func from(_ result: XMarkupResult) -> MarkupDocument
+    // from(_:) 实现在 MarkupDocumentBuilder.swift 中
 
-    // MARK: - Render（对齐 RenderPipeline 命名）
+    // MARK: - Render（Apple 平台 NSAttributedString 路径）
 
-    // ---- render = NSAttributedString 输出 ----
-
-    /// 渲染为 NSAttributedString（NS 层输出）
+    /// 渲染为 NSAttributedString
+    ///
+    /// 流程：
+    ///   BlockNode[] → Flattener → MarkupBlock[] → RenderPipeline → NSAttributedString
     ///
     /// - Parameters:
     ///   - theme: 渲染主题，默认 `.default`
     ///   - pipeline: 渲染管线，默认 `RenderPipeline.default`
     /// - Returns: 渲染后的 NSAttributedString
-    ///
-    /// ```swift
-    /// let nsAttr = doc.render()                              // 默认
-    /// let dark = doc.render(theme: .dark)                    // 自定义主题
-    /// let custom = doc.render(pipeline: myPipeline)          // 自定义管线
-    /// textView.attributedText = nsAttr
-    /// ```
     public func render(
         theme: MarkupTheme = .default,
         pipeline: RenderPipeline = .default
@@ -66,12 +69,7 @@ public struct MarkupDocument: Sendable, Equatable {
         pipeline.render(self, theme: theme)
     }
 
-    /// 渲染为 AttributedString（便利包装）
-    ///
-    /// - Parameters:
-    ///   - theme: 渲染主题，默认 `.default`
-    ///   - pipeline: 渲染管线，默认 `RenderPipeline.default`
-    /// - Returns: 渲染后的 AttributedString
+    /// 渲染为 AttributedString（Apple 平台便利包装）
     public func renderAttributed(
         theme: MarkupTheme = .default,
         pipeline: RenderPipeline = .default
@@ -82,13 +80,7 @@ public struct MarkupDocument: Sendable, Equatable {
     // MARK: - Document Operations
 
     /// 追加内容（聊天场景）
-    ///
-    /// ```swift
-    /// let doc1 = try MarkupDocument.from(html: "<p>Hello</p>")
-    /// let doc2 = try MarkupDocument.from(html: "<p>World</p>")
-    /// let combined = doc1.appending(doc2)
-    /// ```
     public func appending(_ other: MarkupDocument) -> MarkupDocument {
-        MarkupDocument(blocks: blocks + other.blocks)
+        MarkupDocument(blocks: blocks + other.blocks, metadata: metadata)
     }
 }
