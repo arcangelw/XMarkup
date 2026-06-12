@@ -12,7 +12,7 @@ import AppKit
 /// 每个 block 的 inlines 按注册顺序依次询问 inlineRenderers。
 ///
 /// 直接操作 NSMutableAttributedString，无需 AttributedString 桥接。
-/// inline.range 是 NSRange，与块文本的 NSMutableAttributedString 直接对应。
+/// inline.range 是 TextRange，通过 .nsRange 桥接到 NSMutableAttributedString 的 range。
 ///
 /// 所有 font 设置通过 `deriveFont` / `makeSyntheticItalicFont` 从当前字体派生，
 /// 不使用硬编码系统字体，确保 trait 累积和 matrix 不丢失。
@@ -21,7 +21,7 @@ public struct DefaultInlineRenderer: InlineRendering, Sendable {
 
     public func apply(inline: MarkupInline, to attributed: NSMutableAttributedString,
                       blockText: String, context: RenderingContext) -> Bool {
-        let nsRange = inline.range
+        let nsRange = inline.range.nsRange
         guard nsRange.length > 0 else { return true }
 
         switch inline.kind {

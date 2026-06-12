@@ -422,7 +422,7 @@ extension MarkupDocument {
 
             guard adjustedLength > 0 else { continue }
 
-            let relativeRange = NSRange(location: relativeLocation, length: adjustedLength)
+            let relativeRange = TextRange(start: relativeLocation, length: adjustedLength)
             inlines.append(MarkupInline(range: relativeRange, kind: kind))
         }
 

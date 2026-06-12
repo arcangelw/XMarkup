@@ -63,14 +63,14 @@ final class MarkupInlineTests: XCTestCase {
     // MARK: - MarkupInline
 
     func testMarkupInlineCreation() {
-        let inline = MarkupInline(range: NSRange(location: 0, length: 5), kind: .bold)
+        let inline = MarkupInline(range: TextRange(start: 0, length: 5), kind: .bold)
         XCTAssertEqual(inline.kind, .bold)
-        XCTAssertEqual(inline.range, NSRange(location: 0, length: 5))
+        XCTAssertEqual(inline.range, TextRange(start: 0, length: 5))
     }
 
     func testMarkupInlineEquality() {
-        let a = MarkupInline(range: NSRange(location: 0, length: 4), kind: .bold)
-        let b = MarkupInline(range: NSRange(location: 0, length: 4), kind: .bold)
+        let a = MarkupInline(range: TextRange(start: 0, length: 4), kind: .bold)
+        let b = MarkupInline(range: TextRange(start: 0, length: 4), kind: .bold)
         XCTAssertEqual(a, b)
     }
 

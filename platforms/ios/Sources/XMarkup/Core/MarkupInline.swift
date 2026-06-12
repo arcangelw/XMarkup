@@ -2,20 +2,21 @@ import Foundation
 
 /// 内联样式（字符级）
 ///
-/// `range` 是相对于所属 `MarkupBlock.text` 的 UTF-16 NSRange 偏移。
+/// `range` 是相对于所属 `MarkupBlock.text` 的 UTF-16 偏移（`TextRange`），
+/// 使用平台无关的 `TextRange` 替代 `NSRange` 以支持跨平台模型统一。
 ///
 /// ```swift
 /// let inline = doc.blocks[0].inlines[0]
-/// // inline.range = NSRange(location: 6, length: 4)
+/// // inline.range = TextRange(start: 6, length: 4)  // 等价于 NSRange(location:6, length:4)
 /// // inline.kind = .bold
 /// ```
 public struct MarkupInline: Sendable, Equatable {
     /// 在所属 block.text 中的范围（相对于块文本起始位置，UTF-16 码元偏移）
-    public let range: NSRange
+    public let range: TextRange
     /// 内联类型
     public let kind: InlineKind
 
-    public init(range: NSRange, kind: InlineKind) {
+    public init(range: TextRange, kind: InlineKind) {
         self.range = range
         self.kind = kind
     }

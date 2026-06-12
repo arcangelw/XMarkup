@@ -18,7 +18,7 @@ final class MarkupBlockTests: XCTestCase {
 
     func testBlockWithInline() {
         let text = "Hello World"
-        let inline = MarkupInline(range: NSRange(location: 0, length: 5), kind: .bold)
+        let inline = MarkupInline(range: TextRange(start: 0, length: 5), kind: .bold)
         let block = MarkupBlock(
             kind: .paragraph,
             text: text,

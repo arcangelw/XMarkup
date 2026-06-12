@@ -262,7 +262,7 @@ final class MarkupDocumentBuilderTests: XCTestCase {
             return
         }
         // "Hello bold" → "bold" 从 index 6 开始，长度 4
-        XCTAssertEqual(inline.range.location, 6)
+        XCTAssertEqual(inline.range.start, 6)
         XCTAssertEqual(inline.range.length, 4)
     }
 
@@ -417,7 +417,7 @@ final class MarkupDocumentBuilderTests: XCTestCase {
             return
         }
         XCTAssertEqual(inline.kind, .bold)
-        XCTAssertEqual(inline.range.location, 0)
+        XCTAssertEqual(inline.range.start, 0)
         let expectedLength = ("🎉hello" as NSString).length
         XCTAssertEqual(inline.range.length, expectedLength)
     }
@@ -430,7 +430,7 @@ final class MarkupDocumentBuilderTests: XCTestCase {
             return
         }
         XCTAssertEqual(inline.kind, .bold)
-        XCTAssertEqual(inline.range.location, 0)
+        XCTAssertEqual(inline.range.start, 0)
         let expectedLength = ("中文" as NSString).length
         XCTAssertEqual(inline.range.length, expectedLength)
     }
@@ -442,8 +442,8 @@ final class MarkupDocumentBuilderTests: XCTestCase {
         XCTAssertEqual(doc.blocks[0].inlines.count, 3)
         let ranges = doc.blocks[0].inlines.map(\.range)
         for i in 0 ..< ranges.count - 1 {
-            let end = ranges[i].location + ranges[i].length
-            XCTAssertLessThanOrEqual(end, ranges[i + 1].location, "内联 range 不应重叠")
+            let end = ranges[i].start + ranges[i].length
+            XCTAssertLessThanOrEqual(end, ranges[i + 1].start, "内联 range 不应重叠")
         }
     }
 
