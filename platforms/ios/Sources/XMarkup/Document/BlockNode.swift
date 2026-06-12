@@ -1,5 +1,11 @@
 import Foundation
 
+/// 列表项 — 包含内容块序列（段落、嵌套列表等）
+public struct ListItem: Sendable, Equatable {
+    public let blocks: [BlockNode]
+    public init(blocks: [BlockNode]) { self.blocks = blocks }
+}
+
 /// 块级节点 — 可嵌套的树结构，支持两个渲染路径：
 ///
 /// 1. NSAttributedString 路径：通过 Flattener 压平为 text + ranges
@@ -20,8 +26,8 @@ public indirect enum BlockNode: Sendable, Equatable {
     case blockquote(children: [BlockNode])
     /// 预格式化
     case preformatted([InlineNode])
-    /// 列表
-    case list(isOrdered: Bool, items: [[BlockNode]])
+    /// 列表（indentLevel 由 Flattener 从递归深度计算）
+    case list(isOrdered: Bool, items: [ListItem])
     /// 水平线
     case horizontalRule
     /// 语义容器（div/article/section/header/footer 等，保留 tag 名）
@@ -32,6 +38,4 @@ public indirect enum BlockNode: Sendable, Equatable {
     case media(attachment: MarkupAttachment)
     /// 自定义扩展点（为未来预留的非标准元素）
     case custom(tag: String, attributes: [String: String], children: [BlockNode])
-    /// 扁平块包装（Phase 1 过渡用，Builder 升级后移除）
-    case flatBlock(kind: BlockKind, text: String, inlines: [MarkupInline], attachment: MarkupAttachment?)
 }

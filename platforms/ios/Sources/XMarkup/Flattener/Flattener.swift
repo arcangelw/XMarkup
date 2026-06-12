@@ -17,12 +17,13 @@ public enum Flattener {
     public static func flatten(_ nodes: [BlockNode]) -> [MarkupBlock] {
         var result: [MarkupBlock] = []
         for node in nodes {
-            flattenNode(node, into: &result)
+            flattenNode(node, indentLevel: 0, into: &result)
         }
         return result
     }
 
-    private static func flattenNode(_ node: BlockNode, into result: inout [MarkupBlock]) {
+    /// 递归展平 BlockNode，indentLevel 追踪列表嵌套深度
+    private static func flattenNode(_ node: BlockNode, indentLevel: Int, into result: inout [MarkupBlock]) {
         switch node {
         case .paragraph(let content):
             let (text, inlines) = flattenText(content)
@@ -34,10 +35,9 @@ public enum Flattener {
                                       text: text, inlines: inlines, attachment: nil))
 
         case .blockquote(let children):
-            // 展平子节点并强制标记为 .blockquote 类型，确保渲染器可识别
             var childResult: [MarkupBlock] = []
             for child in children {
-                flattenNode(child, into: &childResult)
+                flattenNode(child, indentLevel: indentLevel, into: &childResult)
             }
             for block in childResult {
                 result.append(MarkupBlock(kind: .blockquote, text: block.text,
@@ -49,15 +49,24 @@ public enum Flattener {
             result.append(MarkupBlock(kind: .preformatted, text: text, inlines: inlines, attachment: nil))
 
         case .list(let isOrdered, let items):
-            // 展平每个列表项并标记为 .listItem 类型，确保渲染器可识别 NSTextList
-            for itemBlocks in items {
+            for item in items {
                 var itemResult: [MarkupBlock] = []
-                for itemBlock in itemBlocks {
-                    flattenNode(itemBlock, into: &itemResult)
+                for block in item.blocks {
+                    if case .list = block {
+                        // 嵌套列表：indentLevel + 1
+                        flattenNode(block, indentLevel: indentLevel + 1, into: &itemResult)
+                    } else {
+                        flattenNode(block, indentLevel: indentLevel, into: &itemResult)
+                    }
                 }
                 for block in itemResult {
-                    result.append(MarkupBlock(kind: .listItem(isOrdered: isOrdered, indentLevel: 0),
-                                              text: block.text, inlines: block.inlines, attachment: block.attachment))
+                    if case .listItem = block.kind {
+                        result.append(block)  // 嵌套列表项已携带正确的 indentLevel
+                    } else {
+                        result.append(MarkupBlock(
+                            kind: .listItem(isOrdered: isOrdered, indentLevel: indentLevel),
+                            text: block.text, inlines: block.inlines, attachment: block.attachment))
+                    }
                 }
             }
 
@@ -66,22 +75,19 @@ public enum Flattener {
 
         case .division(_, let children):
             for child in children {
-                flattenNode(child, into: &result)
+                flattenNode(child, indentLevel: indentLevel, into: &result)
             }
 
         case .table(let structure):
             result.append(MarkupBlock(kind: .table(structure), text: "", inlines: [], attachment: nil))
 
         case .media(let attachment):
-            result.append(MarkupBlock(kind: .paragraph, text: "\u{FFFC}", inlines: [], attachment: attachment))
+            result.append(MarkupBlock(kind: .media, text: "\u{FFFC}", inlines: [], attachment: attachment))
 
         case .custom(_, _, let children):
             for child in children {
-                flattenNode(child, into: &result)
+                flattenNode(child, indentLevel: indentLevel, into: &result)
             }
-
-        case .flatBlock(let kind, let text, let inlines, let attachment):
-            result.append(MarkupBlock(kind: kind, text: text, inlines: inlines, attachment: attachment))
         }
     }
 

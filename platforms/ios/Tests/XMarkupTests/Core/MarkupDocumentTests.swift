@@ -10,41 +10,29 @@ final class MarkupDocumentTests: XCTestCase {
 
     func testDocumentWithBlocks() {
         let blocks: [BlockNode] = [
-            .flatBlock(kind: .heading(.h1), text: "Title", inlines: [], attachment: nil),
-            .flatBlock(kind: .paragraph, text: "Hello", inlines: [], attachment: nil),
+            .heading(level: 1, [.text("Title")]),
+            .paragraph([.text("Hello")]),
         ]
         let doc = MarkupDocument(blocks: blocks)
         XCTAssertEqual(doc.blocks.count, 2)
     }
 
     func testDocumentEquality() {
-        let a = MarkupDocument(blocks: [
-            .flatBlock(kind: .paragraph, text: "Hi", inlines: [], attachment: nil),
-        ])
-        let b = MarkupDocument(blocks: [
-            .flatBlock(kind: .paragraph, text: "Hi", inlines: [], attachment: nil),
-        ])
+        let a = MarkupDocument(blocks: [.paragraph([.text("Hi")])])
+        let b = MarkupDocument(blocks: [.paragraph([.text("Hi")])])
         XCTAssertEqual(a, b)
     }
 
     func testDocumentAppending() {
-        let doc1 = MarkupDocument(blocks: [
-            .flatBlock(kind: .paragraph, text: "A", inlines: [], attachment: nil),
-        ])
-        let doc2 = MarkupDocument(blocks: [
-            .flatBlock(kind: .paragraph, text: "B", inlines: [], attachment: nil),
-        ])
+        let doc1 = MarkupDocument(blocks: [.paragraph([.text("A")])])
+        let doc2 = MarkupDocument(blocks: [.paragraph([.text("B")])])
         let combined = doc1.appending(doc2)
         XCTAssertEqual(combined.blocks.count, 2)
     }
 
     func testDocumentAppendingPreservesOriginal() {
-        let doc1 = MarkupDocument(blocks: [
-            .flatBlock(kind: .paragraph, text: "A", inlines: [], attachment: nil),
-        ])
-        let doc2 = MarkupDocument(blocks: [
-            .flatBlock(kind: .paragraph, text: "B", inlines: [], attachment: nil),
-        ])
+        let doc1 = MarkupDocument(blocks: [.paragraph([.text("A")])])
+        let doc2 = MarkupDocument(blocks: [.paragraph([.text("B")])])
         _ = doc1.appending(doc2)
         // doc1 是不可变值类型，append 不影响原值
         XCTAssertEqual(doc1.blocks.count, 1)

@@ -1,10 +1,10 @@
 import XCTest
 @testable import XMarkup
 
-// MARK: - BlockNode 测试辅助（适配 S9 结构化 BlockNode）
+// MARK: - BlockNode 测试辅助（纯结构化 BlockNode，无 flatBlock）
 
 extension BlockNode {
-    /// 提取块的逻辑 BlockKind（兼容结构化 + flatBlock 两种形态）
+    /// 提取块的逻辑 BlockKind
     fileprivate var fk: BlockKind {
         switch self {
         case .paragraph:                    return .paragraph
@@ -14,10 +14,9 @@ extension BlockNode {
         case .horizontalRule:              return .horizontalRule
         case .division:                    return .division
         case .table(let structure):        return .table(structure)
-        case .media:                       return .paragraph
+        case .media:                       return .media
         case .list(let isOrdered, _):      return .listItem(isOrdered: isOrdered, indentLevel: 0)
         case .custom:                      return .division
-        case .flatBlock(let kind, _, _, _): return kind
         }
     }
 
@@ -28,12 +27,13 @@ extension BlockNode {
              .preformatted(let nodes),
              .heading(_, let nodes):
             return Flattener.flattenText(nodes).text
-        case .blockquote(let children):
+        case .blockquote(let children),
+             .division(_, let children):
             return children.map(\.ft).joined()
         case .list(_, let items):
-            return items.flatMap { $0 }.map(\.ft).joined()
-        case .flatBlock(_, let t, _, _):
-            return t
+            return items.flatMap { $0.blocks }.map(\.ft).joined()
+        case .custom(_, _, let children):
+            return children.map(\.ft).joined()
         default:
             return ""
         }
@@ -47,23 +47,22 @@ extension BlockNode {
             return Flattener.flattenText(nodes).inlines
         case .heading(_, let nodes):
             return Flattener.flattenText(nodes).inlines
-        case .blockquote(let children):
+        case .blockquote(let children),
+             .division(_, let children):
             return children.flatMap(\.fi)
         case .list(_, let items):
-            return items.flatMap { $0.flatMap(\.fi) }
-        case .flatBlock(_, _, let inlines, _):
-            return inlines
+            return items.flatMap { $0.blocks.flatMap(\.fi) }
+        case .custom(_, _, let children):
+            return children.flatMap(\.fi)
         default:
             return []
         }
     }
 
-    /// 提取块的附件（media 或 flatBlock 附着）
+    /// 提取块的附件
     fileprivate var fa: MarkupAttachment? {
         switch self {
         case .media(let attachment):
-            return attachment
-        case .flatBlock(_, _, _, let attachment):
             return attachment
         default:
             return nil

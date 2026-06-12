@@ -25,6 +25,7 @@ public enum BlockKind: Sendable, Equatable {
     case listItem(isOrdered: Bool, indentLevel: Int)         // <li>
     case division                                            // <div>
     case horizontalRule                                      // <hr>
+    case media                                               // <img>/<video>/<audio>
     case table(TableStructure)                               // <table>
     case tableRow                                            // <tr>
     case tableCell                                           // <td>

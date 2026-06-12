@@ -214,15 +214,20 @@ extension MarkupDocument {
         // 递归子节点
         for child in node.children {
             let childInherited: BlockKind?
-            if child.span.range.location == nodeRange.location && child.span.range.length == nodeRange.length {
-                switch resolvedKind {
-                case .division:
-                    childInherited = nil
-                default:
-                    childInherited = resolvedKind
-                }
-            } else {
+            switch resolvedKind {
+            case .blockquote:
+                // blockquote 所有子节点强制继承父类型
+                childInherited = .blockquote
+            case .division:
+                // 语义容器不强制继承，子节点保留自身类型
                 childInherited = nil
+            default:
+                if child.span.range.location == nodeRange.location
+                    && child.span.range.length == nodeRange.length {
+                    childInherited = resolvedKind
+                } else {
+                    childInherited = nil
+                }
             }
             flattenNode(child, text: text, allSpans: allSpans, inlineSpans: inlineSpans,
                         mediaTags: mediaTags, inheritedKind: childInherited, blocks: &blocks)
@@ -339,7 +344,7 @@ extension MarkupDocument {
         case .division:
             return .division
         case .image, .video, .audio:
-            return .paragraph
+            return .media
         case .table:
             return .table(TableStructure(rows: [], headerRowCount: 0, columnCount: 0))
         case .tableRow:
@@ -555,7 +560,7 @@ extension MarkupDocument {
     /// 规则：
     /// - paragraph/heading/pre/hr/division/table/media → 对应结构化 case
     /// - 连续 listItem（相同 isOrdered）分组为 .list
-    /// - blockquote 当前仍为扁平（无嵌套信息），保持 flatBlock fallback
+    /// - 连续 blockquote 合并为单个节点
     private static func buildStructuredNodes(from blocks: [MarkupBlock]) -> [BlockNode] {
         var result: [BlockNode] = []
         var i = 0
@@ -582,38 +587,48 @@ extension MarkupDocument {
             case .table(let structure):
                 result.append(.table(structure))
 
+            case .media:
+                // 原生处理：不再需要后置检测替换
+                if let attachment = block.attachment {
+                    result.append(.media(attachment: attachment))
+                } else {
+                    let inlineNodes = InlineTreeBuilder.build(from: block.text, inlines: block.inlines)
+                    result.append(.paragraph(inlineNodes))
+                }
+
             case .division:
-                // division 当前无子块信息，保留 flatBlock
-                result.append(.flatBlock(kind: block.kind, text: block.text, inlines: block.inlines, attachment: block.attachment))
+                // division 当前展平为 paragraph 包装在 division 容器中
+                let inlineNodes = InlineTreeBuilder.build(from: block.text, inlines: block.inlines)
+                result.append(.division(tag: "div", children: [.paragraph(inlineNodes)]))
 
             case .listItem(let isOrdered, _):
                 // 收集连续同类型 listItem 分组为 .list
-                var items: [[BlockNode]] = []
+                var items: [ListItem] = []
                 while i < blocks.count, case .listItem(let ordered, _) = blocks[i].kind, ordered == isOrdered {
                     let item = blocks[i]
                     let inlineNodes = InlineTreeBuilder.build(from: item.text, inlines: item.inlines)
-                    items.append([.paragraph(inlineNodes)])
+                    items.append(ListItem(blocks: [.paragraph(inlineNodes)]))
                     i += 1
                 }
                 result.append(.list(isOrdered: isOrdered, items: items))
-                continue // 跳过 i += 1（已在 while 中递增）
+                continue
 
             case .blockquote:
-                // blockquote 当前无嵌套子块信息，使用 paragraph 包装内容
-                let inlineNodes = InlineTreeBuilder.build(from: block.text, inlines: block.inlines)
-                result.append(.blockquote(children: [.paragraph(inlineNodes)]))
+                // 合并连续 blockquote 块为单个节点
+                var children: [BlockNode] = []
+                while i < blocks.count, case .blockquote = blocks[i].kind {
+                    let bq = blocks[i]
+                    let inlineNodes = InlineTreeBuilder.build(from: bq.text, inlines: bq.inlines)
+                    children.append(.paragraph(inlineNodes))
+                    i += 1
+                }
+                result.append(.blockquote(children: children))
+                continue
 
             case .tableRow, .tableCell, .tableHeader:
-                // 这些不应出现在顶层（已被 table 吸收），fallback
-                result.append(.flatBlock(kind: block.kind, text: block.text, inlines: block.inlines, attachment: block.attachment))
-            }
-
-            // 处理媒体附件
-            if let attachment = block.attachment, block.kind == .paragraph || block.kind == .division {
-                // 如果块带附件，替换最后一个节点为 media
-                if !result.isEmpty {
-                    result[result.count - 1] = .media(attachment: attachment)
-                }
+                // 不应出现在顶层（已被 table 吸收），防御性回退为 paragraph
+                let inlineNodes = InlineTreeBuilder.build(from: block.text, inlines: block.inlines)
+                result.append(.paragraph(inlineNodes))
             }
 
             i += 1

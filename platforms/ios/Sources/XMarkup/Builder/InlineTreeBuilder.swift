@@ -113,9 +113,14 @@ public enum InlineTreeBuilder {
 
             // 链式包裹：children → 最内层 inline 包裹 → ... → 最外层
             // chain 顺序 = 最内层在前（Flattener 产出顺序），直接迭代即可
+            // .lineBreak 例外：作为叶子节点，放在兄弟位置而非包裹 children
             var wrapped = children
             for chainInline in chain {
-                wrapped = [wrapInlineNode(kind: chainInline.kind, children: wrapped)]
+                if chainInline.kind == .lineBreak {
+                    wrapped = [.lineBreak] + wrapped
+                } else {
+                    wrapped = [wrapInlineNode(kind: chainInline.kind, children: wrapped)]
+                }
             }
             result.append(contentsOf: wrapped)
 

@@ -13,15 +13,18 @@ public struct MarkupAttachment: Sendable, Equatable {
     public let content: AttachmentContent
     public let suggestedSize: CGSize
     public let alignment: AttachmentAlignment
+    public let altText: String?
 
     public init(
         content: AttachmentContent,
         suggestedSize: CGSize,
-        alignment: AttachmentAlignment = .default
+        alignment: AttachmentAlignment = .default,
+        altText: String? = nil
     ) {
         self.content = content
         self.suggestedSize = suggestedSize
         self.alignment = alignment
+        self.altText = altText
     }
 }
 
