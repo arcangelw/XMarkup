@@ -9,6 +9,7 @@
     public typealias XMColor = UIColor
     public typealias XMFontDescriptor = UIFontDescriptor
     public typealias XMImage = UIImage
+    public typealias XMFontTextStyle = UIFont.TextStyle
 #elseif canImport(AppKit)
     import AppKit
 
@@ -16,6 +17,7 @@
     public typealias XMColor = NSColor
     public typealias XMFontDescriptor = NSFontDescriptor
     public typealias XMImage = NSImage
+    public typealias XMFontTextStyle = NSFont.TextStyle
 #else
     #error("XMarkup requires UIKit (iOS/tvOS) or AppKit (macOS)")
 #endif

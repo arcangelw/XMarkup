@@ -96,6 +96,50 @@ extension MarkupTheme {
         }
     }()
 
+    /// Dynamic Type 主题 — 字号随用户辅助功能设置自动调整
+    ///
+    /// 基于 `preferredFont(forTextStyle: .body)` 构建，所有相对尺寸（heading scale、
+    /// code sizeScale 等）保持与 `.default` 一致，仅基准字号交由系统动态计算。
+    ///
+    /// 使用场景：
+    /// - 需要响应用户「辅助功能 → 字体大小」设置的 App
+    /// - 希望一行代码获得完整 Dynamic Type 支持
+    ///
+    /// - Note: 主题创建时会捕获当前 `preferredFont` 值。若需在
+    ///   `UIContentSizeCategory` 变化时刷新，应在收到
+    ///   `UIContentSizeCategory.didChangeNotification` 后重新创建主题并触发渲染。
+    public static var dynamicType: MarkupTheme {
+        MarkupTheme {
+            BaseFont(textStyle: .body)
+            Heading {
+                $0.scale = .default
+                $0.bold = true
+            }
+            Code {
+                $0.sizeScale = 0.875
+                #if canImport(UIKit)
+                $0.backgroundColor = .systemGray6
+                #elseif canImport(AppKit)
+                $0.backgroundColor = .systemGray.withAlphaComponent(0.15)
+                #endif
+            }
+            Mark {
+                #if canImport(UIKit)
+                $0.backgroundColor = .systemYellow
+                #elseif canImport(AppKit)
+                $0.backgroundColor = .systemYellow
+                #endif
+            }
+            Preformatted {
+                #if canImport(UIKit)
+                $0.backgroundColor = .systemGray6
+                #elseif canImport(AppKit)
+                $0.backgroundColor = .textBackgroundColor
+                #endif
+            }
+        }
+    }
+
     /// 文章阅读主题
     public static let article: MarkupTheme = {
         MarkupTheme {

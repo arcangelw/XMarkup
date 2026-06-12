@@ -31,6 +31,23 @@ public func BaseFont(_ font: XMFont) -> BaseFontComponent {
     BaseFontComponent(font)
 }
 
+/// 使用 Dynamic Type 文本样式设置基础字体
+///
+/// 字体大小随用户辅助功能设置自动调整。
+///
+/// ```swift
+/// let theme = MarkupTheme {
+///     BaseFont(textStyle: .body)
+/// }
+/// ```
+public func BaseFont(textStyle: XMFontTextStyle) -> BaseFontComponent {
+    #if canImport(UIKit)
+    BaseFontComponent(UIFont.preferredFont(forTextStyle: textStyle))
+    #elseif canImport(AppKit)
+    BaseFontComponent(NSFont.preferredFont(forTextStyle: textStyle))
+    #endif
+}
+
 // MARK: - 泛型块级/链接主题组件
 
 /// 泛型主题组件 — 通过 KeyPath 绑定到 MarkupTheme 的对应字段
