@@ -52,15 +52,12 @@ extension MarkupDocument {
         if blocks.isEmpty {
             let nsRange = NSRange(location: 0, length: (text as NSString).length)
             let inlines = convertToInlines(inlineSpans, in: text, parentRange: nsRange)
-            let node = BlockNode.flatBlock(kind: .paragraph, text: text.trimmingTrailingNewlines, inlines: inlines, attachment: nil)
-            return MarkupDocument(blocks: [node])
+            let inlineNodes = InlineTreeBuilder.build(from: text.trimmingTrailingNewlines, inlines: inlines)
+            return MarkupDocument(blocks: [.paragraph(inlineNodes)])
         }
 
-        // Phase 1：扁平 MarkupBlock[] → BlockNode.flatBlock 包装
-        // blocks 是 [MarkupBlock]，显式构造 BlockNode
-        let blockNodes: [BlockNode] = blocks.map { b in
-            BlockNode.flatBlock(kind: b.kind, text: b.text, inlines: b.inlines, attachment: b.attachment)
-        }
+        // 将扁平 MarkupBlock[] 转换为结构化 BlockNode[]
+        let blockNodes = buildStructuredNodes(from: blocks)
         return MarkupDocument(blocks: blockNodes)
     }
 }
@@ -549,6 +546,80 @@ extension MarkupDocument {
         default:
             return .custom(type: "unknown", metadata: ["src": src ?? ""])
         }
+    }
+
+    // MARK: - 结构化 BlockNode 构建
+
+    /// 将扁平 MarkupBlock[] 转换为结构化 BlockNode[]
+    ///
+    /// 规则：
+    /// - paragraph/heading/pre/hr/division/table/media → 对应结构化 case
+    /// - 连续 listItem（相同 isOrdered）分组为 .list
+    /// - blockquote 当前仍为扁平（无嵌套信息），保持 flatBlock fallback
+    private static func buildStructuredNodes(from blocks: [MarkupBlock]) -> [BlockNode] {
+        var result: [BlockNode] = []
+        var i = 0
+
+        while i < blocks.count {
+            let block = blocks[i]
+
+            switch block.kind {
+            case .paragraph:
+                let inlineNodes = InlineTreeBuilder.build(from: block.text, inlines: block.inlines)
+                result.append(.paragraph(inlineNodes))
+
+            case .heading(let level):
+                let inlineNodes = InlineTreeBuilder.build(from: block.text, inlines: block.inlines)
+                result.append(.heading(level: level.rawValue, inlineNodes))
+
+            case .preformatted:
+                let inlineNodes = InlineTreeBuilder.build(from: block.text, inlines: block.inlines)
+                result.append(.preformatted(inlineNodes))
+
+            case .horizontalRule:
+                result.append(.horizontalRule)
+
+            case .table(let structure):
+                result.append(.table(structure))
+
+            case .division:
+                // division 当前无子块信息，保留 flatBlock
+                result.append(.flatBlock(kind: block.kind, text: block.text, inlines: block.inlines, attachment: block.attachment))
+
+            case .listItem(let isOrdered, _):
+                // 收集连续同类型 listItem 分组为 .list
+                var items: [[BlockNode]] = []
+                while i < blocks.count, case .listItem(let ordered, _) = blocks[i].kind, ordered == isOrdered {
+                    let item = blocks[i]
+                    let inlineNodes = InlineTreeBuilder.build(from: item.text, inlines: item.inlines)
+                    items.append([.paragraph(inlineNodes)])
+                    i += 1
+                }
+                result.append(.list(isOrdered: isOrdered, items: items))
+                continue // 跳过 i += 1（已在 while 中递增）
+
+            case .blockquote:
+                // blockquote 当前无嵌套子块信息，使用 paragraph 包装内容
+                let inlineNodes = InlineTreeBuilder.build(from: block.text, inlines: block.inlines)
+                result.append(.blockquote(children: [.paragraph(inlineNodes)]))
+
+            case .tableRow, .tableCell, .tableHeader:
+                // 这些不应出现在顶层（已被 table 吸收），fallback
+                result.append(.flatBlock(kind: block.kind, text: block.text, inlines: block.inlines, attachment: block.attachment))
+            }
+
+            // 处理媒体附件
+            if let attachment = block.attachment, block.kind == .paragraph || block.kind == .division {
+                // 如果块带附件，替换最后一个节点为 media
+                if !result.isEmpty {
+                    result[result.count - 1] = .media(attachment: attachment)
+                }
+            }
+
+            i += 1
+        }
+
+        return result
     }
 }
 

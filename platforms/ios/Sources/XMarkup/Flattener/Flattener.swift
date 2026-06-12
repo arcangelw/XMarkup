@@ -34,24 +34,30 @@ public enum Flattener {
                                       text: text, inlines: inlines, attachment: nil))
 
         case .blockquote(let children):
-            // ⚠️ 纯树路径限制：展平后丢失嵌套层级（quoteDepth 信息不保留）。
-            // 当前 Builder 走 .flatBlock 路径不受影响（kind=.blockquote 已保留）。
-            // Phase 2 升级 Builder 产出结构化 BlockNode 时需传递 quoteDepth 参数。
+            // 展平子节点并强制标记为 .blockquote 类型，确保渲染器可识别
+            var childResult: [MarkupBlock] = []
             for child in children {
-                flattenNode(child, into: &result)
+                flattenNode(child, into: &childResult)
+            }
+            for block in childResult {
+                result.append(MarkupBlock(kind: .blockquote, text: block.text,
+                                          inlines: block.inlines, attachment: block.attachment))
             }
 
         case .preformatted(let content):
             let (text, inlines) = flattenText(content)
             result.append(MarkupBlock(kind: .preformatted, text: text, inlines: inlines, attachment: nil))
 
-        case .list(_, let items):
-            // ⚠️ 纯树路径限制：展平后丢失 isOrdered/indentLevel 信息。
-            // 当前 Builder 走 .flatBlock 路径不受影响（kind=.listItem 已保留完整参数）。
-            // Phase 2 升级 Builder 产出结构化 BlockNode 时需将 isOrdered+indent 传入子块。
+        case .list(let isOrdered, let items):
+            // 展平每个列表项并标记为 .listItem 类型，确保渲染器可识别 NSTextList
             for itemBlocks in items {
+                var itemResult: [MarkupBlock] = []
                 for itemBlock in itemBlocks {
-                    flattenNode(itemBlock, into: &result)
+                    flattenNode(itemBlock, into: &itemResult)
+                }
+                for block in itemResult {
+                    result.append(MarkupBlock(kind: .listItem(isOrdered: isOrdered, indentLevel: 0),
+                                              text: block.text, inlines: block.inlines, attachment: block.attachment))
                 }
             }
 

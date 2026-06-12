@@ -1,14 +1,74 @@
 import XCTest
 @testable import XMarkup
 
-// MARK: - BlockNode 测试辅助（Phase 1 flatBlock 暂存器）
+// MARK: - BlockNode 测试辅助（适配 S9 结构化 BlockNode）
 
 extension BlockNode {
-    /// 测试用 flatBlock 解包（测试中所有 block 都是 flatBlock）
-    fileprivate var fk: BlockKind { guard case .flatBlock(let k, _, _, _) = self else { return .paragraph }; return k }
-    fileprivate var ft: String { guard case .flatBlock(_, let t, _, _) = self else { return "" }; return t }
-    fileprivate var fi: [MarkupInline] { guard case .flatBlock(_, _, let i, _) = self else { return [] }; return i }
-    fileprivate var fa: MarkupAttachment? { guard case .flatBlock(_, _, _, let a) = self else { return nil }; return a }
+    /// 提取块的逻辑 BlockKind（兼容结构化 + flatBlock 两种形态）
+    fileprivate var fk: BlockKind {
+        switch self {
+        case .paragraph:                    return .paragraph
+        case .heading(let level, _):       return .heading(Level(rawValue: level)!)
+        case .blockquote:                  return .blockquote
+        case .preformatted:                return .preformatted
+        case .horizontalRule:              return .horizontalRule
+        case .division:                    return .division
+        case .table(let structure):        return .table(structure)
+        case .media:                       return .paragraph
+        case .list(let isOrdered, _):      return .listItem(isOrdered: isOrdered, indentLevel: 0)
+        case .custom:                      return .division
+        case .flatBlock(let kind, _, _, _): return kind
+        }
+    }
+
+    /// 提取块的文本内容（结构化节点通过 Flattener 展平 InlineNode → String）
+    fileprivate var ft: String {
+        switch self {
+        case .paragraph(let nodes),
+             .preformatted(let nodes),
+             .heading(_, let nodes):
+            return Flattener.flattenText(nodes).text
+        case .blockquote(let children):
+            return children.map(\.ft).joined()
+        case .list(_, let items):
+            return items.flatMap { $0 }.map(\.ft).joined()
+        case .flatBlock(_, let t, _, _):
+            return t
+        default:
+            return ""
+        }
+    }
+
+    /// 提取块的内联样式（结构化节点通过 Flattener 反展平 → [MarkupInline]）
+    fileprivate var fi: [MarkupInline] {
+        switch self {
+        case .paragraph(let nodes),
+             .preformatted(let nodes):
+            return Flattener.flattenText(nodes).inlines
+        case .heading(_, let nodes):
+            return Flattener.flattenText(nodes).inlines
+        case .blockquote(let children):
+            return children.flatMap(\.fi)
+        case .list(_, let items):
+            return items.flatMap { $0.flatMap(\.fi) }
+        case .flatBlock(_, _, let inlines, _):
+            return inlines
+        default:
+            return []
+        }
+    }
+
+    /// 提取块的附件（media 或 flatBlock 附着）
+    fileprivate var fa: MarkupAttachment? {
+        switch self {
+        case .media(let attachment):
+            return attachment
+        case .flatBlock(_, _, _, let attachment):
+            return attachment
+        default:
+            return nil
+        }
+    }
 }
 
 final class MarkupDocumentBuilderTests: XCTestCase {
