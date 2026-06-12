@@ -34,6 +34,8 @@ public struct MarkupTheme: @unchecked Sendable, Equatable {
     public var table: TableTheme
     /// 水平线主题
     public var horizontalRule: HorizontalRuleTheme
+    /// 定义列表主题
+    public var definitionList: DefinitionListTheme
 
     // MARK: - 内联主题（按 kind 类型化）
 
@@ -70,6 +72,7 @@ public struct MarkupTheme: @unchecked Sendable, Equatable {
         self.list = .default
         self.table = .default
         self.horizontalRule = .default
+        self.definitionList = .default
         self.bold = .default
         self.italic = .default
         self.underline = .default
@@ -93,6 +96,7 @@ public struct MarkupTheme: @unchecked Sendable, Equatable {
             && lhs.list == rhs.list
             && lhs.table == rhs.table
             && lhs.horizontalRule == rhs.horizontalRule
+            && lhs.definitionList == rhs.definitionList
             && lhs.bold == rhs.bold
             && lhs.italic == rhs.italic
             && lhs.underline == rhs.underline

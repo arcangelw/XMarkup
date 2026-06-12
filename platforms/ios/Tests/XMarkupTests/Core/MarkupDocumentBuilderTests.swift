@@ -16,6 +16,8 @@ extension BlockNode {
         case .table(let structure):        return .table(structure)
         case .media:                       return .media
         case .list(let isOrdered, _):      return .listItem(isOrdered: isOrdered, indentLevel: 0)
+        case .definitionTerm:              return .definitionTerm
+        case .definitionDescription:       return .definitionDescription
         case .custom:                      return .division
         }
     }
@@ -25,7 +27,9 @@ extension BlockNode {
         switch self {
         case .paragraph(let nodes),
              .preformatted(let nodes),
-             .heading(_, let nodes):
+             .heading(_, let nodes),
+             .definitionTerm(let nodes),
+             .definitionDescription(let nodes):
             return Flattener.flattenText(nodes).text
         case .blockquote(let children),
              .division(_, let children):
@@ -43,7 +47,9 @@ extension BlockNode {
     fileprivate var fi: [MarkupInline] {
         switch self {
         case .paragraph(let nodes),
-             .preformatted(let nodes):
+             .preformatted(let nodes),
+             .definitionTerm(let nodes),
+             .definitionDescription(let nodes):
             return Flattener.flattenText(nodes).inlines
         case .heading(_, let nodes):
             return Flattener.flattenText(nodes).inlines

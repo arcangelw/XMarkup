@@ -22,7 +22,8 @@ public struct DefaultBlockRenderer: BlockRendering, Sendable {
         if case .table = block.kind { return nil }
         if block.attachment != nil { return nil }
         switch block.kind {
-        case .heading, .blockquote, .listItem, .preformatted, .horizontalRule:
+        case .heading, .blockquote, .listItem, .preformatted, .horizontalRule,
+             .definitionTerm, .definitionDescription:
             return nil
         default:
             break

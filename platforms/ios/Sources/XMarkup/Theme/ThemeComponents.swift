@@ -85,6 +85,11 @@ public func List(_ configure: @escaping @Sendable (inout ListTheme) -> Void) -> 
     TypedThemeComponent(field: \.list, configure: configure)
 }
 
+/// 配置定义列表主题
+public func DefinitionList(_ configure: @escaping @Sendable (inout DefinitionListTheme) -> Void) -> TypedThemeComponent<DefinitionListTheme> {
+    TypedThemeComponent(field: \.definitionList, configure: configure)
+}
+
 /// 配置代码块主题
 public func Preformatted(_ configure: @escaping @Sendable (inout PreformattedTheme) -> Void) -> TypedThemeComponent<PreformattedTheme> {
     TypedThemeComponent(field: \.preformatted, configure: configure)

@@ -26,6 +26,10 @@ public indirect enum BlockNode: Sendable, Equatable {
     case blockquote(children: [BlockNode])
     /// 预格式化
     case preformatted([InlineNode])
+    /// 定义术语
+    case definitionTerm([InlineNode])
+    /// 定义描述
+    case definitionDescription([InlineNode])
     /// 列表（indentLevel 由 Flattener 从递归深度计算）
     case list(isOrdered: Bool, items: [ListItem])
     /// 水平线

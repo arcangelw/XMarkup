@@ -24,6 +24,7 @@ extension RenderPipeline {
             BlockquoteBlockRenderer(),
             ListItemBlockRenderer(),
             PreformattedBlockRenderer(),
+            DefinitionListBlockRenderer(),
             DefaultBlockRenderer(),
         ],
         inlineRenderers: [

@@ -48,6 +48,14 @@ public enum Flattener {
             let (text, inlines) = flattenText(content)
             result.append(MarkupBlock(kind: .preformatted, text: text, inlines: inlines, attachment: nil))
 
+        case .definitionTerm(let content):
+            let (text, inlines) = flattenText(content)
+            result.append(MarkupBlock(kind: .definitionTerm, text: text, inlines: inlines, attachment: nil))
+
+        case .definitionDescription(let content):
+            let (text, inlines) = flattenText(content)
+            result.append(MarkupBlock(kind: .definitionDescription, text: text, inlines: inlines, attachment: nil))
+
         case .list(let isOrdered, let items):
             for item in items {
                 var itemResult: [MarkupBlock] = []

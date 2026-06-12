@@ -30,6 +30,8 @@ public enum BlockKind: Sendable, Equatable {
     case tableRow                                            // <tr>
     case tableCell                                           // <td>
     case tableHeader                                         // <th>
+    case definitionTerm                                     // <dt>
+    case definitionDescription                              // <dd>
 }
 
 /// 表格单元格

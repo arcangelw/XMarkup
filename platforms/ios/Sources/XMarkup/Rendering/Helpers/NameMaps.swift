@@ -16,6 +16,8 @@ func blockKindName(for kind: BlockKind) -> String {
     case .tableCell: return "tableCell"
     case .tableHeader: return "tableHeader"
     case .media: return "media"
+    case .definitionTerm: return "definitionTerm"
+    case .definitionDescription: return "definitionDescription"
     }
 }
 

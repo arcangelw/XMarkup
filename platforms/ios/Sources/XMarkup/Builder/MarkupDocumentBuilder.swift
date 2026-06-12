@@ -367,9 +367,13 @@ extension MarkupDocument {
             return .tableCell
         case .tableHeader:
             return .tableHeader
+        case .definitionTerm:
+            return .definitionTerm
+        case .definitionDescription:
+            return .definitionDescription
         case .article, .section, .header, .footer, .nav, .aside,
              .figure, .figcaption, .main, .address,
-             .definitionList, .definitionTerm, .definitionDescription:
+             .definitionList:
             return .division
         default:
             return .paragraph
@@ -623,9 +627,16 @@ extension MarkupDocument {
                 continue
 
             case .blockquote:
-                // 每个 blockquote 块独立为一个节点
                 let inlineNodes = InlineTreeBuilder.build(from: block.text, inlines: block.inlines)
                 result.append(.blockquote(children: [.paragraph(inlineNodes)]))
+
+            case .definitionTerm:
+                let inlineNodes = InlineTreeBuilder.build(from: block.text, inlines: block.inlines)
+                result.append(.definitionTerm(inlineNodes))
+
+            case .definitionDescription:
+                let inlineNodes = InlineTreeBuilder.build(from: block.text, inlines: block.inlines)
+                result.append(.definitionDescription(inlineNodes))
 
             case .tableRow, .tableCell, .tableHeader:
                 // 不应出现在顶层（已被 table 吸收），防御性回退为 paragraph
