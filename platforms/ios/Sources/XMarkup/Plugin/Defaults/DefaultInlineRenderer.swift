@@ -93,6 +93,9 @@ public struct DefaultInlineRenderer: InlineRendering, Sendable {
             #elseif canImport(AppKit)
             attributed.addAttribute(.foregroundColor, value: linkTheme.textColor ?? NSColor.linkColor, range: nsRange)
             #endif
+            if let ul = linkTheme.underlineStyle {
+                attributed.addAttribute(.underlineStyle, value: ul.rawValue, range: nsRange)
+            }
             if let linkURL = URL(string: url) {
                 attributed.addAttribute(.link, value: linkURL, range: nsRange)
             }

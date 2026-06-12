@@ -74,7 +74,7 @@ public struct DefaultTableRenderer: BlockRendering, Sendable {
                 textFont = monoFont
             }
 
-            let attrs: [NSAttributedString.Key: Any] = [
+            var attrs: [NSAttributedString.Key: Any] = [
                 .font: textFont,
                 .paragraphStyle: paraStyle,
                 .xmarkupBlockKind: "tableRow",
@@ -83,6 +83,9 @@ public struct DefaultTableRenderer: BlockRendering, Sendable {
                 .xmarkupTableHeaderRowCount: structure.headerRowCount,
                 .xmarkupTableRowIndex: rowIdx,
             ]
+            if isHeader, let headerBG = theme.table.headerBackgroundColor {
+                attrs[.backgroundColor] = headerBG
+            }
 
             result.append(NSAttributedString(string: line, attributes: attrs))
         }
