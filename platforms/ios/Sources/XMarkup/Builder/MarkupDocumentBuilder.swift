@@ -200,15 +200,26 @@ extension MarkupDocument {
         for occ in occupied {
             if occ.start > cursor {
                 let len = occ.start - cursor
-                guard len > 0 else { continue }  // 防御性：跳过零/负长度 gap
+                guard len > 0 else { continue }
                 let gap = NSRange(location: cursor, length: len)
+                // 容器类型：跳过子元素间的纯空白间隙
+                let gapStr = (text as NSString).substring(with: gap)
+                let isContainer = resolvedKind == .division || resolvedKind == .blockquote
+                if isContainer && gapStr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    cursor = max(cursor, occ.end)
+                    continue
+                }
                 emitBlock(text: text, range: gap, kind: resolvedKind, inlineSpans: inlineSpans, blocks: &blocks)
             }
             cursor = max(cursor, occ.end)
         }
         if cursor < nodeEnd {
             let gap = NSRange(location: cursor, length: nodeEnd - cursor)
-            emitBlock(text: text, range: gap, kind: resolvedKind, inlineSpans: inlineSpans, blocks: &blocks)
+            let gapStr = (text as NSString).substring(with: gap)
+            let isContainer = resolvedKind == .division || resolvedKind == .blockquote
+            if !isContainer || !gapStr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                emitBlock(text: text, range: gap, kind: resolvedKind, inlineSpans: inlineSpans, blocks: &blocks)
+            }
         }
 
         // 递归子节点
@@ -234,16 +245,19 @@ extension MarkupDocument {
         }
     }
 
-    /// 计算 listItem 的嵌套深度：统计包含此 span 的 ul/ol 容器数量
+    /// 计算 listItem 的嵌套深度：0 = 顶级列表项，1+ = 嵌套列表项
+    ///
+    /// 统计所有包含此 span 的 ul/ol 容器数量，再减 1（排除直接父容器）。
+    /// 不检查 range 是否相等，因为单元素列表的 ul/ol range 可能与 li range 相同。
     private static func computeListItemIndent(for span: XMarkupSpan, in allSpans: [XMarkupSpan]) -> Int {
         var depth = 0
         for parent in allSpans {
             guard parent.tag == .listOrdered || parent.tag == .listUnordered else { continue }
-            if parent.range != span.range && rangeContains(parent.range, span.range) {
+            if rangeContains(parent.range, span.range) {
                 depth += 1
             }
         }
-        return depth
+        return max(0, depth - 1)  // 直接 ul/ol 子项 = 0，嵌套一层 = 1
     }
 
     /// 快速产出一个孤立文本块（无列表符号拼接）
@@ -601,29 +615,17 @@ extension MarkupDocument {
                 let inlineNodes = InlineTreeBuilder.build(from: block.text, inlines: block.inlines)
                 result.append(.division(tag: "div", children: [.paragraph(inlineNodes)]))
 
-            case .listItem(let isOrdered, _):
-                // 收集连续同类型 listItem 分组为 .list
-                var items: [ListItem] = []
-                while i < blocks.count, case .listItem(let ordered, _) = blocks[i].kind, ordered == isOrdered {
-                    let item = blocks[i]
-                    let inlineNodes = InlineTreeBuilder.build(from: item.text, inlines: item.inlines)
-                    items.append(ListItem(blocks: [.paragraph(inlineNodes)]))
-                    i += 1
-                }
-                result.append(.list(isOrdered: isOrdered, items: items))
+            case .listItem(let isOrdered, let indentLevel):
+                // 构建嵌套列表：按 indent 层级递归分组
+                let (list, newIndex) = buildList(from: blocks, startIndex: i, baseIndent: indentLevel)
+                result.append(list)
+                i = newIndex
                 continue
 
             case .blockquote:
-                // 合并连续 blockquote 块为单个节点
-                var children: [BlockNode] = []
-                while i < blocks.count, case .blockquote = blocks[i].kind {
-                    let bq = blocks[i]
-                    let inlineNodes = InlineTreeBuilder.build(from: bq.text, inlines: bq.inlines)
-                    children.append(.paragraph(inlineNodes))
-                    i += 1
-                }
-                result.append(.blockquote(children: children))
-                continue
+                // 每个 blockquote 块独立为一个节点
+                let inlineNodes = InlineTreeBuilder.build(from: block.text, inlines: block.inlines)
+                result.append(.blockquote(children: [.paragraph(inlineNodes)]))
 
             case .tableRow, .tableCell, .tableHeader:
                 // 不应出现在顶层（已被 table 吸收），防御性回退为 paragraph
@@ -635,6 +637,47 @@ extension MarkupDocument {
         }
 
         return result
+    }
+
+    /// 从扁平块递归构建嵌套列表
+    ///
+    /// 按 indent 层级将 flat listItem 块重组为树结构：
+    /// - indent == baseIndent → 当前层级 listItem
+    /// - indent > baseIndent → 嵌套子列表，附加到上一个 listItem 的 blocks 中
+    /// - indent < baseIndent → 返回上级
+    private static func buildList(from blocks: [MarkupBlock], startIndex: Int, baseIndent: Int) -> (BlockNode, Int) {
+        var i = startIndex
+        guard i < blocks.count,
+              case .listItem(let isOrdered, let indent) = blocks[i].kind,
+              indent == baseIndent else {
+            return (.list(isOrdered: false, items: []), startIndex)
+        }
+
+        var items: [ListItem] = []
+
+        while i < blocks.count, case .listItem(let ordered, let indent) = blocks[i].kind {
+            if indent < baseIndent { break }
+            if indent > baseIndent {
+                // 嵌套列表：附加到上一个 item 的 blocks
+                let (nestedList, newIndex) = buildList(from: blocks, startIndex: i, baseIndent: indent)
+                if !items.isEmpty {
+                    let lastItem = items.removeLast()
+                    var blocks = lastItem.blocks
+                    blocks.append(nestedList)
+                    items.append(ListItem(blocks: blocks))
+                }
+                i = newIndex
+                continue
+            }
+
+            // 同层级 listItem
+            let item = blocks[i]
+            let inlineNodes = InlineTreeBuilder.build(from: item.text, inlines: item.inlines)
+            items.append(ListItem(blocks: [.paragraph(inlineNodes)]))
+            i += 1
+        }
+
+        return (.list(isOrdered: isOrdered, items: items), i)
     }
 }
 

@@ -108,10 +108,9 @@ struct RenderedTextView: View {
                 let result = try parser.parse(example.html)
                 let document = MarkupDocument.from(result)
                 let themes: [MarkupTheme] = [.default, .dark, .article]
-                let nsRenderer = NSAttributedStringRenderer()
                 let attributedStrings = themes.map { theme in
-                    let attr = document.renderAttributed(theme: theme)
-                    return nsRenderer.render(attr)
+                    let attr = document.render(theme: theme)
+                    return attr
                 }
                 renderResult = RenderResult(
                     attributedStrings: attributedStrings,
@@ -121,8 +120,7 @@ struct RenderedTextView: View {
                 // 单主题
                 let document = try parseDocument(parser: parser)
                 let theme: MarkupTheme = example.customTheme ?? .default
-                let attr = document.renderAttributed(theme: theme)
-                let nsAttr = NSAttributedStringRenderer().render(attr)
+                let nsAttr = document.render(theme: theme)
                 renderResult = RenderResult(
                     attributedStrings: [nsAttr],
                     isMultiTheme: false

@@ -363,14 +363,21 @@ final class MarkupDocumentBuilderTests: XCTestCase {
     func testNestedListIsOrderedUsesNearestAncestor() throws {
         let result = try parse("<ol><li>outer<ul><li>inner</li></ul></li></ol>")
         let doc = MarkupDocument.from(result)
-        let listItems = doc.blocks.filter {
-            if case .listItem = $0.fk { return true }
-            return false
+        // 嵌套列表：顶层 1 个有序列表，内层 list 嵌套在 ListItem.blocks 中
+        XCTAssertEqual(doc.blocks.count, 1)
+        guard case .list(let isOrdered, let items) = doc.blocks[0] else {
+            XCTFail("Expected .list"); return
         }
-        XCTAssertGreaterThanOrEqual(listItems.count, 2)
-        let innerItem = listItems.last!
-        if case let .listItem(isOrdered, _) = innerItem.fk {
-            XCTAssertFalse(isOrdered, "内层 <ul><li> 应为无序")
+        XCTAssertTrue(isOrdered, "外层应为有序")
+        XCTAssertEqual(items.count, 1)
+        let outerBlocks = items[0].blocks
+        XCTAssertEqual(outerBlocks.count, 2, "outer li: paragraph + nested list")
+        if case .list(let innerOrdered, let innerItems) = outerBlocks[1] {
+            XCTAssertFalse(innerOrdered, "内层 <ul> 应为无序")
+            XCTAssertEqual(innerItems.count, 1)
+            XCTAssertEqual(innerItems[0].blocks[0].ft, "inner")
+        } else {
+            XCTFail("Expected nested .list in outer li blocks")
         }
     }
 
