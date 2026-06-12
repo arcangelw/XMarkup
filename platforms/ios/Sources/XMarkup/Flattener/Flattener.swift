@@ -139,19 +139,21 @@ public enum Flattener {
                 }
                 offset += childLen
 
-            case .code(let s):
+            case .code(let children):
                 let start = offset
-                text.append(s)
-                let len = s.utf16.count
-                inlines.append(MarkupInline(range: TextRange(start: start, length: len), kind: .code))
-                offset += len
+                let childLen = flattenInlineNodes(children, into: &text, inlines: &inlines, baseOffset: offset)
+                if childLen > 0 {
+                    inlines.append(MarkupInline(range: TextRange(start: start, length: childLen), kind: .code))
+                }
+                offset += childLen
 
-            case .mark(let s):
+            case .mark(let children):
                 let start = offset
-                text.append(s)
-                let len = s.utf16.count
-                inlines.append(MarkupInline(range: TextRange(start: start, length: len), kind: .mark))
-                offset += len
+                let childLen = flattenInlineNodes(children, into: &text, inlines: &inlines, baseOffset: offset)
+                if childLen > 0 {
+                    inlines.append(MarkupInline(range: TextRange(start: start, length: childLen), kind: .mark))
+                }
+                offset += childLen
 
             case .link(let url, let children):
                 let start = offset

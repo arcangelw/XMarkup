@@ -23,10 +23,10 @@ public indirect enum InlineNode: Sendable, Equatable {
     case underline([InlineNode])
     /// 删除线
     case strikethrough([InlineNode])
-    /// 行内代码
-    case code(String)
-    /// 高亮标记
-    case mark(String)
+    /// 行内代码（可嵌套，如 `<code><b>bold</b></code>` 保留子样式）
+    case code([InlineNode])
+    /// 高亮标记（可嵌套，如 `<mark><b>bold</b></mark>` 保留子样式）
+    case mark([InlineNode])
     /// 链接
     case link(url: String, _ content: [InlineNode])
     /// 下标
