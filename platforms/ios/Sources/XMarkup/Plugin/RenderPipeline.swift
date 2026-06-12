@@ -58,7 +58,8 @@ public struct RenderPipeline: @unchecked Sendable {
     ) {
         self.blockRenderers = plugins
         self.inlineRenderers = plugins
-        self.enhancers = enhancers
+        // RendererPlugin 也遵循 NSAttributedStringProcessing，一并注册到 enhancers
+        self.enhancers = plugins as [any NSAttributedStringProcessing] + enhancers
     }
 
     // MARK: - 派生方法
@@ -115,12 +116,14 @@ public struct RenderPipeline: @unchecked Sendable {
 
             var ctx = RenderingContext(theme: theme, blockIndex: i, totalBlocks: totalBlocks)
 
-            // 传递列表组信息到 sharedState
+            // 传递列表组信息（类型安全的 listContext，优先使用）
             if let lists = groups.listTextLists[i] {
-                ctx.sharedState[SharedStateKeys.listTextLists] = lists
+                ctx.listContext = ListContext(
+                    textLists: lists,
+                    isFirstInGroup: groups.listGroupFirst.contains(i),
+                    isLastInGroup: groups.listGroupLast.contains(i)
+                )
             }
-            ctx.sharedState[SharedStateKeys.isFirstInListGroup] = groups.listGroupFirst.contains(i)
-            ctx.sharedState[SharedStateKeys.isLastInListGroup] = groups.listGroupLast.contains(i)
 
             // 按顺序询问 blockRenderers
             var rendered: NSMutableAttributedString?
@@ -129,12 +132,29 @@ public struct RenderPipeline: @unchecked Sendable {
                 if rendered != nil { break }
             }
 
+            // 兜底：无 renderer 处理时，至少产出纯文本段落
+            if rendered == nil {
+                rendered = NSMutableAttributedString(
+                    string: block.text,
+                    attributes: [.font: theme.baseFont]
+                )
+                // 将块内 inline 注入 fallback 段落
+                for inline in block.inlines {
+                    for inlineRenderer in inlineRenderers {
+                        if inlineRenderer.apply(inline: inline, to: rendered!, context: ctx) {
+                            break
+                        }
+                    }
+                }
+                result.append(rendered!)
+                continue
+            }
+
             if let rendered {
                 // 调度 inlineRenderers：对每个 inline 按注册顺序询问
                 for inline in block.inlines {
                     for inlineRenderer in inlineRenderers {
-                        if inlineRenderer.apply(inline: inline, to: rendered,
-                                                 blockText: block.text, context: ctx) {
+                        if inlineRenderer.apply(inline: inline, to: rendered, context: ctx) {
                             break
                         }
                     }
@@ -146,9 +166,11 @@ public struct RenderPipeline: @unchecked Sendable {
         return result
     }
 
-    // MARK: - sharedState key 常量
+    // MARK: - sharedState key 常量（已由 RenderingContext.listContext 替代）
 
     /// RenderingContext.sharedState 的 key 常量
+    /// - Note: 新代码优先使用 `RenderingContext.listContext`（类型安全）。
+    @available(*, deprecated, message: "使用 RenderingContext.listContext 替代")
     public enum SharedStateKeys {
         public static let listTextLists = "listTextLists"
         public static let isFirstInListGroup = "isFirstInListGroup"

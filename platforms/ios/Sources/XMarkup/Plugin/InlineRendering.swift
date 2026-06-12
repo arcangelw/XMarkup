@@ -9,10 +9,9 @@ public protocol InlineRendering: Sendable {
     ///
     /// - Parameters:
     ///   - inline: 待应用的内联元素
-    ///   - attributed: 目标 NSMutableAttributedString（inout 修改）
-    ///   - blockText: 所属块的原始文本（用于 range 映射）
+    ///   - attributed: 目标 NSMutableAttributedString
     ///   - context: 渲染上下文
     /// - Returns: true 表示已处理，false 表示跳过交由下一个渲染器
     func apply(inline: MarkupInline, to attributed: NSMutableAttributedString,
-               blockText: String, context: RenderingContext) -> Bool
+               context: RenderingContext) -> Bool
 }

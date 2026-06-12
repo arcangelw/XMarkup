@@ -22,7 +22,7 @@ extension RendererPlugin {
 
     /// 默认不处理任何 inline
     public func apply(inline: MarkupInline, to attributed: NSMutableAttributedString,
-                      blockText: String, context: RenderingContext) -> Bool { false }
+                      context: RenderingContext) -> Bool { false }
 
     /// 默认不做任何增强
     public func enhance(_ nsAttr: NSMutableAttributedString, context: RenderingContext) {}

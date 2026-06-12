@@ -20,7 +20,7 @@ public struct DefaultInlineRenderer: InlineRendering, Sendable {
     public init() {}
 
     public func apply(inline: MarkupInline, to attributed: NSMutableAttributedString,
-                      blockText: String, context: RenderingContext) -> Bool {
+                      context: RenderingContext) -> Bool {
         let nsRange = inline.range.nsRange
         guard nsRange.length > 0 else { return true }
 

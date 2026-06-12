@@ -24,10 +24,11 @@ public struct DefaultBlockRenderer: BlockRendering, Sendable {
         // media attachment 由 DefaultAttachmentRenderer 处理
         if block.attachment != nil { return nil }
 
-        // 从 sharedState 读取列表组信息（由 RenderPipeline 分析后注入）
-        let sharedLists = context.sharedState[RenderPipeline.SharedStateKeys.listTextLists] as? [NSTextList]
-        let isFirst = context.sharedState[RenderPipeline.SharedStateKeys.isFirstInListGroup] as? Bool ?? false
-        let isLast = context.sharedState[RenderPipeline.SharedStateKeys.isLastInListGroup] as? Bool ?? false
+        // 从 listContext 读取列表组信息（由 RenderPipeline 分析后注入）
+        let listCtx = context.listContext
+        let sharedLists = listCtx?.textLists
+        let isFirst = listCtx?.isFirstInGroup ?? false
+        let isLast = listCtx?.isLastInGroup ?? false
 
         let theme = context.theme
 
