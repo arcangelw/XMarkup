@@ -32,7 +32,7 @@ struct XMarkupTableRenderer {
                     startingColumn: colIdx,
                     columnSpan: 1
                 )
-                if cell.kind == .tableHeader, let bgColor = theme.table.headerBackgroundColor {
+                if cell.isHeader, let bgColor = theme.table.headerBackgroundColor {
                     cellBlock.backgroundColor = bgColor
                 }
 

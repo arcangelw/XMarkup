@@ -35,9 +35,9 @@ public struct DefaultTableRenderer: BlockRendering, Sendable {
 
         // 第一遍：用 NSString.size 精确测量每列最大像素宽度
         var maxWidths = [CGFloat](repeating: 0, count: columnCount)
-        for (rowIdx, row) in structure.rows.enumerated() {
-            let rowFont = rowIdx < structure.headerRowCount ? boldMonoFont : monoFont
+        for row in structure.rows {
             for (colIdx, cell) in row.enumerated() where colIdx < columnCount {
+                let rowFont = cell.isHeader ? boldMonoFont : monoFont
                 let cellStr = cell.text as NSString
                 let cellWidth = cellStr.size(withAttributes: [.font: rowFont]).width
                 maxWidths[colIdx] = max(maxWidths[colIdx], cellWidth)

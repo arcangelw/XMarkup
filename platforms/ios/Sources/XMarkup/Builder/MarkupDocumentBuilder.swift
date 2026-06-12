@@ -260,25 +260,25 @@ extension MarkupDocument {
         node: SpanNode, text: String,
         inlineSpans: [XMarkupSpan], mediaTags: Set<XMarkupTag>
     ) -> TableStructure {
-        var rows: [[MarkupBlock]] = []
+        var rows: [[TableCell]] = []
         var maxColumns = 0
 
         for child in node.children {
             guard child.resolvedKind == .tableRow else { continue }
 
-            var rowCells: [MarkupBlock] = []
+            var rowCells: [TableCell] = []
             for cell in child.children {
                 guard cell.resolvedKind == .tableCell || cell.resolvedKind == .tableHeader else { continue }
 
                 let cellRange = cell.span.range
                 let cellText = extractText(text: text, nsRange: cellRange)
                 let inlines = convertToInlines(inlineSpans, in: text, parentRange: cellRange)
+                let isHeader = cell.resolvedKind == .tableHeader
 
-                rowCells.append(MarkupBlock(
-                    kind: cell.resolvedKind,
+                rowCells.append(TableCell(
                     text: cellText,
                     inlines: inlines,
-                    attachment: nil
+                    isHeader: isHeader
                 ))
             }
             if !rowCells.isEmpty {
@@ -290,13 +290,13 @@ extension MarkupDocument {
         // 补齐空单元格使每行列数一致
         for i in 0..<rows.count {
             while rows[i].count < maxColumns {
-                rows[i].append(MarkupBlock(kind: .tableCell, text: "", inlines: [], attachment: nil))
+                rows[i].append(TableCell(text: "", inlines: [], isHeader: false))
             }
         }
 
         // 统计表头行数
         let headerCount = rows.prefix(while: { row in
-            row.contains { $0.kind == .tableHeader }
+            row.contains { $0.isHeader }
         }).count
 
         return TableStructure(rows: rows, headerRowCount: headerCount, columnCount: maxColumns)

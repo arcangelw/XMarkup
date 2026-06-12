@@ -508,8 +508,8 @@ final class MarkupDocumentBuilderTests: XCTestCase {
         if case .table(let structure) = tableBlock!.fk {
             XCTAssertEqual(structure.rows.count, 2, "应为 2 行")
             XCTAssertEqual(structure.headerRowCount, 1, "第一行为表头")
-            XCTAssertEqual(structure.rows[0][0].kind, .tableHeader)
-            XCTAssertEqual(structure.rows[1][0].kind, .tableCell)
+            XCTAssertTrue(structure.rows[0][0].isHeader)
+            XCTAssertFalse(structure.rows[1][0].isHeader)
         }
     }
 
@@ -538,9 +538,9 @@ final class MarkupDocumentBuilderTests: XCTestCase {
         guard case .table(let structure) = doc.blocks.first?.fk else {
             XCTFail("应产出 table 块"); return
         }
-        // 验证 table 内子节点的 resolvedKind
-        // 当前 direct: TableStructure.rows 中的 cell kind 已由 builder 设置
-        XCTAssertEqual(structure.rows[0][0].kind, .tableCell)
+        // 验证 table 内子节点标识
+        // 当前 direct: TableStructure.rows 中的 cell isHeader 已由 builder 设置
+        XCTAssertFalse(structure.rows[0][0].isHeader)
     }
 
     func testMediaWithoutAltTextCreatesAttachment() throws {

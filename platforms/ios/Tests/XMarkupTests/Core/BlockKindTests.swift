@@ -67,14 +67,16 @@ final class BlockKindTests: XCTestCase {
     func testTableStructure() {
         let table = TableStructure(
             rows: [
-                [MarkupBlock(kind: .paragraph, text: "H1", inlines: [], attachment: nil)],
-                [MarkupBlock(kind: .paragraph, text: "D1", inlines: [], attachment: nil)],
+                [TableCell(text: "H1", inlines: [], isHeader: true)],
+                [TableCell(text: "D1", inlines: [], isHeader: false)],
             ],
             headerRowCount: 1,
             columnCount: 1
         )
         XCTAssertEqual(table.rows.count, 2)
         XCTAssertEqual(table.headerRowCount, 1)
+        XCTAssertTrue(table.rows[0][0].isHeader)
+        XCTAssertFalse(table.rows[1][0].isHeader)
     }
 
     func testBlockKindEquality() {
