@@ -5,17 +5,11 @@ import UIKit
 import AppKit
 #endif
 
-/// 列表项渲染器 — 处理 listItem 的标记、缩进、间距
+/// 列表项渲染器
 ///
-/// 支持两种标记渲染模式（由 `ListTheme.markerMode` 控制）：
-///
-/// - **`.automatic`（默认）**：使用 NSTextList 原生标记，文本干净。
-///   XMarkupUI 层通过自定义 NSLayoutManager 修正 NSTextList 的绘制行为
-///   （如 bullet-code 背景重叠）。
-///
-/// - **`.manual`**：标记作为文本前缀插入（"•\t" / "1.\t"）。
-///   管线通过 `context.textPrefixLength` 自动偏移 inline 范围。
-///   适用于 UILabel 等无 TextKit 的场景。
+/// 两种模式（由 `ListTheme.markerMode` 控制）：
+/// - `.automatic`（默认）：NSTextList 原生标记，文本干净。连续编号等由 UI 层处理。
+/// - `.manual`：文本前缀（"•\t" / "1.\t"），管线自动偏移 inline。
 public struct ListItemBlockRenderer: BlockRendering, Sendable {
     public init() {}
 
@@ -45,7 +39,6 @@ public struct ListItemBlockRenderer: BlockRendering, Sendable {
             displayText = prefix + block.text
             context.textPrefixLength = prefix.utf16.count
 
-            // 直接用 headIndent 控制缩进
             let baseIndent = CGFloat(indentLevel) * indentUnit + markerPadding
             paragraphStyle.firstLineHeadIndent = baseIndent
             paragraphStyle.headIndent = baseIndent + indentUnit
@@ -56,7 +49,6 @@ public struct ListItemBlockRenderer: BlockRendering, Sendable {
             // ── 自动模式：NSTextList 原生标记 ──
             displayText = block.text
 
-            // 共享 NSTextList 实例（同一组内保持连续编号）
             if let shared = listCtx?.textLists {
                 paragraphStyle.textLists = shared
             } else {
@@ -76,7 +68,6 @@ public struct ListItemBlockRenderer: BlockRendering, Sendable {
                 paragraphStyle.textLists = lists
             }
 
-            // NSTextList 自行管理缩进，此处仅做微调
             let visualLevel = max(0, indentLevel - 1)
             paragraphStyle.firstLineHeadIndent = CGFloat(visualLevel) * indentUnit + markerPadding
             paragraphStyle.headIndent = CGFloat(visualLevel + 1) * indentUnit + markerPadding
@@ -115,8 +106,6 @@ public struct ListItemBlockRenderer: BlockRendering, Sendable {
         return NSMutableAttributedString(string: displayText, attributes: attributes)
     }
 
-    // MARK: - Bullet Characters (仅 `.manual` 模式使用)
-
     private func bulletChar(for type: ListTheme.MarkerType) -> String {
         switch type {
         case .disc:    return "\u{2022}"   // •
@@ -126,7 +115,7 @@ public struct ListItemBlockRenderer: BlockRendering, Sendable {
         case .check:   return "\u{2713}"   // ✓
         case .box:     return "\u{2610}"   // ☐
         case .diamond: return "\u{25C6}"   // ◆
-        default:       return "\u{2022}"   // • (fallback)
+        default:       return "\u{2022}"   // •
         }
     }
 }

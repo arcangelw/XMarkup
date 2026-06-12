@@ -204,19 +204,42 @@ extension MarkupDocument {
                 let gap = NSRange(location: cursor, length: len)
                 // 容器类型：跳过子元素间的纯空白间隙
                 let gapStr = (text as NSString).substring(with: gap)
-                let isContainer = resolvedKind == .division || resolvedKind == .blockquote
-                if isContainer && gapStr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    cursor = max(cursor, occ.end)
-                    continue
+                let isContainer: Bool = {
+                    switch resolvedKind {
+                    case .division, .blockquote, .listItem: return true
+                    default: return false
+                    }
+                }()
+                if isContainer {
+                    // 跳过纯空白间隙（包括空格和换行）
+                    if gapStr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        cursor = max(cursor, occ.end)
+                        continue
+                    }
+                    // Trim trailing whitespace/newlines，避免 "文本 \n " 产生空行
+                    let trimmed = gapStr.trimmingCharacters(in: CharacterSet(charactersIn: " \t\n\r"))
+                    guard !trimmed.isEmpty else {
+                        cursor = max(cursor, occ.end)
+                        continue
+                    }
+                    let trimmedLength = trimmed.utf16.count
+                    let trimmedGap = NSRange(location: gap.location, length: trimmedLength)
+                    emitBlock(text: text, range: trimmedGap, kind: resolvedKind, inlineSpans: inlineSpans, blocks: &blocks)
+                } else {
+                    emitBlock(text: text, range: gap, kind: resolvedKind, inlineSpans: inlineSpans, blocks: &blocks)
                 }
-                emitBlock(text: text, range: gap, kind: resolvedKind, inlineSpans: inlineSpans, blocks: &blocks)
             }
             cursor = max(cursor, occ.end)
         }
         if cursor < nodeEnd {
             let gap = NSRange(location: cursor, length: nodeEnd - cursor)
             let gapStr = (text as NSString).substring(with: gap)
-            let isContainer = resolvedKind == .division || resolvedKind == .blockquote
+            let isContainer: Bool = {
+                switch resolvedKind {
+                case .division, .blockquote, .listItem: return true
+                default: return false
+                }
+            }()
             if !isContainer || !gapStr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 emitBlock(text: text, range: gap, kind: resolvedKind, inlineSpans: inlineSpans, blocks: &blocks)
             }

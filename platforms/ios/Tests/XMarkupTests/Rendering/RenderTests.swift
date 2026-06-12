@@ -353,13 +353,12 @@ final class RenderTests: XCTestCase {
     // MARK: - Ordered List Numbering
 
     func testRenderOrderedListItems() throws {
-        // 默认 `.automatic` 模式：NSTextList 原生标记
+        // 默认 `.automatic` 模式：NSTextList 原生标记，文本干净
         let nsAttr = try parseAndRender("<ol><li>First</li><li>Second</li></ol>")
         let text = nsAttr.string
         XCTAssertTrue(text.contains("First"), "文本应包含 'First'")
-        // 默认使用 NSTextList，文本干净无前缀
         XCTAssertFalse(text.contains("1.\t"), "automatic 模式不应有手动标记前缀")
-        // 验证 paragraphStyle 有 textLists
+        // 验证 paragraphStyle 有 NSTextList
         nsAttr.enumerateAttribute(.paragraphStyle, in: NSRange(location: 0, length: nsAttr.length)) { value, _, _ in
             guard let ps = value as? NSParagraphStyle else { return }
             XCTAssertFalse(ps.textLists.isEmpty, "应有 NSTextList")
@@ -834,5 +833,86 @@ final class RenderTests: XCTestCase {
             XCTAssertTrue(bgText.contains("MainActor"), "背景色应仅在 code 文本范围: \(bgText)")
             XCTAssertFalse(bgText.contains("•"), "背景色不应包含 bullet 字符")
         }
+    }
+
+    // MARK: - Nested list (gap + ordering)
+
+    func testNestedMixedListNoEmptyItems() throws {
+        let html = """
+        <ol>
+        <li>前端技术
+        <ul>
+        <li>HTML / CSS</li>
+        <li>JavaScript / TypeScript</li>
+        </ul>
+        </li>
+        <li>后端技术
+        <ul>
+        <li>Node.js</li>
+        <li>Python / Django</li>
+        </ul>
+        </li>
+        <li>移动开发
+        <ol>
+        <li>iOS (Swift)</li>
+        <li>Android (Kotlin)</li>
+        </ol>
+        </li>
+        </ol>
+        """
+        // 用 .manual 模式以便看到文本中的标记
+        let theme = MarkupTheme { List { $0.markerMode = .manual } }
+        let result = try parse(html)
+        let doc = MarkupDocument.from(result)
+
+        // 检查 Flattener 产出的 MarkupBlock
+        print("\n=== Flattener MarkupBlock[] ===")
+        let flatBlocks = Flattener.flatten(doc.blocks)
+        for (i, block) in flatBlocks.enumerated() {
+            let empty = block.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? " [EMPTY]" : ""
+            print("[\(i)] kind=\(block.kind)\(empty) text='\(block.text.prefix(30))'")
+        }
+
+        // 渲染
+        let nsAttr = doc.render(theme: theme)
+        let text = nsAttr.string
+        print("\n=== Rendered text ===")
+        for (i, line) in text.components(separatedBy: "\n").enumerated() {
+            print("[\(i)] '\(line)'")
+        }
+
+        // 不应该有空 listItem
+        let nonEmptyBlocks = flatBlocks.filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        XCTAssertEqual(flatBlocks.count, nonEmptyBlocks.count, "不应有空 MarkupBlock")
+    }
+
+    func testNestedMixedListAutomaticNumbering() throws {
+        // `.automatic` 模式：NSTextList 原生标记，文本干净
+        let html = """
+        <ol>
+        <li>前端技术
+        <ul>
+        <li>HTML / CSS</li>
+        <li>JavaScript / TypeScript</li>
+        </ul>
+        </li>
+        <li>后端技术
+        <ul>
+        <li>Node.js</li>
+        <li>Python / Django</li>
+        </ul>
+        </li>
+        </ol>
+        """
+        let nsAttr = try parseAndRender(html)
+        // 文本干净，无手动标记前缀
+        XCTAssertFalse(nsAttr.string.contains("1.\t"), "automatic 不应有手动标记前缀")
+        // 验证 paragraphStyle 有 NSTextList
+        var textListCount = 0
+        nsAttr.enumerateAttribute(.paragraphStyle, in: NSRange(location: 0, length: nsAttr.length)) { v, _, _ in
+            guard let ps = v as? NSParagraphStyle, !ps.textLists.isEmpty else { return }
+            textListCount += 1
+        }
+        XCTAssertEqual(textListCount, 5, "5 个 listItem 都应有 NSTextList")
     }
 }
