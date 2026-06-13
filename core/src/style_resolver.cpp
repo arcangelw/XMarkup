@@ -16,6 +16,30 @@ static constexpr float kPtToPxFactor = 1.333f;
 // ============================================================
 
 /**
+ * @brief 读取连续数字（含可选小数点），返回 double
+ *
+ * 公共数字读取器，供 parse_css_numeric 与 normalize_color 的 rgb/hsl 解析
+ * 复用，消除三处数字读取逻辑的重复。读到非数字字符停止，pos 推进到数字之后。
+ */
+static double read_number(std::string_view text, size_t& pos) {
+    double n = 0;
+    while (pos < text.size() && text[pos] >= '0' && text[pos] <= '9') {
+        n = n * 10 + (text[pos] - '0');
+        pos++;
+    }
+    if (pos < text.size() && text[pos] == '.') {
+        pos++;
+        double frac = 0.1;
+        while (pos < text.size() && text[pos] >= '0' && text[pos] <= '9') {
+            n += (text[pos] - '0') * frac;
+            frac *= 0.1;
+            pos++;
+        }
+    }
+    return n;
+}
+
+/**
  * @brief 解析 CSS 长度值的数值+单位部分
  *
  * 从输入字符串中提取数值和单位。
@@ -32,25 +56,9 @@ static constexpr float kPtToPxFactor = 1.333f;
 static bool parse_css_numeric(std::string_view value, double& num, std::string& unit) {
     if (value.empty()) return false;
 
-    num = 0;
     unit.clear();
     size_t i = 0;
-    bool has_dot = false;
-    double frac = 0.1;
-
-    while (i < value.size() && ((value[i] >= '0' && value[i] <= '9') || value[i] == '.')) {
-        if (value[i] == '.') {
-            if (has_dot) break;  // 第二个小数点，停止解析
-            has_dot = true;
-        } else if (!has_dot) {
-            num = num * 10 + (value[i] - '0');
-        } else {
-            num += (value[i] - '0') * frac;
-            frac *= 0.1;
-        }
-        i++;
-    }
-
+    num = read_number(value, i);
     if (i == 0) return false; // 没有解析到任何数字
 
     // 检查单位
@@ -592,21 +600,9 @@ std::string StyleResolver::normalize_color(std::string_view value) const {
                 while (p < value.size() && value[p] != ',') p++;
                 return 0;
             }
-            int v = 0;
-            bool overflow = false;
-            while (p < value.size() && value[p] >= '0' && value[p] <= '9') {
-                if (!overflow) {
-                    int digit = value[p] - '0';
-                    if (v > (255 - digit) / 10) {
-                        overflow = true;
-                        v = 255;
-                    } else {
-                        v = v * 10 + digit;
-                    }
-                }
-                p++;
-            }
-            return std::min(v, 255);
+            double v = read_number(value, p);
+            if (v > 255.0) v = 255.0;
+            return static_cast<int>(v);
         };
         r = parse_int(start);
         while (start < value.size() && (value[start] == ',' || value[start] == ' ')) start++;
@@ -629,17 +625,9 @@ std::string StyleResolver::normalize_color(std::string_view value) const {
                 while (p < value.size() && value[p] != ',') p++;
                 return 0;
             }
-            int v = 0;
-            bool overflow = false;
-            while (p < value.size() && value[p] >= '0' && value[p] <= '9') {
-                if (!overflow) {
-                    int digit = value[p] - '0';
-                    if (v > (255 - digit) / 10) { overflow = true; v = 255; }
-                    else { v = v * 10 + digit; }
-                }
-                p++;
-            }
-            return std::min(v, 255);
+            double v = read_number(value, p);
+            if (v > 255.0) v = 255.0;
+            return static_cast<int>(v);
         };
         r = parse_int(start);
         while (start < value.size() && (value[start] == ',' || value[start] == ' ')) start++;
@@ -662,17 +650,7 @@ std::string StyleResolver::normalize_color(std::string_view value) const {
         double h = 0, s = 0, l = 0;
         auto parse_double = [&](size_t& p) -> double {
             while (p < value.size() && (value[p] == ' ' || value[p] == '\t')) p++;
-            double n = 0;
-            while (p < value.size() && value[p] >= '0' && value[p] <= '9') {
-                n = n * 10 + (value[p] - '0'); p++;
-            }
-            if (p < value.size() && value[p] == '.') {
-                p++; double frac = 0.1;
-                while (p < value.size() && value[p] >= '0' && value[p] <= '9') {
-                    n += (value[p] - '0') * frac;
-                    frac *= 0.1; p++;
-                }
-            }
+            double n = read_number(value, p);
             while (p < value.size() && (value[p] == '%' || value[p] == ' ')) p++;
             return n;
         };
