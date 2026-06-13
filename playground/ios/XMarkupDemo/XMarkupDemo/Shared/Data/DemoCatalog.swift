@@ -6,8 +6,22 @@ import Foundation
 /// 便于单元测试注入；无参版本默认作用于 `all`。
 public enum DemoCatalog {
 
-    /// 全部用例（含 hidden；P0-3 由各族 Examples 文件拼合填充）
-    public static let all: [DemoExample] = []
+    /// 全部用例（含 hidden；由各族 Examples 文件按 ExampleFamily 顺序拼合）
+    public static let all: [DemoExample] = {
+        InlineTextExamples.all
+            + InlineStyleExamples.all
+            + HeadingParagraphExamples.all
+            + BlockquotePreExamples.all
+            + ListExamples.all
+            + LinkExamples.all
+            + TableExamples.all
+            + MediaExamples.all
+            + SemanticExamples.all
+            + ThemeExamples.all
+            + ShowcaseExamples.all
+            + RobustnessExamples.all
+            + APITestExamples.all
+    }()
 
     /// 可见用例（过滤 hidden）
     public static var visible: [DemoExample] { visible(in: all) }
