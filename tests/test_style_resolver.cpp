@@ -1062,3 +1062,26 @@ TEST_F(StyleResolverTest, CSSBackgroundShorthandGradientMixedCase) {
             << "background:Linear-Gradient(...) 不应产生 backgroundColor span";
     }
 }
+
+// ============================================================
+// Code Review 修复：hex 颜色 8 位 alpha 处理（🟡#5）
+// ============================================================
+
+TEST_F(StyleResolverTest, CSSColorHex8AlphaStripped) {
+    // #RRGGBBAA 应截取 RGB 部分（与 rgba 丢 alpha 行为一致）
+    auto r = resolve(R"(<span style="color:#FF0000FF">text</span>)");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_FOREGROUND_COLOR && s.value == "#FF0000") found = true;
+    }
+    EXPECT_TRUE(found) << "#FF0000FF 应取 RGB 部分 #FF0000";
+}
+
+TEST_F(StyleResolverTest, CSSColorHex8AlphaLowerStripped) {
+    auto r = resolve(R"(<span style="color:#00ff0080">text</span>)");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_FOREGROUND_COLOR && s.value == "#00FF00") found = true;
+    }
+    EXPECT_TRUE(found);
+}

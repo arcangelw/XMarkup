@@ -570,6 +570,9 @@ std::string StyleResolver::normalize_color(std::string_view value) const {
             result += value[1]; result += value[1];
             result += value[2]; result += value[2];
             result += value[3]; result += value[3];
+        } else if (result.size() == 9) {
+            // #RRGGBBAA → #RRGGBB（丢弃 alpha，与 rgba/hsla 丢 alpha 行为一致）
+            result = result.substr(0, 7);
         }
         // 转大写
         for (auto& c : result) { if (c >= 'a' && c <= 'f') c -= 32; }
