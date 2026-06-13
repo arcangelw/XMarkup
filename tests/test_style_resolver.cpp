@@ -1011,3 +1011,34 @@ TEST_F(StyleResolverTest, AttributeValueEntityDecodingImgSrc) {
         }
     }
 }
+
+// ============================================================
+// Code Review 修复：CSS 属性名大小写不敏感（🔴#2）
+// ============================================================
+
+TEST_F(StyleResolverTest, CSSPropertyNameUpperCase) {
+    auto r = resolve(R"raw(<span STYLE="COLOR:RED">text</span>)raw");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_FOREGROUND_COLOR && s.value == "#FF0000") found = true;
+    }
+    EXPECT_TRUE(found) << "STYLE=\"COLOR:RED\" 应识别为前景色";
+}
+
+TEST_F(StyleResolverTest, CSSPropertyNameMixedCaseFontSize) {
+    auto r = resolve(R"(<span style="Font-Size:16px">text</span>)");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_FONT_SIZE && s.value == "16") found = true;
+    }
+    EXPECT_TRUE(found);
+}
+
+TEST_F(StyleResolverTest, CSSPropertyNameUpperCaseTextAlign) {
+    auto r = resolve(R"(<p style="TEXT-ALIGN:center">text</p>)");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.style == XM_STYLE_TEXT_ALIGN && s.value == "center") found = true;
+    }
+    EXPECT_TRUE(found);
+}

@@ -390,6 +390,8 @@ void StyleResolver::add_style_spans(const std::string& style_str, uint32_t start
         std::string prop = style_str.substr(name_start, pos - name_start);
         // 去尾部空白
         while (!prop.empty() && isspace(static_cast<unsigned char>(prop.back()))) prop.pop_back();
+        // CSS 属性名大小写不敏感（CSS 规范），统一小写化以便比较
+        for (auto& c : prop) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
         pos++; // 跳过 ':'
         // 跳过空白
         while (pos < style_str.size() && isspace(static_cast<unsigned char>(style_str[pos]))) pos++;
