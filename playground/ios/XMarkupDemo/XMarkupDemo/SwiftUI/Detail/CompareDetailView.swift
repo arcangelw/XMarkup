@@ -6,7 +6,7 @@ import XMarkup
 /// - regular（iPad/macOS/横屏）：HStack 左右并排（HSplitView 仅 macOS，跨平台统一用 HStack）
 /// - compact（iPhone 竖屏）：TabView 切换原生/Web（比 plan 的 VStack 堆叠 UX 更佳）
 /// - themeVariants 用例：原生区纵向多主题对比
-/// - 顶部 note banner（回归/注意事项）
+/// - 顶部 note banner；工具栏 ladybug 按钮触发调试抽屉
 struct CompareDetailView: View {
     let example: DemoExample
 
@@ -15,6 +15,7 @@ struct CompareDetailView: View {
     @State private var nativeVariants: [NSAttributedString]?
     @State private var variantsThemes: [MarkupTheme]?
     @State private var error: String?
+    @State private var showDebug = false
 
     private let config = DemoCanvasConfig()
 
@@ -22,6 +23,22 @@ struct CompareDetailView: View {
         content
             .navigationTitle(example.title)
             .task(id: example.id) { render() }
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        showDebug.toggle()
+                    } label: {
+                        Label("调试", systemImage: "ladybug")
+                    }
+                    .accessibilityLabel("调试抽屉")
+                }
+            }
+            .sheet(isPresented: $showDebug) {
+                DebugDrawer(
+                    example: example,
+                    attributedString: nativeAttr ?? nativeVariants?.first
+                )
+            }
     }
 
     // MARK: - 布局
