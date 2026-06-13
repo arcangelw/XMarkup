@@ -133,12 +133,14 @@ bool TreeBuilder::should_auto_close(const std::string& parent, const std::string
  * @param new_tag 新遇到的开标签名
  */
 void TreeBuilder::perform_implicit_close(const std::string& new_tag) {
-    // 从栈顶向下扫描（排除 ROOT），先收集 pop_count 再统一 resize，
-    // 避免在迭代体内部 resize 导致 reverse_iterator 失效。
+    // 不变式：stack_ 非空，栈底 stack_[0] 为 ROOT，不参与隐式关闭。
+    // 用索引循环替代 reverse_iterator + rend()-1（后者在空 vector 上为 UB）。
+    if (stack_.size() <= 1) return; // 仅 ROOT，无可隐式关闭的元素
+
     size_t pop_count = 0;
     bool found = false;
-    for (auto it = stack_.rbegin(); it != stack_.rend() - 1; ++it) {
-        const auto& parent_tag = (*it)->tag_name;
+    for (size_t idx = stack_.size() - 1; idx > 0; --idx) {
+        const auto& parent_tag = stack_[idx]->tag_name;
 
         if (should_auto_close(parent_tag, new_tag)) {
             Logger::warn("implicit close: <%s> closed by <%s>", parent_tag.c_str(), new_tag.c_str());
@@ -340,15 +342,21 @@ void TreeBuilder::handle_end_tag(const Token& tok) {
         return;
     }
 
-    // 从栈顶向下查找匹配的开始标签
+    // 从栈顶向下查找匹配的开始标签（idx > 0 排除 ROOT）
     size_t pop_count = 0;
-    for (auto it = stack_.rbegin(); it != stack_.rend() - 1; ++it) {
+    bool found = false;
+    for (size_t idx = stack_.size() - 1; idx > 0; --idx) {
         pop_count++;
-        if ((*it)->tag_name == tok.tag_name) {
-            // 弹出到匹配层（含匹配层本身）
-            stack_.resize(stack_.size() - pop_count);
-            return;
+        if (stack_[idx]->tag_name == tok.tag_name) {
+            found = true;
+            break;
         }
+    }
+
+    if (found) {
+        // 弹出到匹配层（含匹配层本身）
+        stack_.resize(stack_.size() - pop_count);
+        return;
     }
 
     // 未找到匹配，多余的闭合标签忽略
