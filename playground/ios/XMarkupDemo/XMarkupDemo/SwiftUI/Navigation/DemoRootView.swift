@@ -34,25 +34,7 @@ struct DemoRootView: View {
     private var detailView: some View {
         if let id = selectedExampleID,
            let example = DemoCatalog.all.first(where: { $0.id == id }) {
-            // P1-3 将替换为 CompareDetailView（原生 vs Web 并排/堆叠）
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(example.title)
-                        .font(.title2.bold())
-                    if !example.summary.isEmpty {
-                        Text(example.summary).foregroundStyle(.secondary)
-                    }
-                    if let note = example.note {
-                        Text(note)
-                            .font(.callout)
-                            .padding(8)
-                            .background(.yellow.opacity(0.15), in: .rect(cornerRadius: 6))
-                    }
-                }
-                .padding()
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .navigationTitle(example.title)
+            CompareDetailView(example: example)
         } else {
             // iOS 16 无 ContentUnavailableView，自定义空态
             VStack(spacing: 12) {
