@@ -4,7 +4,7 @@ import SwiftUI
 struct XMarkupDemoApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            DemoRootView()
         }
     }
 }
