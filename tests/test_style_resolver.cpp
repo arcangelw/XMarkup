@@ -1042,3 +1042,23 @@ TEST_F(StyleResolverTest, CSSPropertyNameUpperCaseTextAlign) {
     }
     EXPECT_TRUE(found);
 }
+
+// ============================================================
+// Code Review 修复：background 简写 url()/gradient() 大小写不敏感（🔴#3）
+// ============================================================
+
+TEST_F(StyleResolverTest, CSSBackgroundShorthandUrlUpperCase) {
+    auto r = resolve(R"html(<span style="background:URL(bg.png)">text</span>)html");
+    for (auto& s : r.spans) {
+        EXPECT_NE(s.style, XM_STYLE_BACKGROUND_COLOR)
+            << "background:URL(...) 不应产生 backgroundColor span";
+    }
+}
+
+TEST_F(StyleResolverTest, CSSBackgroundShorthandGradientMixedCase) {
+    auto r = resolve(R"html(<span style="background:Linear-Gradient(to right, red, blue)">text</span>)html");
+    for (auto& s : r.spans) {
+        EXPECT_NE(s.style, XM_STYLE_BACKGROUND_COLOR)
+            << "background:Linear-Gradient(...) 不应产生 backgroundColor span";
+    }
+}

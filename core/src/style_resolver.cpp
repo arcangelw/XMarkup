@@ -429,9 +429,14 @@ void StyleResolver::add_style_spans(const std::string& style_str, uint32_t start
             normalized_value = normalize_color(val);
         } else if (prop == "background") {
             // background 是简写属性，仅提取颜色值（跳过 url()、gradient 等）
-            if (val.find("url(") == std::string::npos &&
-                val.find("linear-gradient(") == std::string::npos &&
-                val.find("radial-gradient(") == std::string::npos) {
+            // CSS 函数名大小写不敏感，用小写副本做子串检测
+            std::string lower_val;
+            lower_val.reserve(val.size());
+            for (char c : val) lower_val += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            if (lower_val.find("url(") == std::string::npos &&
+                lower_val.find("linear-gradient(") == std::string::npos &&
+                lower_val.find("radial-gradient(") == std::string::npos &&
+                lower_val.find("conic-gradient(") == std::string::npos) {
                 style_type = XM_STYLE_BACKGROUND_COLOR;
                 normalized_value = normalize_color(val);
             }
