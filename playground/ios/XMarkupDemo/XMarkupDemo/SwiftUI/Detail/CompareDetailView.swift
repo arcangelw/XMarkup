@@ -3,11 +3,10 @@ import XMarkup
 
 /// 对比详情：原生 vs Web（设计规格 §6.4 / P2-1 工具栏 + 实时联动）
 ///
-/// - 对比模式（工具栏 Segmented）：自动（sizeClass）/ 并排 / 堆叠
-/// - 画布配置 popover：滑杆调 padding/字号/行高，实时重渲染原生+Web
-/// - 主题切换 popover：覆盖主题（.default/.dark/.article/.chat）
+/// - 对比模式（内容区顶部 Segmented）：自动（sizeClass）/ 并排 / 堆叠
+/// - 画布配置/主题：iOS 半屏 sheet / macOS popover（PopoverAdapter）
 /// - themeVariants 用例：原生区纵向多主题对比
-/// - 顶部 note banner；ladybug 调试抽屉
+/// - 顶部 note banner；ladybug 调试抽屉；6 组键盘快捷键
 struct CompareDetailView: View {
     let example: DemoExample
 
@@ -35,24 +34,21 @@ struct CompareDetailView: View {
     var body: some View {
         content
             .navigationTitle(example.title)
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
             .task(id: example.id) { render() }
             .onChange(of: config) { _ in render() }
             .onChange(of: themeOverride) { _ in render() }
             .background(shortcutButtons)
             .toolbar {
                 ToolbarItemGroup(placement: .primaryAction) {
-                    Picker("对比模式", selection: $compareMode) {
-                        ForEach(CompareMode.allCases) { mode in Text(mode.rawValue).tag(mode) }
-                    }
-                    .pickerStyle(.segmented)
-                    .help("对比模式")
-
                     Button {
                         showCanvasConfig.toggle()
                     } label: {
                         Label("画布", systemImage: "slider.horizontal.3")
                     }
-                    .popover(isPresented: $showCanvasConfig) {
+                    .popoverAdaptive(isPresented: $showCanvasConfig) {
                         CanvasConfigPanel(config: $config)
                     }
 
@@ -61,7 +57,7 @@ struct CompareDetailView: View {
                     } label: {
                         Label("主题", systemImage: "paintpalette")
                     }
-                    .popover(isPresented: $showTheme) {
+                    .popoverAdaptive(isPresented: $showTheme, macOSWidth: 240) {
                         themePopover
                     }
                     .disabled(example.themeVariants != nil)
@@ -81,6 +77,7 @@ struct CompareDetailView: View {
                 )
             }
     }
+
     /// 隐藏快捷键按钮组（全局键盘快捷键，macOS 生效；iOS 无键盘无害）
     /// cmd+K 画布 / cmd+T 主题 / cmd+D 调试 / cmd+0,1,2 对比模式
     /// 注：plan cmd+, 与 macOS Settings 冲突，改 cmd+K
@@ -97,7 +94,6 @@ struct CompareDetailView: View {
         .opacity(0)
         .frame(width: 0, height: 0)
     }
-
 
     // MARK: - 布局
 
@@ -124,6 +120,8 @@ struct CompareDetailView: View {
     private var compareLayout: some View {
         VStack(spacing: 0) {
             noteBanner
+            compareModePicker
+            Divider()
             if useSideBySide {
                 HStack(spacing: 0) {
                     labeledPanel("原生", systemImage: "text.alignleft", content: nativePanel)
@@ -139,6 +137,16 @@ struct CompareDetailView: View {
                 }
             }
         }
+    }
+
+    /// 对比模式切换（从 toolbar 移到内容区顶部，避免 iOS toolbar 挤占 title）
+    private var compareModePicker: some View {
+        Picker("对比模式", selection: $compareMode) {
+            ForEach(CompareMode.allCases) { mode in Text(mode.rawValue).tag(mode) }
+        }
+        .pickerStyle(.segmented)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
     }
 
     @ViewBuilder
@@ -172,7 +180,7 @@ struct CompareDetailView: View {
             .padding(.vertical, 4)
         }
         .padding(16)
-        .frame(width: 220)
+        .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder
@@ -243,7 +251,6 @@ struct CompareDetailView: View {
     private func render() {
         do {
             if let themes = example.themeVariants, !themes.isEmpty {
-                // themeVariants 用例：忽略 themeOverride，用 example 自带变体
                 variantsThemes = themes
                 nativeVariants = try DemoRenderer.renderVariants(example: example, config: config)
                 nativeAttr = nil

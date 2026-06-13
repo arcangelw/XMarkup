@@ -18,7 +18,7 @@ struct CanvasConfigPanel: View {
                 .buttonStyle(.bordered)
         }
         .padding(16)
-        .frame(width: 280)
+        .frame(maxWidth: 360)
     }
 
     private func row(_ title: String, value: Binding<CGFloat>, range: ClosedRange<CGFloat>, step: CGFloat) -> some View {
