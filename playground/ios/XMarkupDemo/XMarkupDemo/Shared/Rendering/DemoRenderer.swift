@@ -19,13 +19,15 @@ import AppKit
 public enum DemoRenderer {
 
     /// 渲染单个示例为 NSAttributedString
+    /// - Parameter theme: 外部主题覆盖（P2-1 主题切换 popover 用）；nil 时回退 example.themeOverride ?? .default
     public static func render(
         example: DemoExample,
-        config: DemoCanvasConfig
+        config: DemoCanvasConfig,
+        theme override: MarkupTheme? = nil
     ) throws -> NSAttributedString {
         let document = try parse(example)
         // MarkupTheme 是 struct（值语义），baseFont 赋值不污染共享 .default
-        var theme = example.themeOverride ?? .default
+        var theme = override ?? example.themeOverride ?? .default
         theme.baseFont = config.baseFont
         return document.render(theme: theme)
     }
