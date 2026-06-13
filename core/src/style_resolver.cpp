@@ -407,9 +407,9 @@ void StyleResolver::add_style_spans(const std::string& style_str, uint32_t start
             if (imp != std::string::npos) {
                 std::string suffix = val.substr(imp);
                 for (auto& c : suffix) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-                size_t start = 0;
-                while (start < suffix.size() && (suffix[start] == ' ' || suffix[start] == '\t')) start++;
-                if (suffix.substr(start) == "!important") {
+                size_t lead = 0; // 前导空白跳过量（避免遮蔽外层 span start 参数）
+                while (lead < suffix.size() && (suffix[lead] == ' ' || suffix[lead] == '\t')) lead++;
+                if (suffix.substr(lead) == "!important") {
                     val = val.substr(0, imp);
                     while (!val.empty() && isspace(static_cast<unsigned char>(val.back()))) val.pop_back();
                 }

@@ -88,9 +88,9 @@ private:
     /** @brief 是否到达输入末尾 */
     bool is_eof() const;
     /** @brief 判断是否为 ASCII 字母 */
-    bool is_alpha(char c) const;
+    static bool is_alpha(char c);
     /** @brief 判断是否为空白字符（空格、制表、换行、回车、换页） */
-    bool is_whitespace(char c) const;
+    static bool is_whitespace(char c);
 
     /**
      * @brief 跳过原始文本内容（用于 script/style/noscript/textarea/title）

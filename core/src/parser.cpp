@@ -64,6 +64,7 @@ XMResult* ParserInternal::parse(const char* html, size_t length) {
     std::string_view html_view(html, length);
     Tokenizer tokenizer(html_view);
     std::vector<Token> tokens;
+    tokens.reserve(length / 8 + 8); // 粗略预估，减少 realloc
     while (tokenizer.has_next()) {
         tokens.push_back(tokenizer.next());
     }

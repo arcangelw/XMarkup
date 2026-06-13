@@ -225,7 +225,8 @@ Token Tokenizer::next() {
 
             // 到达 EOF 但标签未闭合——回退将未闭合标签当作 token 产出
             {
-                // 回溯找到 '<' 的位置
+                // 回溯定位 '<'：进入 TAG_NAME 前已消费 '<'（开始标签在 name_start-1，
+                // 结束标签在 name_start-2），回溯至多 2 步，O(1)。
                 size_t lt_pos = name_start;
                 while (lt_pos > 0 && html_[lt_pos - 1] != '<') lt_pos--;
                 if (lt_pos > 0) lt_pos--; // 指向 '<'
@@ -249,6 +250,8 @@ Token Tokenizer::next() {
         emit_tag_token:
             // pos_ 指向 '>'，组装完整的标签 token
             {
+                // 回溯定位 '<'：进入 TAG_NAME 前已消费 '<'（开始标签在 name_start-1，
+                // 结束标签在 name_start-2），回溯至多 2 步，O(1)。
                 size_t lt_pos = name_start;
                 while (lt_pos > 0 && html_[lt_pos - 1] != '<') lt_pos--;
                 if (lt_pos > 0) lt_pos--;
@@ -340,11 +343,11 @@ bool Tokenizer::is_eof() const {
     return pos_ >= html_.size();
 }
 
-bool Tokenizer::is_alpha(char c) const {
+bool Tokenizer::is_alpha(char c) {
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
 }
 
-bool Tokenizer::is_whitespace(char c) const {
+bool Tokenizer::is_whitespace(char c) {
     return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f';
 }
 
