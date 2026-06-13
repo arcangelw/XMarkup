@@ -10,6 +10,8 @@ struct NativeTextRepresentable: UIViewRepresentable {
 
     func makeUIView(context: Context) -> UITextView {
         let tv = UITextView()
+        tv.linkTextAttributes = [:]
+        tv.typingAttributes = [:]
         tv.isEditable = false
         tv.isSelectable = true
         tv.isScrollEnabled = true
@@ -37,6 +39,8 @@ struct NativeTextRepresentable: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSScrollView {
         let tv = NSTextView()
+        tv.typingAttributes = [:]
+        tv.linkTextAttributes = [:]
         tv.isEditable = false
         tv.isSelectable = true
         tv.isRichText = true

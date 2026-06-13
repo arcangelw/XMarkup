@@ -29,6 +29,8 @@ public enum DemoRenderer {
         // MarkupTheme 是 struct（值语义），baseFont 赋值不污染共享 .default
         var theme = override ?? example.themeOverride ?? .default
         theme.baseFont = config.baseFont
+        // 对齐 Web a color #0066CC（Demo 原生=Web 对比基准）
+        if theme.link.textColor == nil { theme.link.textColor = DemoPalette.linkColor }
         return document.render(theme: theme)
     }
 
@@ -42,6 +44,7 @@ public enum DemoRenderer {
         return themes.map { theme -> NSAttributedString in
             var t = theme
             t.baseFont = config.baseFont
+            if t.link.textColor == nil { t.link.textColor = DemoPalette.linkColor }
             return document.render(theme: t)
         }
     }
