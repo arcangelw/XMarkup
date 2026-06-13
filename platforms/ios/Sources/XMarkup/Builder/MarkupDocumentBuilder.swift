@@ -24,7 +24,7 @@ extension MarkupDocument {
         let spans = result.spans
 
         guard !text.isEmpty else {
-            return MarkupDocument(blocks: [])
+            return MarkupDocument(blocks: [], source: result)
         }
 
         // 块级 tag 集合
@@ -53,12 +53,12 @@ extension MarkupDocument {
             let nsRange = NSRange(location: 0, length: (text as NSString).length)
             let inlines = convertToInlines(inlineSpans, in: text, parentRange: nsRange)
             let inlineNodes = InlineTreeBuilder.build(from: text.trimmingTrailingNewlines, inlines: inlines)
-            return MarkupDocument(blocks: [.paragraph(inlineNodes)])
+            return MarkupDocument(blocks: [.paragraph(inlineNodes)], source: result)
         }
 
         // 将扁平 MarkupBlock[] 转换为结构化 BlockNode[]
         let blockNodes = buildStructuredNodes(from: blocks)
-        return MarkupDocument(blocks: blockNodes)
+        return MarkupDocument(blocks: blockNodes, source: result)
     }
 }
 

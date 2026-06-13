@@ -24,9 +24,25 @@ public struct MarkupDocument: Sendable, Equatable {
     /// 文档元数据
     public let metadata: DocumentMetadata
 
-    public init(blocks: [BlockNode], metadata: DocumentMetadata = DocumentMetadata()) {
+    /// 原始解析结果（text + spans），调试 / Demo 检查用
+    ///
+    /// `from(XMarkupResult)` 时保留，供上层（如 Demo Span 面板）展示原始解析数据。
+    /// 不参与 `==` 比较（调试辅助，非文档结构）。
+    public let source: XMarkupResult?
+
+    public init(
+        blocks: [BlockNode],
+        metadata: DocumentMetadata = DocumentMetadata(),
+        source: XMarkupResult? = nil
+    ) {
         self.blocks = blocks
         self.metadata = metadata
+        self.source = source
+    }
+
+    /// 等价仅比较 blocks + metadata（source 为调试辅助，不参与）
+    public static func == (lhs: MarkupDocument, rhs: MarkupDocument) -> Bool {
+        lhs.blocks == rhs.blocks && lhs.metadata == rhs.metadata
     }
 
     // MARK: - 便利初始化
@@ -80,7 +96,14 @@ public struct MarkupDocument: Sendable, Equatable {
     // MARK: - Document Operations
 
     /// 追加内容（聊天场景）
+    ///
+    /// source 合并：text 直接拼接，rhs 的 spans 按 lhs.text 的 UTF-16 码元数偏移，
+    /// 保持与 NSString/NSAttributedString 索引体系一致（XMarkupSpan.range 为 UTF-16）。
     public func appending(_ other: MarkupDocument) -> MarkupDocument {
-        MarkupDocument(blocks: blocks + other.blocks, metadata: metadata)
+        MarkupDocument(
+            blocks: blocks + other.blocks,
+            metadata: metadata,
+            source: XMarkupResult.merged(lhs: source, rhs: other.source)
+        )
     }
 }

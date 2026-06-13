@@ -51,3 +51,24 @@ public struct XMarkupResult: Sendable {
         return XMarkupResult(text: text, spans: spans)
     }
 }
+
+extension XMarkupResult {
+    /// 合并两解析结果（`MarkupDocument.appending` 用）
+    ///
+    /// text 直接拼接；rhs 的 spans 按 `lhs.text` 的 UTF-16 码元数整体偏移，
+    /// 与 XMarkupSpan.range（UTF-16 索引）保持一致。
+    static func merged(lhs: XMarkupResult?, rhs: XMarkupResult?) -> XMarkupResult? {
+        guard let lhs else { return rhs }
+        guard let rhs else { return lhs }
+        let offset = lhs.text.utf16.count
+        let shifted = rhs.spans.map { span in
+            XMarkupSpan(
+                range: NSRange(location: span.range.location + offset, length: span.range.length),
+                tag: span.tag,
+                style: span.style,
+                value: span.value
+            )
+        }
+        return XMarkupResult(text: lhs.text + rhs.text, spans: lhs.spans + shifted)
+    }
+}
