@@ -56,6 +56,17 @@ TEST_F(APITest, NullParser) {
     EXPECT_EQ(result, nullptr);
 }
 
+TEST_F(APITest, RejectsOversizedInput) {
+    // length > UINT32_MAX → 拒绝（offset 体系上限 4GiB），html 不被解引用
+    auto* r = xmarkup_parse(parser_, "x", static_cast<size_t>(UINT32_MAX) + 1);
+    EXPECT_EQ(r, nullptr);
+    EXPECT_EQ(xmarkup_last_error(parser_), XM_ERR_INPUT_TOO_LARGE);
+}
+
+TEST_F(APITest, ErrorStringInputTooLarge) {
+    EXPECT_STREQ(xmarkup_error_string(XM_ERR_INPUT_TOO_LARGE), "Input too large (>4GiB)");
+}
+
 // === 文本样式 ===
 
 TEST_F(APITest, ItalicTag) {

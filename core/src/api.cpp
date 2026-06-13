@@ -79,6 +79,7 @@ const char* xmarkup_error_string(XMError error) {
         case XM_ERR_NULL_INPUT:       return "Input HTML is NULL";
         case XM_ERR_NESTING_OVERFLOW: return "Nesting depth overflow, truncated";
         case XM_ERR_ALLOC_FAILED:     return "Memory allocation failed";
+        case XM_ERR_INPUT_TOO_LARGE:  return "Input too large (>4GiB)";
         default:                      return "Unknown error";
     }
 }

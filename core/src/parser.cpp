@@ -31,6 +31,13 @@ namespace xmarkup {
  * - 每次调用 clear() 上一轮数据，XMResult 指针在下一次 parse 前有效
  */
 XMResult* ParserInternal::parse(const char* html, size_t length) {
+    // 超长输入拒绝：offset 体系（uint32）上限 4GiB，超出会回绕。
+    // 校验在 html 解引用前，调用者无需提供真实缓冲区。
+    if (length > UINT32_MAX) {
+        last_error = XM_ERR_INPUT_TOO_LARGE;
+        return nullptr;
+    }
+
     // 输入校验
     if (!html && length > 0) {
         last_error = XM_ERR_NULL_INPUT;

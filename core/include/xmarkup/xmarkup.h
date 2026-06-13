@@ -132,6 +132,7 @@ typedef enum XMError {
     XM_ERR_NULL_INPUT       = -2, /**< 输入 HTML 为 NULL */
     XM_ERR_NESTING_OVERFLOW = -3, /**< 嵌套深度超限，已截断 */
     XM_ERR_ALLOC_FAILED     = -4, /**< 内存分配失败 */
+    XM_ERR_INPUT_TOO_LARGE  = -5, /**< 输入超 4GiB（uint32 offset 体系上限） */
 } XMError;
 
 /**
