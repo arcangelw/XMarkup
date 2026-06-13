@@ -18,6 +18,7 @@ struct CompareDetailView: View {
     @State private var nativeVariants: [NSAttributedString]?
     @State private var variantsThemes: [MarkupTheme]?
     @State private var error: String?
+    @State private var document: MarkupDocument?
     @State private var showDebug = false
     @State private var showCanvasConfig = false
     @State private var showTheme = false
@@ -73,6 +74,7 @@ struct CompareDetailView: View {
             .sheet(isPresented: $showDebug) {
                 DebugDrawer(
                     example: example,
+                    document: document,
                     attributedString: nativeAttr ?? nativeVariants?.first
                 )
             }
@@ -250,12 +252,14 @@ struct CompareDetailView: View {
 
     private func render() {
         do {
+            let doc = try DemoRenderer.parse(example)
+            document = doc
             if let themes = example.themeVariants, !themes.isEmpty {
                 variantsThemes = themes
-                nativeVariants = try DemoRenderer.renderVariants(example: example, config: config)
+                nativeVariants = DemoRenderer.renderVariants(document: doc, config: config, themes: themes)
                 nativeAttr = nil
             } else {
-                nativeAttr = try DemoRenderer.render(example: example, config: config, theme: themeOverride)
+                nativeAttr = DemoRenderer.render(document: doc, config: config, theme: themeOverride ?? example.themeOverride)
                 nativeVariants = nil
                 variantsThemes = nil
             }

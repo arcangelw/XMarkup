@@ -1,13 +1,15 @@
 import SwiftUI
 import XMarkup
 
-/// 调试抽屉（设计规格 §6.5）— 源码 / 属性区间 / 引擎日志 三 Tab
+/// 调试抽屉（设计规格 §6.5）— 源码 / 解析(Span) / 属性区间 / 日志 四 Tab
 ///
 /// - 源码：example.html（+ appendHTML）原文
-/// - 属性：渲染后 NSAttributedString 的属性区间（font/color/下划线…）
+/// - 解析：MarkupDocument.source（XMarkupResult.text + spans）— 原始解析数据
+/// - 属性：渲染后 NSAttributedString 的属性区间
 /// - 日志：LogCollector 接 XMarkupParser 收集引擎内部日志（trace 级）
 struct DebugDrawer: View {
     let example: DemoExample
+    let document: MarkupDocument?
     let attributedString: NSAttributedString?
 
     @StateObject private var logger = LogCollector()
@@ -15,6 +17,7 @@ struct DebugDrawer: View {
 
     private enum DebugTab: String, CaseIterable, Identifiable {
         case source = "源码"
+        case parsed = "解析"
         case attributes = "属性"
         case logs = "日志"
         var id: String { rawValue }
@@ -48,6 +51,8 @@ struct DebugDrawer: View {
         switch selectedTab {
         case .source:
             SourcePanel(example: example)
+        case .parsed:
+            ParsedPanel(source: document?.source)
         case .attributes:
             AttributesPanel(attributedString: attributedString)
         case .logs:
@@ -67,7 +72,6 @@ struct DebugDrawer: View {
 
 private struct SourcePanel: View {
     let example: DemoExample
-
     var body: some View {
         ScrollView {
             (
@@ -78,6 +82,63 @@ private struct SourcePanel: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(16)
             .textSelection(.enabled)
+        }
+    }
+}
+
+// MARK: - 解析（XMarkupResult: text + spans）
+
+private struct ParsedPanel: View {
+    let source: XMarkupResult?
+
+    var body: some View {
+        if let source {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("纯文本（\(source.text.count) 字符）")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        Text(source.text.isEmpty ? "（空）" : source.text)
+                            .font(.system(.caption, design: .monospaced))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(8)
+                            .background(.secondary.opacity(0.08), in: .rect(cornerRadius: 6))
+                            .textSelection(.enabled)
+                    }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Span 区间（\(source.spans.count) 个，UTF-16 索引）")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        if source.spans.isEmpty {
+                            Text("（无 span）").font(.caption2).foregroundStyle(.secondary)
+                        } else {
+                            ForEach(Array(source.spans.enumerated()), id: \.offset) { _, span in
+                                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                                    Text("[\(span.range.location)–\(span.range.location + span.range.length)]")
+                                        .font(.caption2.monospacedDigit())
+                                        .foregroundStyle(.secondary)
+                                    Text(String(describing: span.tag))
+                                        .font(.caption2.weight(.medium))
+                                        .foregroundStyle(.tint)
+                                    if let value = span.value {
+                                        Text("→ \(value)")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                            .truncationMode(.middle)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        } else {
+            EmptyHint(text: "无解析结果")
         }
     }
 }
@@ -115,20 +176,14 @@ private struct AttributesPanel: View {
         }
     }
 
-    private struct Segment {
-        let range: NSRange
-        let text: String
-        let keys: String
-    }
+    private struct Segment { let range: NSRange; let text: String; let keys: String }
 
     private func segments(_ attr: NSAttributedString) -> [Segment] {
         var out: [Segment] = []
         attr.enumerateAttributes(in: NSRange(location: 0, length: attr.length)) { attrs, range, _ in
             let raw = attr.attributedSubstring(from: range).string
             let text = raw.replacingOccurrences(of: "\n", with: " ↵ ")
-            let keys = attrs.isEmpty
-                ? "（默认）"
-                : attrs.keys.map(keyName).sorted().joined(separator: " · ")
+            let keys = attrs.isEmpty ? "（默认）" : attrs.keys.map(keyName).sorted().joined(separator: " · ")
             out.append(Segment(range: range, text: text, keys: keys))
         }
         return out
@@ -162,13 +217,10 @@ private struct LogsPanel: View {
                 if logger.isParsing { ProgressView().scaleEffect(0.6) }
                 if let ms = logger.parseDurationMs {
                     Text("耗时 \(String(format: "%.1f", ms)) ms")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
-                Text("\(logger.entries.count) 条")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text("\(logger.entries.count) 条").font(.caption).foregroundStyle(.secondary)
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
             Divider()
@@ -196,21 +248,10 @@ private struct LogsPanel: View {
     }
 
     private func label(_ level: XMarkupLogLevel) -> String {
-        switch level {
-        case .error: return "ERROR"
-        case .warn: return "WARN"
-        case .info: return "INFO"
-        case .trace: return "TRACE"
-        }
+        switch level { case .error: return "ERROR"; case .warn: return "WARN"; case .info: return "INFO"; case .trace: return "TRACE" }
     }
-
     private func color(_ level: XMarkupLogLevel) -> Color {
-        switch level {
-        case .error: return .red
-        case .warn: return .orange
-        case .info: return .blue
-        case .trace: return .secondary
-        }
+        switch level { case .error: return .red; case .warn: return .orange; case .info: return .blue; case .trace: return .secondary }
     }
 }
 
@@ -219,11 +260,6 @@ private struct LogsPanel: View {
 private struct EmptyHint: View {
     let text: String
     var body: some View {
-        VStack {
-            Spacer()
-            Text(text).foregroundStyle(.secondary)
-            Spacer()
-        }
-        .frame(maxWidth: .infinity)
+        VStack { Spacer(); Text(text).foregroundStyle(.secondary); Spacer() }.frame(maxWidth: .infinity)
     }
 }
