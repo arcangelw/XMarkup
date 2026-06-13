@@ -139,6 +139,9 @@ typedef enum XMError {
  *
  * 表示 span 在解析结果文本中的起止位置，使用 UTF-16 编码单元索引。
  * 适用于 iOS (NSString length) / Android (CharSequence) 等平台的文本定位。
+ *
+ * @warning start/end 为 uint32_t，文本上限约 4 GiB（UTF-16 单元）。超出时
+ *          索引回绕，当前设计不处理超长输入（实际 HTML 不会达到此量级）。
  */
 typedef struct XMRange {
     uint32_t start; /**< 区间起始（含），UTF-16 索引 */
@@ -186,7 +189,7 @@ typedef struct XMSpan {
 typedef struct XMResult {
     XMError       error;      /**< 错误码，XM_OK 表示成功 */
     const char*   text;       /**< 解析后的纯文本（UTF-8 编码） */
-    uint32_t      text_len;   /**< text 的字节长度（不含终止符） */
+    uint32_t      text_len;   /**< text 的字节长度（不含终止符），上限约 4 GiB（uint32_t） */
     const XMSpan* spans;      /**< 样式区间数组 */
     uint32_t      span_count; /**< spans 数组长度 */
 } XMResult;
