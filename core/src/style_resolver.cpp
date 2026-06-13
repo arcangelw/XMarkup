@@ -545,6 +545,8 @@ void StyleResolver::extract_attribute_value(std::string_view attrs, const char* 
             while (val_end < attrs.size() && !isspace(static_cast<unsigned char>(attrs[val_end]))) val_end++;
             out_value = std::string(attrs.substr(eq_pos, val_end - eq_pos));
         }
+        // 属性值中的 HTML 实体应解码（HTML5 §12.2.5.5 字符引用）
+        out_value = EntityDecoder::decode(out_value);
         return;
     }
 }

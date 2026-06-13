@@ -971,3 +971,43 @@ TEST_F(StyleResolverTest, VideoBooleanAttributes) {
     }
     EXPECT_TRUE(found) << "布尔属性后的 src 属性应被正确提取";
 }
+
+// ============================================================
+// Code Review 修复：属性值 HTML 实体解码（🔴#1）
+// ============================================================
+
+TEST_F(StyleResolverTest, AttributeValueEntityDecodingHref) {
+    // href 中的 &amp; 应解码为 &
+    auto r = resolve("<a href=\"search?q=1&amp;page=2\">link</a>");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.tag == XM_TAG_LINK) {
+            found = true;
+            EXPECT_EQ(s.value, "search?q=1&page=2") << "&amp; 应解码为 &";
+        }
+    }
+    EXPECT_TRUE(found);
+}
+
+TEST_F(StyleResolverTest, AttributeValueEntityDecodingNumeric) {
+    // 数字实体 &#x26; → '&'
+    auto r = resolve("<a href=\"x&#x26;y\">link</a>");
+    bool found = false;
+    for (auto& s : r.spans) {
+        if (s.tag == XM_TAG_LINK) {
+            found = true;
+            EXPECT_EQ(s.value, "x&y");
+        }
+    }
+    EXPECT_TRUE(found);
+}
+
+TEST_F(StyleResolverTest, AttributeValueEntityDecodingImgSrc) {
+    auto r = resolve("<img src=\"a&nbsp;b.png\">");
+    for (auto& s : r.spans) {
+        if (s.tag == XM_TAG_IMAGE) {
+            // &nbsp; = U+00A0 = UTF-8 C2 A0
+            EXPECT_EQ(s.value, "a\xC2\xA0""b.png") << "&nbsp; 应解码为 U+00A0";
+        }
+    }
+}
