@@ -11,6 +11,8 @@ public enum XMarkupError: Error, Sendable, Equatable {
     case nestingOverflow
     /// 内存分配失败
     case allocationFailed
+    /// 输入超 4GiB（uint32 offset 体系上限）
+    case inputTooLarge
     /// 未知错误，保留原始错误码
     case unknown(code: Int32)
 
@@ -21,6 +23,7 @@ public enum XMarkupError: Error, Sendable, Equatable {
         case XM_ERR_NULL_INPUT: self = .nullInput
         case XM_ERR_NESTING_OVERFLOW: self = .nestingOverflow
         case XM_ERR_ALLOC_FAILED: self = .allocationFailed
+        case XM_ERR_INPUT_TOO_LARGE: self = .inputTooLarge
         default: self = .unknown(code: Int32(truncatingIfNeeded: cError.rawValue))
         }
     }
@@ -33,6 +36,7 @@ public enum XMarkupError: Error, Sendable, Equatable {
         case .nullInput:       cError = XM_ERR_NULL_INPUT
         case .nestingOverflow: cError = XM_ERR_NESTING_OVERFLOW
         case .allocationFailed: cError = XM_ERR_ALLOC_FAILED
+        case .inputTooLarge:    cError = XM_ERR_INPUT_TOO_LARGE
         case .unknown(let code):
             return "XMarkupError.unknown(code: \(code))"
         }
