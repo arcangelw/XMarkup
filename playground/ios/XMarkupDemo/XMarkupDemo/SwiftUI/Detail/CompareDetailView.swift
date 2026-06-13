@@ -38,6 +38,7 @@ struct CompareDetailView: View {
             .task(id: example.id) { render() }
             .onChange(of: config) { _ in render() }
             .onChange(of: themeOverride) { _ in render() }
+            .background(shortcutButtons)
             .toolbar {
                 ToolbarItemGroup(placement: .primaryAction) {
                     Picker("对比模式", selection: $compareMode) {
@@ -80,6 +81,23 @@ struct CompareDetailView: View {
                 )
             }
     }
+    /// 隐藏快捷键按钮组（全局键盘快捷键，macOS 生效；iOS 无键盘无害）
+    /// cmd+K 画布 / cmd+T 主题 / cmd+D 调试 / cmd+0,1,2 对比模式
+    /// 注：plan cmd+, 与 macOS Settings 冲突，改 cmd+K
+    @ViewBuilder
+    private var shortcutButtons: some View {
+        Group {
+            Button("画布配置") { showCanvasConfig.toggle() }.keyboardShortcut("k", modifiers: .command)
+            Button("主题") { showTheme.toggle() }.keyboardShortcut("t", modifiers: .command)
+            Button("调试") { showDebug.toggle() }.keyboardShortcut("d", modifiers: .command)
+            Button("自动对比") { compareMode = .auto }.keyboardShortcut("0", modifiers: .command)
+            Button("并排对比") { compareMode = .sideBySide }.keyboardShortcut("1", modifiers: .command)
+            Button("堆叠对比") { compareMode = .stacked }.keyboardShortcut("2", modifiers: .command)
+        }
+        .opacity(0)
+        .frame(width: 0, height: 0)
+    }
+
 
     // MARK: - 布局
 
